@@ -1,0 +1,12 @@
+**/*.log
+**/.env
+**/.dockerignore
+**/.git
+**/.gitignore
+**/.vscode
+**/docker-compose*
+**/Dockerfile*
+/target
+/data
+/logs
+README.md

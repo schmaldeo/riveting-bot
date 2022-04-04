@@ -1,0 +1,13 @@
+version: "3.4"
+
+services:
+  app:
+    image: samzyre/riveting-bot
+    container_name: riveting-bot
+    environment:
+      - DISCORD_TOKEN=${DISCORD_TOKEN:?discord token not set}
+    volumes:
+      - ./data:/data
+    build:
+      context: .
+      dockerfile: ./Dockerfile
