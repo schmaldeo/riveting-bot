@@ -4,7 +4,7 @@ use std::str::SplitWhitespace;
 use thiserror::Error;
 use twilight_cache_inmemory::UpdateCache;
 use twilight_model::channel::{ChannelType, Message};
-use twilight_model::gateway::payload::incoming::RoleUpdate;
+use twilight_model::gateway::payload::incoming::{ChannelUpdate, RoleUpdate};
 use twilight_model::guild::Permissions;
 use twilight_util::permission_calculator::PermissionCalculator;
 
@@ -173,13 +173,35 @@ impl ChatCommands {
 
         // Get channel specific permission overwrites.
         let overwrites = match ctx.cache.channel(msg.channel_id) {
-            Some(c) => c.permission_overwrites.to_owned(),
+            Some(c) => {
+                // Use cached channel for permissions.
+                debug!(
+                    "Using cached channel for '{}'",
+                    c.name
+                        .as_ref()
+                        .map(Into::into)
+                        .unwrap_or_else(|| c.id.to_string())
+                );
+
+                c.permission_overwrites.to_owned()
+            }
             None => {
-                ctx.http
-                    .channel(msg.channel_id)
-                    .send()
-                    .await?
-                    .permission_overwrites
+                // Fetch channel for permissions from the http client.
+                let fetch = ctx.http.channel(msg.channel_id).send().await?;
+
+                debug!(
+                    "Fetching channel with http for '{}'",
+                    fetch
+                        .name
+                        .as_ref()
+                        .map(Into::into)
+                        .unwrap_or_else(|| fetch.id.to_string())
+                );
+
+                // Manually update the cache.
+                ctx.cache.update(&ChannelUpdate(fetch.clone()));
+
+                fetch.permission_overwrites
             }
         }
         .unwrap_or_default();
