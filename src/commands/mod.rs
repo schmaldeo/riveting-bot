@@ -68,7 +68,7 @@ impl ChatCommands {
         #[cfg(feature = "owner-commands")]
         list.extend([("shutdown", owner::Shutdown::boxed())]);
 
-        // #[cfg(feature = "bulk-delete")]
+        #[cfg(feature = "bulk-delete")]
         list.extend([("delete-messages", admin::DeleteMessages::boxed())]);
 
         Self {

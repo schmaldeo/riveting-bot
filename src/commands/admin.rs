@@ -102,23 +102,36 @@ impl CommandFunction for DeleteMessages {
     ) -> AnyResult<()> {
         const TWO_WEEKS_SECS: i64 = 60 * 60 * 24 * 7 * 2;
 
+        let two_weeks_ago = msg.timestamp.as_secs() - TWO_WEEKS_SECS;
+
+        // Fetch and filter messages that are not older than two weeks.
         let msgs: Vec<_> = ctx
             .http
             .channel_messages(msg.channel_id)
             .around(msg.id)
             .limit(100)
-            .unwrap()
+            .expect("Invalid message limit")
             .send()
             .await?
             .into_iter()
-            .filter(|m| msg.timestamp.as_secs() - m.timestamp.as_secs() < TWO_WEEKS_SECS)
+            .filter(|m| two_weeks_ago < m.timestamp.as_secs())
             .map(|m| m.id)
             .collect();
 
-        ctx.http
-            .delete_messages(msg.channel_id, &msgs)
-            .exec()
-            .await?;
+        // Delete the messages.
+        if msgs.len() > 1 {
+            // Bulk delete must have 2 to 100 messages.
+            ctx.http
+                .delete_messages(msg.channel_id, &msgs)
+                .exec()
+                .await?;
+        } else {
+            // Delete only the sent message itself.
+            ctx.http
+                .delete_message(msg.channel_id, msg.id)
+                .exec()
+                .await?;
+        }
 
         Ok(())
     }
