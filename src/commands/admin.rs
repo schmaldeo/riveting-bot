@@ -4,8 +4,9 @@ use twilight_model::application::component::button::ButtonStyle;
 use twilight_model::application::component::{ActionRow, Button, Component};
 use twilight_model::channel::message::MessageFlags;
 use twilight_model::channel::{Message, ReactionType};
+use twilight_model::guild::Permissions;
 
-use crate::commands::CommandFunction;
+use crate::commands::{CommandAccess, CommandFunction};
 use crate::utils::*;
 use crate::Context;
 
@@ -15,6 +16,8 @@ pub struct Roles;
 
 #[async_trait]
 impl CommandFunction for Roles {
+    super::admin_permissions!();
+
     async fn execute(
         &self,
         ctx: &Context,
@@ -94,6 +97,8 @@ pub struct DeleteMessages;
 
 #[async_trait]
 impl CommandFunction for DeleteMessages {
+    super::admin_permissions!();
+
     async fn execute(
         &self,
         ctx: &Context,

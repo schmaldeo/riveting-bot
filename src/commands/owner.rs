@@ -12,6 +12,10 @@ pub struct Shutdown;
 
 #[async_trait]
 impl CommandFunction for Shutdown {
+    super::dm_enabled!();
+
+    super::owner_permissions!();
+
     async fn execute(
         &self,
         ctx: &Context,
