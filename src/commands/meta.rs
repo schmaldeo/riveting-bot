@@ -1,28 +1,37 @@
-use std::str::SplitWhitespace;
-
-use twilight_model::channel::Message;
-
-use crate::commands::CommandFunction;
+use crate::commands::{CommandContext, CommandResult};
 use crate::utils::*;
-use crate::Context;
 
 /// Command: Ping Pong!
-#[derive(Debug, Default)]
-pub struct Ping;
+pub async fn ping(cc: CommandContext<'_>) -> CommandResult {
+    cc.http
+        .create_message(cc.msg.channel_id)
+        .reply(cc.msg.id)
+        .content("Pong!")?
+        .send()
+        .await?;
+    Ok(())
+}
 
-#[async_trait]
-impl CommandFunction for Ping {
-    async fn execute(
-        &self,
-        ctx: &Context,
-        msg: &Message,
-        _args: SplitWhitespace<'_>,
-    ) -> AnyResult<()> {
-        ctx.http
-            .create_message(msg.channel_id)
-            .content("Pong!")?
-            .exec()
-            .await?;
-        Ok(())
-    }
+/// Command: Info about the bot.
+pub async fn about(cc: CommandContext<'_>) -> CommandResult {
+    let about_msg = "I am a RivetingBot";
+    cc.http
+        .create_message(cc.msg.channel_id)
+        .reply(cc.msg.id)
+        .content(about_msg)?
+        .send()
+        .await?;
+    Ok(())
+}
+
+/// Command: Help for using the bot, commands and usage.
+pub async fn help(cc: CommandContext<'_>) -> CommandResult {
+    let help_msg = format!("{}", cc.chat_commands);
+    cc.http
+        .create_message(cc.msg.channel_id)
+        .reply(cc.msg.id)
+        .content(&help_msg)?
+        .send()
+        .await?;
+    Ok(())
 }

@@ -1,38 +1,18 @@
-use std::str::SplitWhitespace;
-
-use twilight_model::channel::Message;
-
-use crate::commands::CommandFunction;
+use crate::commands::{CommandContext, CommandResult};
 use crate::utils::*;
-use crate::Context;
 
 /// Command: Disconnect and shut down the bot.
-#[derive(Debug, Default)]
-pub struct Shutdown;
+pub async fn shutdown(cc: CommandContext<'_>) -> CommandResult {
+    info!("Shutting down by chat command");
 
-#[async_trait]
-impl CommandFunction for Shutdown {
-    super::dm_enabled!();
+    cc.http
+        .create_message(cc.msg.channel_id)
+        .content("Shutting down...")?
+        .send()
+        .await?;
 
-    super::owner_permissions!();
+    // Shut down the cluster, sessions will not be resumable.
+    cc.cluster.down();
 
-    async fn execute(
-        &self,
-        ctx: &Context,
-        msg: &Message,
-        _args: SplitWhitespace<'_>,
-    ) -> AnyResult<()> {
-        info!("Shutting down by chat command");
-
-        ctx.http
-            .create_message(msg.channel_id)
-            .content("Shutting down...")?
-            .send()
-            .await?;
-
-        // Shut down the cluster, sessions will not be resumable.
-        ctx.cluster.down();
-
-        Ok(())
-    }
+    Ok(())
 }
