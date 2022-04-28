@@ -173,6 +173,7 @@ async fn handle_shard_connected(_ctx: &Context, connected: Connected) -> AnyResu
 }
 
 async fn handle_ready(_ctx: &Context, ready: Ready) -> AnyResult<()> {
+    println!("Ready: '{}'", ready.user.name);
     info!("Ready: '{}'", ready.user.name);
 
     Ok(())
