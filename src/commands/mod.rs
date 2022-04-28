@@ -22,6 +22,7 @@ pub mod meta;
 pub mod user;
 
 /// Administrator comands.
+#[cfg(feature = "admin-commands")]
 pub mod admin;
 
 /// Bot owner only commands.
@@ -91,12 +92,11 @@ pub enum CommandAccess {
 }
 
 pub struct ChatCommands {
-    pub prefix: String,
     pub list: HashMap<&'static str, Command>,
 }
 
 impl ChatCommands {
-    pub fn new(prefix: &str) -> Self {
+    pub fn new() -> Self {
         // Create the commands list and add commands to it.
         let mut list = HashMap::new();
 
@@ -113,15 +113,20 @@ impl ChatCommands {
                 .sub(command!(user::voice::join))
                 .sub(command!(user::voice::leave))
                 .named(),
+            command!(user::muter::muter)
+                .sub(command!(user::muter::timeout))
+                .named(),
         ]);
 
         // Moderation functionality.
         #[cfg(feature = "admin-commands")]
-        list.extend([command!(admin; admin::roles).named()]);
-        list.extend([command!(admin; admin::config::config)
-            .sub(command!(admin; admin::config::get))
-            .sub(command!(admin; admin::config::set))
-            .named()]);
+        list.extend([
+            command!(admin; admin::roles).named(),
+            command!(admin; admin::config::config)
+                .sub(command!(admin; admin::config::get))
+                .sub(command!(admin; admin::config::set))
+                .named(),
+        ]);
 
         #[cfg(feature = "bulk-delete")] // Separate from `admin-commands` feature, because yes.
         list.extend([command!(admin; "delete-messages", admin::delete_messages).named()]);
@@ -130,10 +135,7 @@ impl ChatCommands {
         #[cfg(feature = "owner-commands")]
         list.extend([command!(owner; owner::shutdown).named()]);
 
-        Self {
-            prefix: prefix.to_string(),
-            list,
-        }
+        Self { list }
     }
 
     pub async fn process(&self, ctx: &Context, msg: &Message) -> CommandResult {
@@ -165,9 +167,7 @@ impl ChatCommands {
         let res = CommandContext::new(ctx, msg, rest, cmd).execute().await;
 
         // Check the command execution result and run any post-execution code.
-        self.after(ctx, msg, cmd, res).await?;
-
-        Ok(())
+        self.after(ctx, msg, cmd, res).await
     }
 
     /// Runs just before the command is executed.
@@ -185,16 +185,11 @@ impl ChatCommands {
         cmd: &Command,
         res: CommandResult,
     ) -> CommandResult {
-        match res {
-            // Message was not meant for us.
-            Err(CommandError::NotPrefixed) => (),
+        // In case of errors this will just return back to handlers, for now.
+        res?;
 
-            // Log if an error occurred.
-            Err(e) => error!("Error in command '{}': {}", cmd.name, e),
-
-            // All went well.
-            Ok(_) => debug!("Successfully executed '{}'!", cmd.name),
-        }
+        // Otherwise, all went well.
+        debug!("Successfully executed '{}'!", cmd.name);
 
         Ok(())
     }
@@ -226,7 +221,6 @@ impl ChatCommands {
 impl std::fmt::Debug for ChatCommands {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("ChatCommands")
-            .field("prefix", &self.prefix)
             .field("list", &self.list.keys())
             .finish()
     }
@@ -234,12 +228,7 @@ impl std::fmt::Debug for ChatCommands {
 
 impl std::fmt::Display for ChatCommands {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::result::Result<(), std::fmt::Error> {
-        write!(
-            f,
-            "```\nPrefix: '{}'\nCommands:\n{}```",
-            self.prefix,
-            self.commands_help()
-        )
+        write!(f, "{}", self.commands_help())
     }
 }
 
@@ -247,16 +236,22 @@ impl std::fmt::Display for ChatCommands {
 fn unprefix<'a>(ctx: &Context, msg: &'a Message) -> Option<&'a str> {
     match msg.guild_id {
         Some(guild_id) => {
+            // In guilds.
             let lock = ctx.config.lock().unwrap();
+
+            // See if guild has set a prefix, otherwise use global.
             let prefix = &lock.guilds.get(&guild_id).unwrap_or(&lock.global).prefix;
             msg.content.strip_prefix(prefix)
         },
         None => {
+            // In DMs.
             let lock = ctx.config.lock().unwrap();
+
+            // Try to use global prefix, if fails, try to use any guild prefix.
             let mut stripped = msg.content.strip_prefix(&lock.global.prefix);
             let mut guilds = lock.guilds.values();
 
-            // While stripped is none, aka. prefix not found, and there are guild configs to check.
+            // While `stripped` is none, i.e. no prefix has matched, and there are still guild configs to check.
             while let (Some(guild), None) = (guilds.next(), stripped) {
                 stripped = msg.content.strip_prefix(&guild.prefix);
             }

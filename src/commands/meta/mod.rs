@@ -1,3 +1,5 @@
+use indoc::formatdoc;
+
 use crate::commands::{CommandContext, CommandResult};
 use crate::utils::*;
 
@@ -26,7 +28,34 @@ pub async fn about(cc: CommandContext<'_>) -> CommandResult {
 
 /// Command: Help for using the bot, commands and usage.
 pub async fn help(cc: CommandContext<'_>) -> CommandResult {
-    let help_msg = format!("{}", cc.chat_commands);
+    let help_msg = {
+        let lock = cc.config.lock().unwrap();
+        let global_prefix = &lock.global.prefix;
+        let mut prefix_msg = format!("Prefix: '{}'", global_prefix);
+
+        if let Some(guild_id) = cc.msg.guild_id {
+            if let Some(data) = lock.guilds.get(&guild_id) {
+                prefix_msg = formatdoc!(
+                    "
+                    Default prefix: '{}'
+                    Guild prefix: '{}'",
+                    global_prefix,
+                    data.prefix
+                );
+            }
+        }
+
+        formatdoc!(
+            "```yaml
+            {}
+            Commands:
+            {}
+            ```",
+            prefix_msg,
+            cc.chat_commands
+        )
+    };
+
     cc.http
         .create_message(cc.msg.channel_id)
         .reply(cc.msg.id)

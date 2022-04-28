@@ -25,7 +25,7 @@ use twilight_model::user::CurrentUser;
 use twilight_model::voice::VoiceState;
 use utils::*;
 
-use crate::commands::ChatCommands;
+use crate::commands::{ChatCommands, CommandError};
 use crate::config::{BotConfig, Config};
 
 mod commands;
@@ -119,7 +119,7 @@ async fn main() -> AnyResult<()> {
     let cache = Arc::new(InMemoryCache::new());
 
     // Initialize chat commands.
-    let chat_commands = Arc::new(ChatCommands::new(&config.lock().unwrap().global.prefix));
+    let chat_commands = Arc::new(ChatCommands::new());
 
     let ctx = Context {
         config,
@@ -226,68 +226,22 @@ async fn handle_message_create(ctx: &Context, msg: &Message) -> AnyResult<()> {
 
     // Handle chat commands.
     if let Err(e) = ctx.chat_commands.process(ctx, msg).await {
-        eprintln!("Error processing command: {}", e);
-        error!("Error processing command: {}", e);
+        match e {
+            // Message was not meant for us.
+            CommandError::NotPrefixed => (),
+
+            // Log processing errors.
+            e => {
+                eprintln!("Error processing command: {}", e);
+                error!("Error processing command: {}", e);
+            },
+        }
     }
 
     Ok(())
 }
 
 async fn handle_voice_state(ctx: &Context, voice: VoiceState) -> AnyResult<()> {
-    println!("Voice: {:?}", voice);
-
-    if voice.user_id == ctx.application.owner.as_ref().unwrap().id && voice.channel_id.is_some() {
-        if let Some(guild_id) = voice.guild_id {
-            // TODO Testing some stuff.
-            if guild_id != Id::new(env::var("TEST_GUILD").unwrap().parse().unwrap()) {
-                return Ok(());
-            }
-
-            ctx.http
-                .guild_member(guild_id, voice.user_id)
-                .send()
-                .await?;
-
-            let now = chrono::Utc::now();
-            let until = now.timestamp() + 60;
-
-            ctx.http
-                .update_guild_member(guild_id, voice.user_id)
-                .communication_disabled_until(Some(Timestamp::from_secs(until).unwrap()))
-                .unwrap()
-                .exec()
-                .await?;
-
-            // let muted = ctx
-            //     .cache
-            //     .member(guild_id, voice.user_id)
-            //     .unwrap()
-            //     .mute()
-            //     .unwrap();
-            // println!("1 {:?}", muted);
-            // let m = ctx
-            //     .http
-            //     .guild_member(guild_id, voice.user_id)
-            //     .exec()
-            //     .await
-            //     .unwrap()
-            //     .model()
-            //     .await?;
-            // println!("2 {:#?}", m);
-            // if !muted {
-            //     let a = ctx
-            //         .http
-            //         .update_guild_member(guild_id, voice.user_id)
-            //         .mute(true)
-            //         .exec()
-            //         .await?
-            //         .model()
-            //         .await?;
-            //     println!("3 {:#?}", a);
-            // }
-        }
-    }
-
     Ok(())
 }
 
