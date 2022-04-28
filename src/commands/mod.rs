@@ -121,10 +121,14 @@ impl ChatCommands {
         // Moderation functionality.
         #[cfg(feature = "admin-commands")]
         list.extend([
-            command!(admin; admin::roles).named(),
+            command!(admin; admin::roles::roles).named(),
             command!(admin; admin::config::config)
                 .sub(command!(admin; admin::config::get))
                 .sub(command!(admin; admin::config::set))
+                .named(),
+            command!(admin; admin::alias::alias)
+                .sub(command!(admin; admin::alias::get))
+                .sub(command!(admin; admin::alias::set))
                 .named(),
         ]);
 
