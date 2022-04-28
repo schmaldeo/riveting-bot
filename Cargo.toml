@@ -42,6 +42,7 @@ branch = "next"
 default-features = false
 features = ["driver", "twilight-rustls", "zlib-stock"]
 git = "https://github.com/serenity-rs/songbird"
+optional = true
 
 [dependencies.tokio]
 features = ["full"]
@@ -49,11 +50,12 @@ version = "1.17"
 
 [features]
 # Default features
-default = ["admin-commands", "owner-commands"]
+default = ["admin", "owner"]
 # Debugging features
 debug = ["all-intents", "bulk-delete"]
 #
-admin-commands = []
+admin = []
 all-intents = []
 bulk-delete = []
-owner-commands = []
+owner = []
+voice = ["dep:songbird"]
