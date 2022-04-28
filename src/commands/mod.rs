@@ -23,11 +23,11 @@ pub mod meta;
 pub mod user;
 
 /// Administrator comands.
-#[cfg(feature = "admin-commands")]
+#[cfg(feature = "admin")]
 pub mod admin;
 
 /// Bot owner only commands.
-#[cfg(feature = "owner-commands")]
+#[cfg(feature = "owner")]
 pub mod owner;
 
 pub type CommandResult = Result<(), CommandError>;
@@ -110,6 +110,7 @@ impl ChatCommands {
                 .sub(command!(user::quote::add))
                 .sub(command!(user::quote::remove))
                 .named(),
+            #[cfg(feature = "voice")]
             command!(user::voice::voice)
                 .sub(command!(user::voice::join))
                 .sub(command!(user::voice::leave))
@@ -120,25 +121,25 @@ impl ChatCommands {
         ]);
 
         // Moderation functionality.
-        #[cfg(feature = "admin-commands")]
+        #[cfg(feature = "admin")]
         list.extend([
             command!(admin; admin::roles::roles).named(),
             command!(admin; admin::config::config)
                 .sub(command!(admin; admin::config::get))
                 .sub(command!(admin; admin::config::set))
                 .named(),
-            command!(admin; admin::alias::alias)
-                .sub(command!(admin; admin::alias::get))
-                .sub(command!(admin; admin::alias::set))
-                .sub(command!(admin; admin::alias::remove))
+            command!(admin::alias::alias)
+                .sub(command!(admin::alias::get))
+                .sub(command!(admin::alias::set))
+                .sub(command!(admin::alias::remove))
                 .named(),
         ]);
 
-        #[cfg(feature = "bulk-delete")] // Separate from `admin-commands` feature, because yes.
+        #[cfg(feature = "bulk-delete")] // Separate from `admin` feature, because yes.
         list.extend([command!(admin; "delete-messages", admin::delete_messages).named()]);
 
         // Bot owner functionality.
-        #[cfg(feature = "owner-commands")]
+        #[cfg(feature = "owner")]
         list.extend([command!(owner; owner::shutdown).named()]);
 
         Self { list }
