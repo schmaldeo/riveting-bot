@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::fs::OpenOptions;
 use std::io::prelude::*;
 use std::sync::{Arc, Mutex};
@@ -7,6 +7,7 @@ use serde::{Deserialize, Serialize};
 use twilight_model::id::marker::GuildMarker;
 use twilight_model::id::Id;
 
+use crate::commands::admin::alias::Alias;
 use crate::utils::*;
 
 pub const CONFIG_PATH: &str = "./data/bot.json";
@@ -14,12 +15,14 @@ pub const CONFIG_PATH: &str = "./data/bot.json";
 #[derive(Deserialize, Serialize, Debug, Clone)]
 pub struct Data {
     pub prefix: String,
+    pub aliases: HashMap<String, String>,
 }
 
 impl Default for Data {
     fn default() -> Self {
         Self {
             prefix: "!".to_string(),
+            aliases: HashMap::new(),
         }
     }
 }
@@ -80,6 +83,22 @@ impl Config {
 
     pub fn set_prefix(&mut self, guild_id: Id<GuildMarker>, prefix: &str) {
         self.guilds.entry(guild_id).or_default().prefix = prefix.to_string();
+    }
+
+    pub fn set_alias(&mut self, guild_id: Id<GuildMarker>, alias: Alias) {
+        self.guilds
+            .entry(guild_id)
+            .or_default()
+            .aliases
+            .insert(alias.name, alias.command);
+    }
+
+    pub fn remove_alias(&mut self, guild_id: Id<GuildMarker>, alias_name: &str) {
+        self.guilds
+            .entry(guild_id)
+            .or_default()
+            .aliases
+            .remove(alias_name);
     }
 }
 

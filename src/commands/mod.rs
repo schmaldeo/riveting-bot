@@ -1,3 +1,4 @@
+use std::borrow::Cow;
 use std::collections::{HashMap, HashSet};
 use std::pin::Pin;
 
@@ -48,8 +49,8 @@ pub enum CommandError {
     #[error("Expected arguments missing")]
     MissingArgs,
 
-    #[error("Arguments unexpected or failed to process")]
-    UnexpectedArgs,
+    #[error("Arguments unexpected or failed to process: {0}")]
+    UnexpectedArgs(String),
 
     #[error("Command disabled")]
     Disabled,
@@ -129,6 +130,7 @@ impl ChatCommands {
             command!(admin; admin::alias::alias)
                 .sub(command!(admin; admin::alias::get))
                 .sub(command!(admin; admin::alias::set))
+                .sub(command!(admin; admin::alias::remove))
                 .named(),
         ]);
 
@@ -148,10 +150,16 @@ impl ChatCommands {
             return Err(CommandError::NotPrefixed)
         };
 
+        // Wrap `stripped` in a `Cow`, so that it doesn't have to allocate every command that is not an alias.
+        let stripped = Cow::Borrowed(stripped);
+
+        // Check if message is an alias, and unalias it.
+        let stripped = unalias(ctx, msg, &stripped).unwrap_or(stripped);
+
         // Split the message by unicode whitespace.
         let (first, rest) = stripped
             .split_once(|c: char| c.is_whitespace())
-            .unwrap_or((stripped, ""));
+            .unwrap_or((&stripped, ""));
 
         // Find the command.
         let Some(cmd) = self.list.get(first) else {
@@ -263,6 +271,17 @@ fn unprefix<'a>(ctx: &Context, msg: &'a Message) -> Option<&'a str> {
             stripped
         },
     }
+}
+
+/// If message was sent in a guild try to get the alias for `stripped`.
+fn unalias<'a>(ctx: &'a Context, msg: &Message, stripped: &str) -> Option<Cow<'a, str>> {
+    if let Some(guild_id) = msg.guild_id {
+        let lock = ctx.config.lock().unwrap();
+        let found = lock.guilds.get(&guild_id)?.aliases.get(stripped)?;
+        return Some(Cow::Owned(found.to_string()));
+    }
+
+    None
 }
 
 #[derive(Debug, Clone)]

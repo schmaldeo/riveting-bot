@@ -14,7 +14,9 @@ pub async fn delete_messages(cc: CommandContext<'_>) -> CommandResult {
     let mut delete_count = 100;
 
     if !cc.args.is_empty() {
-        delete_count = cc.args.parse().or(Err(CommandError::UnexpectedArgs))?;
+        delete_count = cc.args.parse().map_err(|_| {
+            CommandError::UnexpectedArgs("Could not parse delete count".to_string())
+        })?;
     }
 
     // Fetch and filter messages that are not older than two weeks.
