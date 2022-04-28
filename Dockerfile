@@ -1,4 +1,5 @@
-FROM rust:slim AS builder
+# FROM rust:slim AS builder
+FROM rustlang/rust:nightly-slim AS builder
 
 RUN apt update && apt upgrade -y
 
