@@ -56,8 +56,13 @@ async fn main() -> AnyResult<()> {
     // Load environment variables from `./.env` file, if any exists.
     dotenv::dotenv().ok();
 
-    // Create a log file.
-    let logfile = fs::File::create("./data/log.log").unwrap();
+    // Create data folder if it doesn't exist yet.
+    std::fs::create_dir_all("./data/")
+        .map_err(|e| anyhow::anyhow!("Failed to create data folder: {}", e))?;
+
+    // Create a log file or truncate an existing one.
+    let logfile = fs::File::create("./data/log.log")
+        .map_err(|e| anyhow::anyhow!("Failed to create log file: {}", e))?;
 
     // Initialize the logger to use `RUST_LOG` environment variable.
     tracing_subscriber::fmt()
