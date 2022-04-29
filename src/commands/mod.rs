@@ -128,10 +128,10 @@ impl ChatCommands {
                 .sub(command!(admin; admin::config::get))
                 .sub(command!(admin; admin::config::set))
                 .named(),
-            command!(admin::alias::alias)
-                .sub(command!(admin::alias::get))
-                .sub(command!(admin::alias::set))
-                .sub(command!(admin::alias::remove))
+            command!(admin; admin::alias::alias)
+                .sub(command!(admin; admin::alias::get))
+                .sub(command!(admin; admin::alias::set))
+                .sub(command!(admin; admin::alias::remove))
                 .named(),
         ]);
 
