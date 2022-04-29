@@ -1,13 +1,16 @@
 # Riveting Bot
 
 This is, the one and only, Riveting bot. It's built in `Rust` and runs with `Docker` ...or without.
+
 Primarily made for the **Riveting** community discord server. _(And to keep that one guy in check.)_
 
 # How to build and run
 
-The bot will read the discord token from the environment variable `DISCORD_TOKEN` , which must be set for the bot to connect.
+The bot will read the discord token from the environment variable `DISCORD_TOKEN`,
+which must be set for the bot to connect.
 
-You may use a `.env` file in the project root directory to specify it and any other environment variables for the bot.
+You may use a `.env` file in the project root directory to specify the token
+or any other environment variables for the bot.
 
 ## Build with Rust
 
@@ -16,27 +19,28 @@ You may use a `.env` file in the project root directory to specify it and any ot
 - _b)_ Or to build and run: `cargo run` or `cargo run --release`.
 - _(Optional)_ If you want to enable extra features, specify them with `--features` option.
 - _(Optional)_ You can disable default features with `--no-default-features` option.
-- _(Optional)_ You can run the executable directly, once built. By default, found in `./target/<build>/`
+- _(Optional)_ You can run the executable directly, once built. By default, found in `./target/<build>/`.
 
-### Example
+#### Example
 
 `cargo run --release --no-default-features --features=bulk-delete,owner,voice`
 
 ## Build with Docker
 
-- Have [Docker] installed.
+(As of right now, this will build the bot with the default features and release build.)
 
+- Have [Docker] installed.
 - ### With `docker-compose` _(the easy mode)_
 
-  - To run, run `docker compose up -d` , to also rebuild the image before starting, add `--build` to it.
-  - To stop the container, run `docker compose down`
+  - To run: `docker compose up -d`. To also rebuild the image before starting, add `--build` to it.
+  - To stop the container(s): `docker compose down`.
 
 - ### With base `Dockerfile`
 
   - To build, run `docker build -t riveting-bot .` in the project root directory.
   - To run the container, run `docker run -d --rm --name riveting-bot --env-file .env riveting-bot`
     (you can use `--env` option instead if you don't have a `.env` file).
-  - To shutdown the container, run `docker stop riveting-bot`
+  - To shutdown the container, run `docker stop riveting-bot`.
 
 # Notes
 
