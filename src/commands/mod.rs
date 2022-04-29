@@ -357,8 +357,8 @@ impl std::ops::Deref for CommandContext<'_> {
 /// which should be the function to run on that command.
 /// To use a different command name, specify it before the function.
 ///
-/// You can use presets such as `Command::admin` and `Command::owner`
-/// by specifying them first followed by a colon.
+/// You can use preset functions such as `Command::admin` and `Command::owner`
+/// by specifying them first followed by a semicolon.
 ///
 /// # Examples
 /// ```rust
@@ -369,10 +369,11 @@ impl std::ops::Deref for CommandContext<'_> {
 /// ```
 ///
 /// ```rust
-/// let c = command!(foo);                   // Command::new("foo", wrap!(foo))
-/// let c = command!("foo-baz", foo);        // Command::new("foo-baz", wrap!(foo))
-/// let c = command!(admin: foo);            // Command::admin("foo", wrap!(foo))
-/// let c = command!(owner: "foo-baz", foo); // Command::owner("foo-baz", wrap!(foo))
+/// let c = command!(foo);                             // Command::new("foo", wrap!(foo))
+/// let c = command!(baz::bar::foo);                   // Command::new("foo", wrap!(baz::bar::foo))
+/// let c = command!("foo-baz", foo);                  // Command::new("foo-baz", wrap!(foo))
+/// let c = command!(admin; foo);                      // Command::admin("foo", wrap!(foo))
+/// let c = command!(owner; "foo-baz", foo);           // Command::owner("foo-baz", wrap!(foo))
 /// ```
 pub macro command {
     ($preset:ident; $name:expr, $func:expr) => {{
