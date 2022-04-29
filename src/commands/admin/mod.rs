@@ -6,6 +6,7 @@ pub mod config;
 pub mod roles;
 
 /// Command: Delete a bunch of messages at once.
+#[cfg(feature = "bulk-delete")]
 pub async fn delete_messages(cc: CommandContext<'_>) -> CommandResult {
     const TWO_WEEKS_SECS: i64 = 60 * 60 * 24 * 7 * 2;
 
