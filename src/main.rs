@@ -240,6 +240,20 @@ async fn handle_message_create(ctx: &Context, msg: &Message) -> AnyResult<()> {
             e => {
                 eprintln!("Error processing command: {}", e);
                 error!("Error processing command: {}", e);
+
+                if let Ok(id) = env::var("DISCORD_BOTDEV_CHANNEL") {
+                    // On a bot dev channel, reply with error message.
+                    let bot_dev = Id::new(id.parse()?);
+
+                    if msg.channel_id == bot_dev {
+                        ctx.http
+                            .create_message(bot_dev)
+                            .reply(msg.id)
+                            .content(&e.to_string())?
+                            .send()
+                            .await?;
+                    }
+                }
             },
         }
     }
