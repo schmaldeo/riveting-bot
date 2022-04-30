@@ -22,7 +22,7 @@ pub async fn about(cc: CommandContext<'_>) -> CommandResult {
         You can list my commands with the `{prefix}help` command.
         My current version *(allegedly)* is `{version}`.
         ",
-        link = "https://github.com/Samzyre/riveting-bot",
+        link = env!("CARGO_PKG_REPOSITORY"),
         prefix = cc.active_prefix(cc.msg.guild_id),
         version = env!("CARGO_PKG_VERSION")
     );
