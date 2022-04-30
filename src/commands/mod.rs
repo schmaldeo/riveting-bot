@@ -34,30 +34,43 @@ pub type CommandResult = Result<(), CommandError>;
 
 #[derive(Debug, Error)]
 pub enum CommandError {
+    /// A command prefix is needed.
     #[error("Message did not start with a command prefix")]
     NotPrefixed,
 
-    #[error("Command '{0}' not found")]
+    /// A command does not exist.
+    #[error("Command not found: {0}")]
     NotFound(String),
 
-    #[error("Command not yet implemented")]
+    /// A resource does not exist.
+    #[error("Resource not found: {0}")]
+    UnknownResource(String),
+
+    /// Work-in-progress.
+    #[error("Command or action not yet implemented")]
     NotImplemented,
 
+    /// The sender must reply to a message.
     #[error("Expected reply reference missing")]
     MissingReply,
 
+    /// The sender must provide some arguments.
     #[error("Expected arguments missing")]
     MissingArgs,
 
+    /// Some arguments are wrong, invalid or unexpected.
     #[error("Arguments unexpected or failed to process: {0}")]
     UnexpectedArgs(String),
 
-    #[error("Command disabled")]
+    /// The command or action is not available in this context.
+    #[error("Command or action disabled")]
     Disabled,
 
+    /// The sender does not have permissions needed.
     #[error("Permission requirements not met")]
     AccessDenied,
 
+    /// Other errors that are or can be converted to `anyhow::Error`.
     #[error(transparent)]
     Other(#[from] anyhow::Error), // Source and Display delegate to `anyhow::Error`
 }
@@ -179,7 +192,7 @@ impl ChatCommands {
 
         // Find the command.
         let Some(cmd) = self.list.get(first) else {
-            return Err(CommandError::NotFound(first.to_string()))
+            return Err(CommandError::NotFound(format!("Unknown '{}'", first)))
         };
 
         debug!("Checking permissions for '{}'", msg.content);
