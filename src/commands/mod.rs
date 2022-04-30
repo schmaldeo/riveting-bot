@@ -103,15 +103,23 @@ impl ChatCommands {
 
         // Basic functionality.
         list.extend([
-            command!(meta::ping).dm(true).named(),
-            command!(meta::about).dm(true).named(),
-            command!(meta::help).dm(true).named(),
+            command!(meta::ping).dm(true).desc("Ping the bot.").named(),
+            command!(meta::about)
+                .dm(true)
+                .desc("Display bot info.")
+                .named(),
+            command!(meta::help)
+                .dm(true)
+                .desc("List bot commands.")
+                .named(),
             command!(user::quote::quote)
+                .desc("Manage quotes.")
                 .sub(command!(user::quote::add))
                 .sub(command!(user::quote::remove))
                 .named(),
             #[cfg(feature = "voice")]
             command!(user::voice::voice)
+                .desc("Manage voice connection.")
                 .sub(command!(user::voice::join))
                 .sub(command!(user::voice::leave))
                 .named(),
@@ -120,17 +128,22 @@ impl ChatCommands {
         // Moderation functionality.
         #[cfg(feature = "admin")]
         list.extend([
-            command!(admin; admin::roles::roles).named(),
+            command!(admin; admin::roles::roles)
+                .desc("Manage reaction-roles.")
+                .named(),
             command!(admin; admin::config::config)
+                .desc("Manage guild config.")
                 .sub(command!(admin; admin::config::get))
                 .sub(command!(admin; admin::config::set))
                 .named(),
             command!(admin; admin::alias::alias)
+                .desc("Manage guild aliases.")
                 .sub(command!(admin; admin::alias::get))
                 .sub(command!(admin; admin::alias::set))
                 .sub(command!(admin; admin::alias::remove))
                 .named(),
             command!(admin; admin::muter::muter)
+                .desc("Silence someone.")
                 .sub(command!(admin; admin::muter::mute))
                 .sub(command!(admin; admin::muter::timeout))
                 .named(),
@@ -212,22 +225,35 @@ impl ChatCommands {
         // TODO This should be part of Command.
         fn recursive_help(cmd: &Command, tabs: usize) -> String {
             let mut text = String::new();
+            let descs = 30 - (tabs * 4 + cmd.name.len());
             let indent = "\t".repeat(tabs);
+
             text.push_str(&indent);
             text.push_str(cmd.name);
+
+            if !cmd.description.is_empty() {
+                text.push_str(&" ".repeat(descs));
+                text.push_str(" # ");
+                text.push_str(cmd.description);
+            }
+
             text.push('\n');
+
             if !cmd.sub_commands.is_empty() {
                 for sub in cmd.sub_commands.values() {
                     text.push_str(&recursive_help(sub, tabs + 1));
                 }
             }
+
             text
         }
 
         let mut text = String::new();
+
         for cmd in self.list.values() {
             text.push_str(&recursive_help(cmd, 1));
         }
+
         text
     }
 }
@@ -431,6 +457,7 @@ type CommandFn = fn(CommandContext) -> CommandFuture;
 pub struct Command {
     pub name: &'static str,
     pub func: CommandFn,
+    pub description: &'static str,
     pub sub_commands: HashMap<&'static str, Command>,
     pub access: CommandAccess,
     pub dm_enabled: bool,
@@ -446,6 +473,7 @@ impl Command {
         Self {
             name,
             func,
+            description: "",
             sub_commands: HashMap::new(),
             access: CommandAccess::Any,
             dm_enabled: false,
@@ -488,6 +516,12 @@ impl Command {
     /// Set direct message access.
     pub fn dm(mut self, enabled: bool) -> Self {
         self.dm_enabled = enabled;
+        self
+    }
+
+    /// Set a description for the command.
+    pub fn desc(mut self, desc: &'static str) -> Self {
+        self.description = desc;
         self
     }
 
