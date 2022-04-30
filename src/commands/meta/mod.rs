@@ -16,13 +16,24 @@ pub async fn ping(cc: CommandContext<'_>) -> CommandResult {
 
 /// Command: Info about the bot.
 pub async fn about(cc: CommandContext<'_>) -> CommandResult {
-    let about_msg = "I am a RivetingBot";
+    let about_msg = formatdoc!(
+        "
+        I am a RivetingBot, my source is available at <{link}>.
+        You can list my commands with the `{prefix}help` command.
+        My current version *(allegedly)* is `{version}`.
+        ",
+        link = "https://github.com/Samzyre/riveting-bot",
+        prefix = cc.active_prefix(cc.msg.guild_id),
+        version = env!("CARGO_PKG_VERSION")
+    );
+
     cc.http
         .create_message(cc.msg.channel_id)
         .reply(cc.msg.id)
-        .content(about_msg)?
+        .content(&about_msg)?
         .send()
         .await?;
+
     Ok(())
 }
 

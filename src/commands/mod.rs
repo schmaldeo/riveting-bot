@@ -340,6 +340,19 @@ impl<'a> CommandContext<'a> {
         // Run the command function with context and stuff.
         (self.cmd.func)(self).await
     }
+
+    /// Return currently active prefix, either global prefix or a guild specific one.
+    pub fn active_prefix(&self, guild_id: Option<Id<GuildMarker>>) -> String {
+        let lock = self.config.lock().unwrap();
+
+        match guild_id {
+            Some(guild_id) => match lock.guilds.get(&guild_id) {
+                Some(data) => data.prefix.to_string(),
+                None => lock.global.prefix.to_string(),
+            },
+            None => lock.global.prefix.to_string(),
+        }
+    }
 }
 
 // Slight abuse maybe, but it's convenient.
