@@ -10,6 +10,31 @@ pub async fn alias(cc: CommandContext<'_>) -> CommandResult {
     Err(CommandError::NotImplemented)
 }
 
+/// Command: List guild command aliases.
+pub async fn list(cc: CommandContext<'_>) -> CommandResult {
+    let Some(guild_id) = cc.msg.guild_id else {
+        return Err(CommandError::Disabled)
+    };
+
+    let list = {
+        let lock = cc.config.lock().unwrap();
+
+        match lock.guilds.get(&guild_id) {
+            Some(data) => format!("```json\n{:#?}```", data.aliases), // Quick haxx
+            None => String::new(),
+        }
+    };
+
+    cc.http
+        .create_message(cc.msg.channel_id)
+        .reply(cc.msg.id)
+        .content(&list)?
+        .send()
+        .await?;
+
+    Ok(())
+}
+
 /// Command: Get a guild command alias definition.
 pub async fn get(cc: CommandContext<'_>) -> CommandResult {
     Err(CommandError::NotImplemented)
@@ -30,6 +55,7 @@ pub async fn set(cc: CommandContext<'_>) -> CommandResult {
 
     Ok(())
 }
+
 /// Command: Remove a guild command alias definition.
 pub async fn remove(cc: CommandContext<'_>) -> CommandResult {
     let Some(guild_id) = cc.msg.guild_id else {

@@ -138,6 +138,7 @@ impl ChatCommands {
                 .named(),
             command!(admin; admin::alias::alias)
                 .desc("Manage guild aliases.")
+                .sub(command!(admin; admin::alias::list))
                 .sub(command!(admin; admin::alias::get))
                 .sub(command!(admin; admin::alias::set))
                 .sub(command!(admin; admin::alias::remove))
