@@ -3,6 +3,7 @@ use crate::utils::*;
 
 pub mod alias;
 pub mod config;
+pub mod muter;
 pub mod roles;
 
 /// Command: Delete a bunch of messages at once.

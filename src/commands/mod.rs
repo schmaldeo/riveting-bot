@@ -115,9 +115,6 @@ impl ChatCommands {
                 .sub(command!(user::voice::join))
                 .sub(command!(user::voice::leave))
                 .named(),
-            command!(user::muter::muter)
-                .sub(command!(user::muter::timeout))
-                .named(),
         ]);
 
         // Moderation functionality.
@@ -132,6 +129,10 @@ impl ChatCommands {
                 .sub(command!(admin; admin::alias::get))
                 .sub(command!(admin; admin::alias::set))
                 .sub(command!(admin; admin::alias::remove))
+                .named(),
+            command!(admin; admin::muter::muter)
+                .sub(command!(admin; admin::muter::mute))
+                .sub(command!(admin; admin::muter::timeout))
                 .named(),
         ]);
 
