@@ -81,24 +81,27 @@ impl Config {
         Ok(())
     }
 
+    /// Set guild's custom prefix.
     pub fn set_prefix(&mut self, guild_id: Id<GuildMarker>, prefix: &str) {
         self.guilds.entry(guild_id).or_default().prefix = prefix.to_string();
     }
 
-    pub fn set_alias(&mut self, guild_id: Id<GuildMarker>, alias: Alias) {
+    /// Set an alias, return `Some(name)` if it replaced one.
+    pub fn set_alias(&mut self, guild_id: Id<GuildMarker>, alias: Alias) -> Option<String> {
         self.guilds
             .entry(guild_id)
             .or_default()
             .aliases
-            .insert(alias.name, alias.command);
+            .insert(alias.name, alias.command)
     }
 
-    pub fn remove_alias(&mut self, guild_id: Id<GuildMarker>, alias_name: &str) {
+    /// Remove an alias, returns `Some(name)` if successful.
+    pub fn remove_alias(&mut self, guild_id: Id<GuildMarker>, alias_name: &str) -> Option<String> {
         self.guilds
             .entry(guild_id)
             .or_default()
             .aliases
-            .remove(alias_name);
+            .remove(alias_name)
     }
 }
 

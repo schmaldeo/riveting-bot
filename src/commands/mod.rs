@@ -63,6 +63,10 @@ pub enum CommandError {
     #[error("Arguments unexpected or failed to process: {0}")]
     UnexpectedArgs(String),
 
+    /// Error while parsing command or argument.
+    #[error("Failed to parse command or argument: {0}")]
+    ParseError(String),
+
     /// The command or action is not available in this context.
     #[error("Command or action disabled")]
     Disabled,
@@ -74,6 +78,12 @@ pub enum CommandError {
     /// Other errors that are or can be converted to `anyhow::Error`.
     #[error(transparent)]
     Other(#[from] anyhow::Error), // Source and Display delegate to `anyhow::Error`
+}
+
+impl PartialEq for CommandError {
+    fn eq(&self, other: &Self) -> bool {
+        mem::discriminant(self) == mem::discriminant(other) // Close enough.
+    }
 }
 
 macro impl_into_command_error($t:ty) {
@@ -180,19 +190,33 @@ impl ChatCommands {
             return Err(CommandError::NotPrefixed)
         };
 
-        // Wrap `stripped` in a `Cow`, so that it doesn't have to allocate every command that is not an alias.
-        let stripped = Cow::Borrowed(stripped);
-
-        // Check if message is an alias, and unalias it.
-        let stripped = unalias(ctx, msg, &stripped).unwrap_or(stripped);
-
         // Split the message by unicode whitespace.
         let (first, rest) = stripped
-            .split_once(|c: char| c.is_whitespace())
-            .unwrap_or((&stripped, ""));
+            .split_once(char::is_whitespace)
+            .unwrap_or((stripped, ""));
+
+        // Wrap `first` in a `Cow`, so that it doesn't have to allocate every command that is not an alias.
+        let first = Cow::Borrowed(first);
+
+        // FIXME This is kinda ugly right now, gotta try make it nicer.
+        // Check if message is an alias, and unalias it.
+        let (first, rest) = match unalias(ctx, msg, &first) {
+            Some(alias) => {
+                // Split the message by unicode whitespace.
+                let (first, alias_rest) = alias
+                    .split_once(char::is_whitespace)
+                    .unwrap_or((&alias, ""));
+
+                (
+                    Cow::Owned(first.to_string()),
+                    Cow::Owned([alias_rest, " ", rest].concat()),
+                )
+            },
+            None => (first, Cow::Borrowed(rest)),
+        };
 
         // Find the command.
-        let Some(cmd) = self.list.get(first) else {
+        let Some(cmd) = self.list.get(first.as_ref()) else {
             return Err(CommandError::NotFound(format!("Unknown '{}'", first)))
         };
 
@@ -206,7 +230,9 @@ impl ChatCommands {
         self.before(ctx, msg, cmd).await?;
 
         // Execute the command.
-        let res = CommandContext::new(ctx, msg, rest, cmd).execute().await;
+        let res = CommandContext::new(ctx, msg, rest.as_ref(), cmd)
+            .execute()
+            .await;
 
         // Check the command execution result and run any post-execution code.
         self.after(ctx, msg, cmd, res).await
@@ -321,6 +347,9 @@ fn unalias<'a>(ctx: &'a Context, msg: &Message, stripped: &str) -> Option<Cow<'a
     if let Some(guild_id) = msg.guild_id {
         let lock = ctx.config.lock().unwrap();
         let found = lock.guilds.get(&guild_id)?.aliases.get(stripped)?;
+
+        info!("Found alias '{found}' for '{stripped}'");
+
         return Some(Cow::Owned(found.to_string()));
     }
 

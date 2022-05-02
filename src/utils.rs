@@ -72,3 +72,37 @@ pub macro impl_debug_struct_fields($t:ty, $($field:ident),*) {
         }
     }
 }
+
+/// Create a slightly nicer, comma separated, list from a slice.
+pub fn nice_list<T: Display>(list: &[T]) -> impl Display {
+    let mut list = list.iter();
+    let mut out = list.next().map(|s| format!("`{}`", s)).unwrap_or_default();
+
+    for item in list {
+        out = format!("{}", format_args!("{out}, `{item}`"));
+    }
+
+    out
+}
+
+/// Mega dum-dum escaping, may or may not work as expected.
+pub fn escape_discord_chars(text: &str) -> Cow<'_, str> {
+    let escape = &['|', '\\', '`', '<', '*', '_', '~'];
+
+    if !text.contains(escape) {
+        // At least we don't have to do much if all is well.
+        return Cow::Borrowed(text);
+    }
+
+    let mut out = String::with_capacity(text.len());
+
+    for ch in text.chars() {
+        if escape.contains(&ch) {
+            out.push('\\');
+        }
+
+        out.push(ch);
+    }
+
+    Cow::Owned(out)
+}

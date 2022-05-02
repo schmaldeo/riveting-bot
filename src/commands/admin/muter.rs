@@ -18,7 +18,12 @@ pub async fn mute(cc: CommandContext<'_>) -> CommandResult {
 
     let timeout = 30;
 
-    let mention = MentionType::parse(cc.args.trim()).unwrap();
+    let (target, rest) = parser::maybe_quoted_arg(cc.args.trim())?;
+    parser::ensure_rest_is_empty(rest)?;
+
+    let mention = MentionType::parse(target)
+        .map_err(|_| CommandError::UnexpectedArgs(format!("Failed to parse user: '{}'", target)))?;
+
     let target_user_id = match mention {
         MentionType::User(user_id) => Ok(user_id),
         MentionType::Channel(_) => Err(CommandError::UnexpectedArgs(

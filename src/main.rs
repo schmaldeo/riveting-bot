@@ -1,6 +1,7 @@
 #![feature(let_else)]
 #![feature(decl_macro)]
-// #![feature(type_alias_impl_trait)]
+#![feature(pattern)]
+#![feature(associated_type_bounds)]
 
 use std::sync::{Arc, Mutex};
 use std::{env, fs};

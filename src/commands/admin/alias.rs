@@ -50,7 +50,10 @@ pub async fn set(cc: CommandContext<'_>) -> CommandResult {
 
     let mut lock = cc.config.lock().unwrap();
 
-    lock.set_alias(guild_id, alias);
+    match lock.set_alias(guild_id, alias) {
+        Some(_) => debug!("Replaced an alias in guild '{guild_id}'"),
+        None => debug!("Added an alias in guild '{guild_id}'"),
+    }
     lock.write()?;
 
     Ok(())
@@ -62,40 +65,25 @@ pub async fn remove(cc: CommandContext<'_>) -> CommandResult {
         return Err(CommandError::NotImplemented)
     };
 
-    let args = cc.args.trim();
+    let (name, rest) = parser::maybe_quoted_arg(cc.args.trim())?;
+
+    parser::ensure_rest_is_empty(rest)?;
 
     let mut lock = cc.config.lock().unwrap();
 
-    let alias_name = if is_surrounded_by(args, DELIMITERS)? {
-        strip_delimits(args, DELIMITERS).ok_or(AliasError::InvalidPunctuation)?
-    } else {
-        args
-    };
-
-    lock.remove_alias(guild_id, alias_name);
-    lock.write()?;
+    match lock.remove_alias(guild_id, name) {
+        Some(_) => {
+            debug!("Removed an alias in guild '{guild_id}'");
+            lock.write()?;
+        },
+        None => {
+            return Err(CommandError::UnknownResource(format!(
+                "Could not remove a nonexistent alias '{name}'"
+            )))
+        },
+    }
 
     Ok(())
-}
-
-pub enum AliasError {
-    InvalidFormat,
-    InvalidPunctuation,
-}
-
-impl std::fmt::Display for AliasError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::result::Result<(), std::fmt::Error> {
-        match self {
-            AliasError::InvalidFormat => write!(f, "Alias format is invalid"),
-            AliasError::InvalidPunctuation => write!(f, "Invalid punctuation in alias definition"),
-        }
-    }
-}
-
-impl From<AliasError> for CommandError {
-    fn from(other: AliasError) -> Self {
-        CommandError::UnexpectedArgs(other.to_string())
-    }
 }
 
 #[derive(Deserialize, Serialize, Debug, Clone, PartialEq, Eq, Hash)]
@@ -105,37 +93,33 @@ pub struct Alias {
 }
 
 impl std::str::FromStr for Alias {
-    type Err = AliasError;
+    type Err = CommandError;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        // A rather simple parsing but I'm sure everything won't just explode, ok?
+        let args = s.trim();
 
-        let (left, right) = s.trim().split_once('=').ok_or(AliasError::InvalidFormat)?;
-        let (left, right) = (left.trim(), right.trim());
+        // Parse first arg as the name part.
+        let (name, rest) = parser::maybe_quoted_arg(args)?;
 
-        if !is_surrounded_by(left, DELIMITERS)? || !is_surrounded_by(right, DELIMITERS)? {
-            return Err(AliasError::InvalidFormat);
+        // Spaces in names are not supported, at least not yet.
+        if name.contains(char::is_whitespace) {
+            return Err(CommandError::UnexpectedArgs(format!(
+                "Spaces in an alias name are not supported: '{}'",
+                name
+            )));
         }
 
-        let left = strip_delimits(left, DELIMITERS).ok_or(AliasError::InvalidPunctuation)?;
-        let right = strip_delimits(right, DELIMITERS).ok_or(AliasError::InvalidPunctuation)?;
+        // Parse next arg as the command part.
+        let (command, rest) = match rest {
+            Some(command) => parser::maybe_quoted_arg(command)?,
+            None => return Err(CommandError::MissingArgs),
+        };
 
-        Ok(Alias {
-            name: left.to_string(),
-            command: right.to_string(),
+        parser::ensure_rest_is_empty(rest)?;
+
+        Ok(Self {
+            name: name.to_string(),
+            command: command.to_string(),
         })
     }
-}
-
-fn is_surrounded_by(target: &str, delimits: &[char]) -> Result<bool, AliasError> {
-    let mut chars = target.chars();
-    let left = chars.next().ok_or(AliasError::InvalidPunctuation)?;
-    let right = chars.last().ok_or(AliasError::InvalidPunctuation)?;
-
-    Ok(left == right && target.starts_with(delimits) && target.ends_with(delimits))
-}
-
-fn strip_delimits<'a>(s: &'a str, delimits: &[char]) -> Option<&'a str> {
-    s.strip_prefix(delimits)
-        .and_then(|s| s.strip_suffix(delimits))
 }
