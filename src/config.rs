@@ -86,7 +86,7 @@ impl Config {
         self.guilds.entry(guild_id).or_default().prefix = prefix.to_string();
     }
 
-    /// Set an alias, return `Some(name)` if it replaced one.
+    /// Set an alias, return `Some(alias_command)` if it replaced one.
     pub fn set_alias(&mut self, guild_id: Id<GuildMarker>, alias: Alias) -> Option<String> {
         self.guilds
             .entry(guild_id)
@@ -95,7 +95,7 @@ impl Config {
             .insert(alias.name, alias.command)
     }
 
-    /// Remove an alias, returns `Some(name)` if successful.
+    /// Remove an alias, returns `Some(alias_command)` if successful.
     pub fn remove_alias(&mut self, guild_id: Id<GuildMarker>, alias_name: &str) -> Option<String> {
         self.guilds
             .entry(guild_id)
