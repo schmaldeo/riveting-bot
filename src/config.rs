@@ -64,6 +64,13 @@ impl Config {
         }
     }
 
+    /// Force update `self` from file.
+    pub fn reload(&mut self) -> AnyResult<()> {
+        *self = Self::load()?;
+
+        Ok(())
+    }
+
     /// Write the configuration to a file in `CONFIG_PATH`.
     /// # Notes
     /// This will truncate and overwrite the file, any changes that are not in the new data will be lost.
@@ -79,6 +86,11 @@ impl Config {
         serde_json::to_writer_pretty(config, self)?;
 
         Ok(())
+    }
+
+    /// Get guild's config.
+    pub fn guild(&self, guild_id: Id<GuildMarker>) -> Option<&Data> {
+        self.guilds.get(&guild_id)
     }
 
     /// Set guild's custom prefix.
