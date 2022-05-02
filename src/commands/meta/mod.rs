@@ -1,7 +1,7 @@
 use indoc::formatdoc;
 
 use crate::commands::{CommandContext, CommandResult};
-use crate::utils::*;
+use crate::utils::prelude::*;
 
 /// Command: Ping Pong!
 pub async fn ping(cc: CommandContext<'_>) -> CommandResult {

@@ -23,13 +23,14 @@ use twilight_model::id::Id;
 use twilight_model::oauth::Application;
 use twilight_model::user::CurrentUser;
 use twilight_model::voice::VoiceState;
-use utils::*;
 
 use crate::commands::{ChatCommands, CommandError};
 use crate::config::{BotConfig, Config};
+use crate::utils::prelude::*;
 
 mod commands;
 mod config;
+mod parser;
 mod utils;
 
 #[derive(Debug, Clone)]

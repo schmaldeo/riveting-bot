@@ -1,5 +1,5 @@
 use crate::commands::{CommandContext, CommandResult};
-use crate::utils::*;
+use crate::utils::prelude::*;
 
 /// Command: Disconnect and shut down the bot.
 pub async fn shutdown(cc: CommandContext<'_>) -> CommandResult {

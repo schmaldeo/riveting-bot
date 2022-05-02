@@ -8,7 +8,7 @@ use twilight_model::id::marker::GuildMarker;
 use twilight_model::id::Id;
 
 use crate::commands::admin::alias::Alias;
-use crate::utils::*;
+use crate::utils::prelude::*;
 
 pub const CONFIG_PATH: &str = "./data/bot.json";
 

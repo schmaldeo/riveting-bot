@@ -1,8 +1,8 @@
 #![allow(unused)]
 
-pub(crate) use anyhow::Result as AnyResult;
-pub(crate) use async_trait::async_trait;
-pub(crate) use tracing::{debug, error, info, trace, warn};
+use std::borrow::Cow;
+use std::fmt::Display;
+
 use twilight_http::request::channel::message::{CreateMessage, GetChannelMessagesConfigured};
 use twilight_http::request::channel::GetChannel;
 use twilight_http::request::guild::member::GetMember;
@@ -15,9 +15,21 @@ use twilight_model::guild::{Guild, Member, Role};
 use twilight_model::oauth::Application;
 use twilight_model::user::CurrentUser;
 
+pub use crate::utils::prelude::*;
+
+/// Re-exports of useful things.
+pub mod prelude {
+    pub use anyhow::Result as AnyResult;
+    pub use async_trait::async_trait;
+    pub use tracing::{debug, error, info, trace, warn};
+
+    pub use super::{impl_debug_struct_fields, ExecModelExt};
+}
+
 /// Universal constants.
 pub mod consts {
     pub const EVERYONE: &str = "@everyone";
+    pub const DELIMITERS: &[char] = &['\'', '"', '`'];
 }
 
 /// A trait to simplify `.exec().await?.model.await` chain.

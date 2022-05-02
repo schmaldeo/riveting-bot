@@ -1,5 +1,5 @@
 use crate::commands::{CommandContext, CommandError, CommandResult};
-use crate::utils::*;
+use crate::utils::prelude::*;
 
 pub mod alias;
 pub mod config;

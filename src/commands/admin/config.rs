@@ -1,5 +1,5 @@
 use crate::commands::{CommandContext, CommandError, CommandResult};
-use crate::utils::*;
+use crate::utils::prelude::*;
 
 /// Command: Manage guild configuration.
 pub async fn config(cc: CommandContext<'_>) -> CommandResult {

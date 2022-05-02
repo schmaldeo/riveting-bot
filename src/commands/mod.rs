@@ -1,5 +1,6 @@
 use std::borrow::Cow;
 use std::collections::{HashMap, HashSet};
+use std::mem;
 use std::pin::Pin;
 
 use futures::Future;
@@ -13,7 +14,7 @@ use twilight_util::permission_calculator::PermissionCalculator;
 use twilight_validate::message::MessageValidationError;
 use twilight_validate::request::ValidationError;
 
-use crate::utils::*;
+use crate::utils::prelude::*;
 use crate::Context;
 
 /// Generic commands.

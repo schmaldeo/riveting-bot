@@ -1,5 +1,5 @@
 use crate::commands::{CommandContext, CommandError, CommandResult};
-use crate::utils::*;
+use crate::utils::prelude::*;
 
 /// Command: Quote a random person or manage quotes.
 pub async fn quote(cc: CommandContext<'_>) -> CommandResult {
