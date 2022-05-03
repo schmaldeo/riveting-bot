@@ -17,11 +17,10 @@ pub fn parse_args(mut input: &str) -> Result<Vec<&str>, CommandError> {
             Ok((arg, Some(rest))) => {
                 input = rest;
                 args.push(arg);
-                println!("{:?}", args);
-                println!("next: {:?}", input);
             },
             Ok((arg, None)) => {
                 args.push(arg);
+                break;
             },
             Err(CommandError::MissingArgs) => break, // No more args to parse.
             Err(e) => return Err(e),                 // Return if failed to parse.
