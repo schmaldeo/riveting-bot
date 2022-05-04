@@ -446,7 +446,7 @@ impl std::ops::Deref for CommandContext<'_> {
 ///
 /// # Examples
 /// ```rust
-/// async fn foo(ctx: &Context, msg: &Message, args: SplitWhitespace<'_>) -> CommandResult {
+/// pub async fn foo(cc: CommandContext<'_>) -> CommandResult {
 ///     // ...
 ///     Ok(())
 /// }
