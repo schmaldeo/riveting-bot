@@ -69,7 +69,11 @@ async fn main() -> AnyResult<()> {
 
     // Initialize the logger to use `RUST_LOG` environment variable.
     tracing_subscriber::fmt()
-        .with_env_filter(EnvFilter::from_default_env().add_directive(Level::DEBUG.into()))
+        .with_env_filter(
+            EnvFilter::builder()
+                .with_default_directive(Level::DEBUG.into())
+                .from_env()?,
+        )
         .with_ansi(false)
         .with_writer(Mutex::new(logfile))
         .compact()
