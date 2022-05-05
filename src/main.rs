@@ -25,6 +25,7 @@ use twilight_model::oauth::Application;
 use twilight_model::user::CurrentUser;
 use twilight_model::voice::VoiceState;
 
+use crate::commands::admin::scheduler::handle_timer;
 use crate::commands::{ChatCommands, CommandError};
 use crate::config::{BotConfig, Config};
 use crate::utils::prelude::*;
@@ -139,6 +140,7 @@ async fn main() -> AnyResult<()> {
         shard: None,
     };
 
+    tokio::spawn(handle_timer(ctx.clone()));
     // Process each event as they come in.
     while let Some((id, event)) = events.next().await {
         // Update the cache with the event.

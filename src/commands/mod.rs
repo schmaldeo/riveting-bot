@@ -172,6 +172,12 @@ impl ChatCommands {
                 .sub(command!(admin; admin::muter::mute))
                 .sub(command!(admin; admin::muter::timeout))
                 .named(),
+            command!(admin; admin::scheduler::scheduler)
+                .desc("lol")
+                .sub(command!(admin; admin::scheduler::add))
+                .sub(command!(admin; admin::scheduler::rm))
+                // .sub(command!(admin; admin::scheduler::handle_timer))
+                .named(),
         ]);
 
         #[cfg(feature = "bulk-delete")] // Separate from `admin` feature, because yes.
@@ -493,7 +499,6 @@ macro wrap($func:expr) {{
     }
     wrapper
 }}
-
 type CommandFuture<'a> = Pin<Box<dyn Future<Output = CommandResult> + Send + 'a>>;
 type CommandFn = fn(CommandContext) -> CommandFuture;
 
