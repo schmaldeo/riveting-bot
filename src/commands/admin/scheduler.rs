@@ -17,9 +17,14 @@ use crate::utils::prelude::*;
 use crate::Context;
 
 pub async fn scheduler(cc: CommandContext<'_>) -> CommandResult {
+    // Send help
     cc.http
         .create_message(cc.msg.channel_id)
-        .content("Do `!scheduler add` to add a scheduled event")?
+        .content(
+            "```add - add an event (format: !scheduler add <name> <year> <month> <day> <hour> \
+             <minute> <second>), **time in UTC**\nrm - remove an event (format: !scheduler rm \
+             <event_id>)```",
+        )?
         .send()
         .await?;
 
@@ -35,10 +40,11 @@ struct Event {
     finishing_at: DateTime<Utc>,
 }
 
-/// command: !scheduler add <name of event> <year> <month> <day> <hours> <minutes> <seconds>
+/// command: !scheduler add <name of event> <year> <month> <day> <hours> <minutes> <seconds>, time in UTC
 pub async fn add(cc: CommandContext<'_>) -> CommandResult {
     let args: Vec<&str> = cc.args.split(' ').collect();
 
+    // Create a date from arguments
     let mut date_vec: Vec<u32> = Vec::new();
 
     for i in 1..7 {
@@ -63,6 +69,7 @@ pub async fn add(cc: CommandContext<'_>) -> CommandResult {
 
     let query_user: String = cc.msg.id.get().to_string();
 
+    // Generate a random file name
     let rand_file_name: u32 = rand::thread_rng().gen();
 
     let event = Event {
@@ -73,6 +80,7 @@ pub async fn add(cc: CommandContext<'_>) -> CommandResult {
         finishing_at: completion,
     };
 
+    // Push event into json file
     let serialised_event: String = serde_json::to_string(&event).unwrap();
 
     fs::File::create(format!("./data/events/{}.json", rand_file_name))
@@ -89,23 +97,38 @@ pub async fn add(cc: CommandContext<'_>) -> CommandResult {
     write!(file, "{}", serialised_event)
         .map_err(|e| anyhow::anyhow!("Failed to write to file: {}", e))?;
 
-    let msg = format!(
-        "```Event added!\nEvent's name: {}\nEvent's ID: {},\nFinish date: {}```",
-        &args[0], &rand_file_name, &completion
-    );
+    // Create and send an embed
+    let embed = embed::EmbedBuilder::new()
+        .title("Event added")
+        .field(embed::EmbedFieldBuilder::new(
+            "Event name: ",
+            format!("{}", &args[0]),
+        ))
+        .field(embed::EmbedFieldBuilder::new(
+            "Starts at: ",
+            format!("{}", &completion),
+        ))
+        .field(embed::EmbedFieldBuilder::new(
+            "Event ID: ",
+            format!("{}", &rand_file_name),
+        ))
+        .color(0xed00fa)
+        .build();
 
     cc.http
         .create_message(cc.msg.channel_id)
         .reply(cc.msg.id)
-        .content(&msg)?
+        .embeds(&[embed])?
         .send()
         .await?;
 
     Ok(())
 }
 
+// command: !scheduler rm <event_id>
 pub async fn rm(cc: CommandContext<'_>) -> CommandResult {
     let args: Vec<&str> = cc.args.split(' ').collect();
+    // If no arguments provided throw an error
     if args[0].is_empty() {
         cc.http
             .create_message(cc.msg.channel_id)
@@ -114,12 +137,21 @@ pub async fn rm(cc: CommandContext<'_>) -> CommandResult {
             .send()
             .await?;
     } else {
-        fs::remove_file(format!("./data/events/{}.json", args[0]))
+        // Remove the event file, create and send an embed
+        let embed = embed::EmbedBuilder::new()
+            .title("Event removed")
+            .field(embed::EmbedFieldBuilder::new(
+                "Event ID: ",
+                format!("{}", &args[0]),
+            ))
+            .color(0xed00fa)
+            .build();
+        fs::remove_file(format!("./data/events/{}.json", &args[0]))
             .map_err(|e| anyhow::anyhow!("Failed to remove the file: {}", e))?;
         cc.http
             .create_message(cc.msg.channel_id)
             .reply(cc.msg.id)
-            .content("Event removed")?
+            .embeds(&[embed])?
             .send()
             .await?;
     }
@@ -127,13 +159,16 @@ pub async fn rm(cc: CommandContext<'_>) -> CommandResult {
     Ok(())
 }
 
+// Every hour check if there are any events that are scheduled for this hour, if there are any - start timer and send a message when it ends
 pub async fn handle_timer(cc: Context) -> AnyResult<()> {
+    // block of code repeating every 3600 seconds
     async fn interval_loop(cc: &Context) {
         let paths = fs::read_dir("./data/events").unwrap();
 
         let now: i64 = DateTime::timestamp(&Utc::now());
         let mut tasks: Vec<Event> = Vec::new();
 
+        // loop through files and check if any of those upcoming events are within an hour from now
         for path in paths.into_iter() {
             let current_file: &String = &path.unwrap().path().display().to_string();
             let string: String =
@@ -142,10 +177,13 @@ pub async fn handle_timer(cc: Context) -> AnyResult<()> {
                     .expect("Can't parse the file");
             let event: Event = serde_json::from_str(&string).unwrap();
             let finish_time: i64 = DateTime::timestamp(&event.finishing_at);
+            // If such tasks are found, push them to a vector
             if (finish_time - now) < 3600 {
                 tasks.push(event);
             };
         }
+
+        // Loop through the vector, set the timer, send a mention
         for task in tasks.into_iter() {
             let finish_time: i64 = DateTime::timestamp(&task.finishing_at);
             let time_left: i64 = finish_time - now;
@@ -158,10 +196,10 @@ pub async fn handle_timer(cc: Context) -> AnyResult<()> {
                 .color(0xed00fa)
                 .build();
             let role_id = Id::<RoleMarker>::new(
-                env::var("ANNOUNCEMENT_CHANNEL")
-                    .expect("no channel defined")
+                env::var("ANNOUNCEMENT_ROLE")
+                    .expect("no role defined")
                     .parse()
-                    .expect("no channel lol"),
+                    .unwrap(),
             );
             let message = format!("{}", role_id.mention());
 
@@ -183,6 +221,7 @@ pub async fn handle_timer(cc: Context) -> AnyResult<()> {
         println!("lol")
     }
 
+    // Setting an interval
     let mut interval = time::interval(time::Duration::from_secs(3600));
     loop {
         interval.tick().await;
