@@ -5,6 +5,7 @@ pub mod alias;
 pub mod config;
 pub mod muter;
 pub mod roles;
+pub mod scheduler;
 
 /// Command: Delete a bunch of messages at once.
 #[cfg(feature = "bulk-delete")]
