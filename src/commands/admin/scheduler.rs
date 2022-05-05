@@ -142,7 +142,7 @@ pub async fn rm(cc: CommandContext<'_>) -> CommandResult {
             .title("Event removed")
             .field(embed::EmbedFieldBuilder::new(
                 "Event ID: ",
-                format!("{}", &args[0]),
+                args[0].to_string(),
             ))
             .color(0xed00fa)
             .build();
@@ -162,19 +162,20 @@ pub async fn rm(cc: CommandContext<'_>) -> CommandResult {
 // Every hour check if there are any events that are scheduled for this hour, if there are any - start timer and send a message when it ends
 pub async fn handle_timer(cc: Context) -> AnyResult<()> {
     // block of code repeating every 3600 seconds
-    async fn interval_loop(cc: &Context) {
+    async fn interval_loop(cc: &Context) -> AnyResult<()> {
         let paths = fs::read_dir("./data/events").unwrap();
 
         let now: i64 = DateTime::timestamp(&Utc::now());
         let mut tasks: Vec<Event> = Vec::new();
 
         // loop through files and check if any of those upcoming events are within an hour from now
-        for path in paths.into_iter() {
+        for path in paths {
             let current_file: &String = &path.unwrap().path().display().to_string();
             let string: String =
                 String::from_utf8_lossy(&fs::read(&current_file).expect("Can't load the file"))
                     .parse()
                     .expect("Can't parse the file");
+
             let event: Event = serde_json::from_str(&string).unwrap();
             let finish_time: i64 = DateTime::timestamp(&event.finishing_at);
             // If such tasks are found, push them to a vector
@@ -184,7 +185,7 @@ pub async fn handle_timer(cc: Context) -> AnyResult<()> {
         }
 
         // Loop through the vector, set the timer, send a mention
-        for task in tasks.into_iter() {
+        for task in tasks {
             let finish_time: i64 = DateTime::timestamp(&task.finishing_at);
             let time_left: i64 = finish_time - now;
             sleep(Duration::from_secs(time_left as u64)).await;
@@ -195,37 +196,33 @@ pub async fn handle_timer(cc: Context) -> AnyResult<()> {
                 .description(format!("Starts at: {}", &task.finishing_at))
                 .color(0xed00fa)
                 .build();
-            let role_id = Id::<RoleMarker>::new(
-                env::var("ANNOUNCEMENT_ROLE")
-                    .expect("no role defined")
-                    .parse()
-                    .unwrap(),
-            );
-            let message = format!("{}", role_id.mention());
+
+            let announcement_role = option_env!("ANNOUNCEMENT_ROLE")
+                .ok_or_else(|| anyhow!("No announcement role definied"))?;
+
+            let announcement_channel = option_env!("ANNOUNCEMENT_CHANNEL")
+                .ok_or_else(|| anyhow!("No announcement channel definied"))?;
+
+            let role_id = Id::<RoleMarker>::new(announcement_role.parse()?);
+
+            let message = role_id.mention().to_string();
 
             cc.http
-                .create_message(Id::new(
-                    env::var("ANNOUNCEMENT_CHANNEL")
-                        .unwrap()
-                        .parse()
-                        .expect("fdsafdsa"),
-                ))
-                .content(&message)
-                .expect("msg")
-                .embeds(&[embed])
-                .unwrap()
+                .create_message(Id::new(announcement_channel.parse()?))
+                .content(&message)?
+                .embeds(&[embed])?
                 .send()
                 .await
                 .expect("msg");
         }
-        println!("lol")
+        Ok(())
     }
 
     // Setting an interval
     let mut interval = time::interval(time::Duration::from_secs(3600));
+
     loop {
         interval.tick().await;
-        interval_loop(&cc).await;
+        interval_loop(&cc).await?;
     }
-    Ok(())
 }
