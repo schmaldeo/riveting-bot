@@ -173,10 +173,9 @@ impl ChatCommands {
                 .sub(command!(admin; admin::muter::timeout))
                 .named(),
             command!(admin; admin::scheduler::scheduler)
-                .desc("lol")
+                .desc("Manage events.")
                 .sub(command!(admin; admin::scheduler::add))
                 .sub(command!(admin; admin::scheduler::rm))
-                // .sub(command!(admin; admin::scheduler::handle_timer))
                 .named(),
         ]);
 
