@@ -7,6 +7,7 @@ use std::sync::{Arc, Mutex};
 use std::{env, fs};
 
 use futures::stream::StreamExt;
+use tracing::Level;
 use tracing_subscriber::EnvFilter;
 use twilight_cache_inmemory::InMemoryCache;
 use twilight_gateway::cluster::ShardScheme;
@@ -69,7 +70,11 @@ async fn main() -> AnyResult<()> {
 
     // Initialize the logger to use `RUST_LOG` environment variable.
     tracing_subscriber::fmt()
-        .with_env_filter(EnvFilter::from_default_env())
+        .with_env_filter(
+            EnvFilter::builder()
+                .with_default_directive(Level::DEBUG.into())
+                .from_env()?,
+        )
         .with_ansi(false)
         .with_writer(Mutex::new(logfile))
         .compact()

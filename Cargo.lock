@@ -1382,7 +1382,6 @@ dependencies = [
  "tokio",
  "toml",
  "tracing",
- "tracing-log",
  "tracing-subscriber",
  "twilight-cache-inmemory",
  "twilight-gateway",
