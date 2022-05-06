@@ -145,7 +145,9 @@ async fn main() -> AnyResult<()> {
         shard: None,
     };
 
-    tokio::spawn(handle_timer(ctx.clone()));
+    // Spawn community event handler.
+    tokio::spawn(handle_timer(ctx.clone(), 60 * 5));
+
     // Process each event as they come in.
     while let Some((id, event)) = events.next().await {
         // Update the cache with the event.

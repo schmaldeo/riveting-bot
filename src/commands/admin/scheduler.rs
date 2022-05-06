@@ -6,7 +6,7 @@ use chrono::{DateTime, TimeZone, Utc};
 use delay_timer::prelude::*;
 use rand::Rng;
 use serde::{Deserialize, Serialize};
-use tokio::time::{self, sleep};
+use tokio::time;
 use twilight_mention::Mention;
 use twilight_model::id::marker::RoleMarker;
 use twilight_model::id::Id;
@@ -16,8 +16,9 @@ use crate::commands::{CommandContext, CommandResult};
 use crate::utils::prelude::*;
 use crate::Context;
 
+/// Command: Manage community event schedule.
 pub async fn scheduler(cc: CommandContext<'_>) -> CommandResult {
-    // Send help
+    // Send help.
     cc.http
         .create_message(cc.msg.channel_id)
         .content(
@@ -40,7 +41,8 @@ struct Event {
     finishing_at: DateTime<Utc>,
 }
 
-/// command: !scheduler add <name of event> <year> <month> <day> <hours> <minutes> <seconds>, time in UTC
+/// Command: Add a community event to be scheduled.
+/// Usage: scheduler add <name of event> <year> <month> <day> <hours> <minutes> <seconds>, time in UTC
 pub async fn add(cc: CommandContext<'_>) -> CommandResult {
     let args: Vec<&str> = cc.args.split(' ').collect();
 
@@ -67,9 +69,11 @@ pub async fn add(cc: CommandContext<'_>) -> CommandResult {
         .ymd(date_vec[0] as i32, date_vec[1], date_vec[2])
         .and_hms(date_vec[3], date_vec[4], date_vec[5]);
 
+    let completed_in = format!("<t:{}:R>", completion.timestamp());
+
     let query_user: String = cc.msg.id.get().to_string();
 
-    // Generate a random file name
+    // Generate a random file name.
     let rand_file_name: u32 = rand::thread_rng().gen();
 
     let event = Event {
@@ -80,14 +84,14 @@ pub async fn add(cc: CommandContext<'_>) -> CommandResult {
         finishing_at: completion,
     };
 
-    // Push event into json file
+    // Push event into json file.
     let serialised_event: String = serde_json::to_string(&event).unwrap();
-
-    fs::File::create(format!("./data/events/{}.json", rand_file_name))
-        .map_err(|e| anyhow::anyhow!("Failed to create a file: {}", e))?;
 
     fs::create_dir_all("./data/events")
         .map_err(|e| anyhow::anyhow!("Failed to create events dir: {}", e))?;
+
+    fs::File::create(format!("./data/events/{}.json", rand_file_name))
+        .map_err(|e| anyhow::anyhow!("Failed to create a file: {}", e))?;
 
     let mut file = fs::OpenOptions::new()
         .append(true)
@@ -102,11 +106,11 @@ pub async fn add(cc: CommandContext<'_>) -> CommandResult {
         .title("Event added")
         .field(embed::EmbedFieldBuilder::new(
             "Event name: ",
-            format!("{}", &args[0]),
+            args[0].to_string(),
         ))
         .field(embed::EmbedFieldBuilder::new(
             "Starts at: ",
-            format!("{}", &completion),
+            format!("{completion}\n{completed_in}"),
         ))
         .field(embed::EmbedFieldBuilder::new(
             "Event ID: ",
@@ -125,7 +129,8 @@ pub async fn add(cc: CommandContext<'_>) -> CommandResult {
     Ok(())
 }
 
-// command: !scheduler rm <event_id>
+/// Command: Remove a community event from the schedule.
+/// Usage: scheduler rm <event_id>
 pub async fn rm(cc: CommandContext<'_>) -> CommandResult {
     let args: Vec<&str> = cc.args.split(' ').collect();
     // If no arguments provided throw an error
@@ -159,70 +164,100 @@ pub async fn rm(cc: CommandContext<'_>) -> CommandResult {
     Ok(())
 }
 
-// Every hour check if there are any events that are scheduled for this hour, if there are any - start timer and send a message when it ends
-pub async fn handle_timer(cc: Context) -> AnyResult<()> {
-    // block of code repeating every 3600 seconds
-    async fn interval_loop(cc: &Context) -> AnyResult<()> {
-        let paths = fs::read_dir("./data/events").unwrap();
-
-        let now: i64 = DateTime::timestamp(&Utc::now());
-        let mut tasks: Vec<Event> = Vec::new();
-
-        // loop through files and check if any of those upcoming events are within an hour from now
-        for path in paths {
-            let current_file: &String = &path.unwrap().path().display().to_string();
-            let string: String =
-                String::from_utf8_lossy(&fs::read(&current_file).expect("Can't load the file"))
-                    .parse()
-                    .expect("Can't parse the file");
-
-            let event: Event = serde_json::from_str(&string).unwrap();
-            let finish_time: i64 = DateTime::timestamp(&event.finishing_at);
-            // If such tasks are found, push them to a vector
-            if (finish_time - now) < 3600 {
-                tasks.push(event);
-            };
-        }
-
-        // Loop through the vector, set the timer, send a mention
-        for task in tasks {
-            let finish_time: i64 = DateTime::timestamp(&task.finishing_at);
-            let time_left: i64 = finish_time - now;
-            sleep(Duration::from_secs(time_left as u64)).await;
-            fs::remove_file(format!("./data/events/{}.json", &task.id)).expect("msg");
-
-            let embed = embed::EmbedBuilder::new()
-                .title(format!("{} is starting", &task.name))
-                .description(format!("Starts at: {}", &task.finishing_at))
-                .color(0xed00fa)
-                .build();
-
-            let announcement_role = option_env!("ANNOUNCEMENT_ROLE")
-                .ok_or_else(|| anyhow!("No announcement role definied"))?;
-
-            let announcement_channel = option_env!("ANNOUNCEMENT_CHANNEL")
-                .ok_or_else(|| anyhow!("No announcement channel definied"))?;
-
-            let role_id = Id::<RoleMarker>::new(announcement_role.parse()?);
-
-            let message = role_id.mention().to_string();
-
-            cc.http
-                .create_message(Id::new(announcement_channel.parse()?))
-                .content(&message)?
-                .embeds(&[embed])?
-                .send()
-                .await
-                .expect("msg");
-        }
-        Ok(())
-    }
-
+/// Every `period` seconds check if there are any events that are scheduled for this period,
+/// if there are any - start timer and send a message when it ends.
+pub async fn handle_timer(ctx: Context, period: u64) -> AnyResult<()> {
     // Setting an interval
-    let mut interval = time::interval(time::Duration::from_secs(3600));
+    let mut interval = time::interval(time::Duration::from_secs(period));
 
     loop {
         interval.tick().await;
-        interval_loop(&cc).await?;
+
+        // Use period as the look-ahead time also, for now.
+        check_schedule(&ctx, period).await?;
     }
+}
+
+/// Check if any events are happening in the next `look_ahead` seconds.
+async fn check_schedule(ctx: &Context, look_ahead: u64) -> AnyResult<()> {
+    // TODO Use a single file for events.
+
+    std::fs::create_dir_all("./data/events")
+        .map_err(|e| anyhow::anyhow!("Failed to create events folder: {}", e))?;
+
+    let paths = fs::read_dir("./data/events").unwrap();
+
+    let now: i64 = Utc::now().timestamp();
+    let mut tasks = Vec::<Event>::new();
+
+    // Loop through files and check if any of those upcoming events are within an hour from now.
+    for path in paths {
+        let current_file = path.unwrap().path().display().to_string();
+        let string: String =
+            String::from_utf8_lossy(&fs::read(&current_file).expect("Can't load the file"))
+                .parse()
+                .expect("Can't parse the file");
+
+        let event: Event = serde_json::from_str(&string).unwrap();
+        let finish_time = event.finishing_at.timestamp();
+
+        // If such tasks are found, push them to a vector
+        if (finish_time.saturating_sub(now) as u64) < look_ahead {
+            tasks.push(event);
+        };
+    }
+
+    let mut futs = tokio::task::JoinSet::new();
+
+    // Loop through the vector, set the timer and send a mention.
+    for task in tasks {
+        let finish_time = task.finishing_at.timestamp();
+        let time_left = finish_time - now;
+
+        fs::remove_file(format!("./data/events/{}.json", &task.id))?;
+
+        futs.spawn(wait_for_starting(ctx.clone(), task, time_left as u64));
+    }
+
+    // This will wait for all tasks to complete in this period.
+    loop {
+        match futs.join_one().await {
+            // All done.
+            Ok(None) => break,
+            // Log if an error occurred inside event waiting.
+            Err(e) => error!("Error in a scheduled event: {}", e),
+            // One completed without errors.
+            _ => (),
+        }
+    }
+
+    Ok(())
+}
+
+async fn wait_for_starting(ctx: Context, event: Event, until: u64) -> AnyResult<()> {
+    debug!("Starting a community event in {} seconds", until);
+
+    time::sleep(Duration::from_secs(until)).await;
+
+    let embed = embed::EmbedBuilder::new()
+        .title(format!("{} is starting", &event.name))
+        .description(format!("Starts at: {}", &event.finishing_at))
+        .color(0xed00fa)
+        .build();
+
+    let announcement_role = env::var("ANNOUNCEMENT_ROLE")?;
+    let announcement_channel = env::var("ANNOUNCEMENT_CHANNEL")?;
+
+    let role_id = Id::<RoleMarker>::new(announcement_role.parse()?);
+
+    let message = role_id.mention().to_string();
+
+    ctx.http
+        .create_message(Id::new(announcement_channel.parse()?))
+        .content(&message)?
+        .embeds(&[embed])?
+        .send()
+        .await?;
+
+    Ok(())
 }
