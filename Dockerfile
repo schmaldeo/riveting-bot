@@ -10,6 +10,7 @@ WORKDIR /app
 
 # Copy manifests.
 COPY ./Cargo.lock ./Cargo.toml ./
+COPY ./.cargo ./.cargo
 
 # Build only the dependencies to cache them.
 RUN cargo build --release
