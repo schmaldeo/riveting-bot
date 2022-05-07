@@ -17,7 +17,7 @@ pub async fn fuel(cc: CommandContext<'_>) -> CommandResult {
                 .reply(cc.msg.id)
                 .content(
                     "```Command: Calculate fuel required.\nUsage: fuel <length: minutes> \
-                     <laptime> <fuel per lap>```",
+                     <laptime: x:xx.xxx> <fuel per lap: x.xx>```",
                 )?
                 .send()
                 .await?;
