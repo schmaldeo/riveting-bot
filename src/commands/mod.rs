@@ -141,6 +141,10 @@ impl ChatCommands {
                 .sub(command!(user::quote::add))
                 .sub(command!(user::quote::remove))
                 .named(),
+            command!(user::fuel::fuel)
+                .dm(true)
+                .desc("Calculate race fuel needed.")
+                .named(),
             #[cfg(feature = "voice")]
             command!(user::voice::voice)
                 .desc("Manage voice connection.")
