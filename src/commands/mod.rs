@@ -1,3 +1,5 @@
+#![allow(dead_code)]
+
 use std::borrow::Cow;
 use std::collections::{HashMap, HashSet};
 use std::mem;
@@ -181,10 +183,9 @@ impl ChatCommands {
                 .sub(command!(admin; admin::scheduler::add))
                 .sub(command!(admin; admin::scheduler::rm))
                 .named(),
+            #[cfg(feature = "bulk-delete")] // Extension of `admin` features.
+            command!(admin; "delete-messages", admin::bulk::delete_messages).named(),
         ]);
-
-        #[cfg(feature = "bulk-delete")] // Separate from `admin` feature, because yes.
-        list.extend([command!(admin; "delete-messages", admin::delete_messages).named()]);
 
         // Bot owner functionality.
         #[cfg(feature = "owner")]
@@ -248,7 +249,7 @@ impl ChatCommands {
     }
 
     /// Runs just before the command is executed.
-    async fn before(&self, ctx: &Context, msg: &Message, cmd: &Command) -> CommandResult {
+    async fn before(&self, _ctx: &Context, msg: &Message, cmd: &Command) -> CommandResult {
         info!("Executing command '{}' by '{}'", cmd.name, msg.author.name);
 
         Ok(())

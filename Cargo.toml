@@ -60,6 +60,6 @@ debug = ["all-intents", "bulk-delete"]
 #
 admin = []
 all-intents = []
-bulk-delete = []
+bulk-delete = ["admin"]
 owner = []
 voice = ["dep:songbird"]

@@ -2,6 +2,7 @@
 #![feature(decl_macro)]
 #![feature(pattern)]
 #![feature(associated_type_bounds)]
+#![allow(dead_code)]
 
 use std::sync::{Arc, Mutex};
 use std::{env, fs};
@@ -15,7 +16,6 @@ use twilight_gateway::{Cluster, Event};
 use twilight_http::Client;
 use twilight_model::application::interaction::Interaction;
 use twilight_model::channel::Message;
-use twilight_model::datetime::Timestamp;
 use twilight_model::gateway::event::shard::Connected;
 use twilight_model::gateway::payload::incoming::Ready;
 use twilight_model::gateway::Intents;
@@ -166,7 +166,7 @@ async fn handle_event(ctx: Context, event: Event) -> AnyResult<()> {
         Event::Ready(r) => handle_ready(&ctx, *r).await,
         Event::GuildCreate(g) => handle_guild_create(&ctx, g.0).await,
         Event::InteractionCreate(i) => handle_interaction_create(&ctx, i.0).await,
-        Event::MessageCreate(msg) => handle_message_create(&ctx, &msg.0).await,
+        Event::MessageCreate(msg) => handle_message_create(&ctx, msg.0).await,
         Event::VoiceStateUpdate(v) => handle_voice_state(&ctx, v.0).await,
 
         // Other events here...
@@ -237,12 +237,12 @@ async fn handle_interaction_create(ctx: &Context, inter: Interaction) -> AnyResu
     Ok(())
 }
 
-async fn handle_message_create(ctx: &Context, msg: &Message) -> AnyResult<()> {
+async fn handle_message_create(ctx: &Context, msg: Message) -> AnyResult<()> {
     // Ignore bot users.
     anyhow::ensure!(!msg.author.bot, "Message sender is a bot");
 
     // Handle chat commands.
-    if let Err(e) = ctx.chat_commands.process(ctx, msg).await {
+    if let Err(e) = ctx.chat_commands.process(ctx, &msg).await {
         match e {
             // Message was not meant for us.
             CommandError::NotPrefixed => (),
@@ -272,7 +272,7 @@ async fn handle_message_create(ctx: &Context, msg: &Message) -> AnyResult<()> {
     Ok(())
 }
 
-async fn handle_voice_state(ctx: &Context, voice: VoiceState) -> AnyResult<()> {
+async fn handle_voice_state(_ctx: &Context, _voice: VoiceState) -> AnyResult<()> {
     Ok(())
 }
 

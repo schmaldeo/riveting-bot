@@ -3,10 +3,9 @@ use serde::{Deserialize, Serialize};
 use crate::commands::{CommandContext, CommandError, CommandResult};
 use crate::parser;
 use crate::utils::prelude::*;
-use crate::utils::{self, consts};
 
 /// Command: Manage guild command aliases.
-pub async fn alias(cc: CommandContext<'_>) -> CommandResult {
+pub async fn alias(_cc: CommandContext<'_>) -> CommandResult {
     Err(CommandError::NotImplemented)
 }
 
@@ -36,7 +35,7 @@ pub async fn list(cc: CommandContext<'_>) -> CommandResult {
 }
 
 /// Command: Get a guild command alias definition.
-pub async fn get(cc: CommandContext<'_>) -> CommandResult {
+pub async fn get(_cc: CommandContext<'_>) -> CommandResult {
     Err(CommandError::NotImplemented)
 }
 

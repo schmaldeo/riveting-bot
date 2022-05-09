@@ -1,10 +1,10 @@
 //! Functions for parsing arguments.
 //! (Still pretty goofy, but works)
+#![allow(dead_code)]
 
 use std::str::pattern::{Pattern, ReverseSearcher};
 
 use crate::commands::{CommandError, CommandResult};
-use crate::utils::prelude::*;
 use crate::utils::{self, consts};
 
 /// Try to parse string-slice into arg parts.

@@ -3,8 +3,8 @@ use twilight_model::application::component::{ActionRow, Button, Component};
 use twilight_model::channel::message::MessageFlags;
 use twilight_model::channel::ReactionType;
 
-use crate::commands::{CommandContext, CommandError, CommandResult};
-use crate::utils::prelude::*;
+use crate::commands::{CommandContext, CommandResult};
+// use crate::utils::prelude::*;
 
 /// Command: Setup a reaction-roles message.
 pub async fn roles(cc: CommandContext<'_>) -> CommandResult {
@@ -44,28 +44,24 @@ pub async fn roles(cc: CommandContext<'_>) -> CommandResult {
         .exec()
         .await;
 
-    let model = match res {
+    let _model = match res {
         Ok(k) => k.model().await.unwrap(),
         Err(e) => {
             match e.kind() {
                 twilight_http::error::ErrorType::BuildingRequest => todo!(),
                 twilight_http::error::ErrorType::ChunkingResponse => todo!(),
-                twilight_http::error::ErrorType::CreatingHeader { name } => todo!(),
+                twilight_http::error::ErrorType::CreatingHeader { .. } => todo!(),
                 twilight_http::error::ErrorType::Json => todo!(),
-                twilight_http::error::ErrorType::Parsing { body } => todo!(),
+                twilight_http::error::ErrorType::Parsing { .. } => todo!(),
                 twilight_http::error::ErrorType::RatelimiterTicket => todo!(),
                 twilight_http::error::ErrorType::RequestCanceled => todo!(),
                 twilight_http::error::ErrorType::RequestError => todo!(),
                 twilight_http::error::ErrorType::RequestTimedOut => todo!(),
-                twilight_http::error::ErrorType::Response {
-                    body,
-                    error,
-                    status,
-                } => {
+                twilight_http::error::ErrorType::Response { body, .. } => {
                     let msg = String::from_utf8_lossy(body);
                     eprintln!("{}", msg);
                 },
-                twilight_http::error::ErrorType::ServiceUnavailable { response } => todo!(),
+                twilight_http::error::ErrorType::ServiceUnavailable { .. } => todo!(),
                 twilight_http::error::ErrorType::Unauthorized => todo!(),
                 _ => todo!(),
             }

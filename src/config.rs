@@ -1,3 +1,5 @@
+#![allow(dead_code)]
+
 use std::collections::{HashMap, HashSet};
 use std::fs::OpenOptions;
 use std::io::prelude::*;
