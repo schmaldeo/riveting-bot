@@ -12,17 +12,59 @@ use crate::utils::prelude::*;
 
 pub const CONFIG_PATH: &str = "./data/bot.json";
 
-#[derive(Deserialize, Serialize, Debug, Clone)]
-pub struct Data {
-    pub prefix: String,
-    pub aliases: HashMap<String, String>,
+/// Set `Option` fields of `obj` of struct `target` to `Some(_)`
+/// using either the set value in `obj` or `target::default()`.
+/// `obj` must be an identifier of something mutable.
+macro some_or_default {
+    ($obj:ident: $target:ident { $($f:ident),*$(,)? }) => {{
+        let def = $target::default();
+        $( $obj.$f = $obj.$f.take().or(def.$f); )*
+    }}
 }
 
-impl Default for Data {
+/// General settings for the bot.
+#[derive(Deserialize, Serialize, Debug, Clone)]
+pub struct Settings {
+    pub prefix: Option<String>,
+    pub aliases: Option<HashMap<String, String>>,
+}
+
+impl Settings {
+    /// This will panic if set to `None`.
+    pub fn prefix(&self) -> &str {
+        self.prefix.as_ref().unwrap()
+    }
+
+    /// This will panic if set to `None`.
+    pub fn aliases(&self) -> &HashMap<String, String> {
+        self.aliases.as_ref().unwrap()
+    }
+
+    /// This will panic if set to `None`.
+    pub fn prefix_mut(&mut self) -> &mut String {
+        self.prefix.as_mut().unwrap()
+    }
+
+    /// This will panic if set to `None`.
+    pub fn aliases_mut(&mut self) -> &mut HashMap<String, String> {
+        self.aliases.as_mut().unwrap()
+    }
+
+    /// Make sure all settings are set to `Some(_)`.
+    fn ensure_some_or_default(&mut self) {
+        some_or_default!(self: Settings {
+            prefix,
+            aliases,
+        });
+    }
+}
+
+impl Default for Settings {
+    /// Settings with `Some(_)` defaults.
     fn default() -> Self {
         Self {
-            prefix: "!".to_string(),
-            aliases: HashMap::new(),
+            prefix: Some("!".to_string()),
+            aliases: Some(HashMap::new()),
         }
     }
 }
@@ -30,8 +72,8 @@ impl Default for Data {
 /// Serializable bot configuration.
 #[derive(Deserialize, Serialize, Debug, Default, Clone)]
 pub struct Config {
-    pub global: Data,
-    pub guilds: HashMap<Id<GuildMarker>, Data>,
+    pub global: Settings,
+    pub guilds: HashMap<Id<GuildMarker>, Settings>,
 }
 
 impl Config {
@@ -50,8 +92,8 @@ impl Config {
             config.read_to_string(&mut cfg)?;
         }
 
-        match serde_json::from_str(&cfg) {
-            Ok(c) => Ok(c),
+        match serde_json::from_str::<Config>(&cfg) {
+            Ok(c) => Ok(c.ensure_settings_or_default()), // Make sure loaded settings are at least something.
             Err(e) => {
                 debug!("Could not load config: {}", e);
                 info!("Creating a default config file");
@@ -89,35 +131,50 @@ impl Config {
     }
 
     /// Get guild's config.
-    pub fn guild(&self, guild_id: Id<GuildMarker>) -> Option<&Data> {
+    pub fn guild(&self, guild_id: Id<GuildMarker>) -> Option<&Settings> {
         self.guilds.get(&guild_id)
     }
 
-    /// Set guild's custom prefix.
-    pub fn set_prefix(&mut self, guild_id: Id<GuildMarker>, prefix: &str) {
-        self.guilds.entry(guild_id).or_default().prefix = prefix.to_string();
+    /// Get mutable reference to guild's config, if exists.
+    pub fn guild_mut(&mut self, guild_id: Id<GuildMarker>) -> Option<&mut Settings> {
+        self.guilds.get_mut(&guild_id)
     }
 
-    /// Set an alias, return `Some(alias_command)` if it replaced one.
-    pub fn set_alias(&mut self, guild_id: Id<GuildMarker>, alias: Alias) -> Option<String> {
-        self.guilds
-            .entry(guild_id)
-            .or_default()
-            .aliases
+    /// Get mutable reference to guild's config. Creates default if not yet found.
+    pub fn guild_or_default(&mut self, guild_id: Id<GuildMarker>) -> &mut Settings {
+        self.guilds.entry(guild_id).or_default()
+    }
+
+    /// Set guild's custom prefix, returns previously set prefix `Some(prefix)`.
+    pub fn set_prefix(&mut self, guild_id: Id<GuildMarker>, prefix: &str) -> Option<String> {
+        self.guild_or_default(guild_id)
+            .prefix
+            .replace(prefix.to_string())
+    }
+
+    /// Add an alias, returns `Some(alias_command)` if it replaced one.
+    pub fn add_alias(&mut self, guild_id: Id<GuildMarker>, alias: Alias) -> Option<String> {
+        self.guild_or_default(guild_id)
+            .aliases_mut()
             .insert(alias.name, alias.command)
     }
 
-    /// Remove an alias, returns `Some(alias_command)` if successful.
+    /// Remove an alias, returns the removed alias value `Some(alias_command)` if successful.
     pub fn remove_alias(&mut self, guild_id: Id<GuildMarker>, alias_name: &str) -> Option<String> {
+        self.guild_mut(guild_id)?.aliases_mut().remove(alias_name)
+    }
+
+    /// Make sure all `Settings` in the config have fields set to `Some(_)`.
+    fn ensure_settings_or_default(mut self) -> Self {
+        self.global.ensure_some_or_default();
         self.guilds
-            .entry(guild_id)
-            .or_default()
-            .aliases
-            .remove(alias_name)
+            .iter_mut()
+            .for_each(|(_, s)| s.ensure_some_or_default());
+        self
     }
 }
 
-/// Thread safe bot configuration wrapper.
+/// Thread-safe bot configuration wrapper.
 #[derive(Debug, Clone)]
 pub struct BotConfig(Arc<Mutex<Config>>);
 

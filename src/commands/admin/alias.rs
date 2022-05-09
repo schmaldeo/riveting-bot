@@ -19,8 +19,8 @@ pub async fn list(cc: CommandContext<'_>) -> CommandResult {
     let list = {
         let lock = cc.config.lock().unwrap();
 
-        match lock.guilds.get(&guild_id) {
-            Some(data) => format!("```json\n{:#?}```", data.aliases), // Quick haxx
+        match lock.guild(guild_id) {
+            Some(data) => format!("```json\n{:#?}```", data.aliases()), // Quick haxx
             None => String::new(),
         }
     };
@@ -50,7 +50,7 @@ pub async fn set(cc: CommandContext<'_>) -> CommandResult {
 
     let mut lock = cc.config.lock().unwrap();
 
-    match lock.set_alias(guild_id, alias) {
+    match lock.add_alias(guild_id, alias) {
         Some(_) => debug!("Replaced an alias in guild '{guild_id}'"),
         None => debug!("Added an alias in guild '{guild_id}'"),
     }

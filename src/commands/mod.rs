@@ -330,7 +330,8 @@ fn unprefix<'a>(ctx: &Context, msg: &'a Message) -> Option<&'a str> {
             let lock = ctx.config.lock().unwrap();
 
             // See if guild has set a prefix, otherwise use global.
-            let prefix = &lock.guilds.get(&guild_id).unwrap_or(&lock.global).prefix;
+
+            let prefix = lock.guild(guild_id).unwrap_or(&lock.global).prefix();
             msg.content.strip_prefix(prefix)
         },
         None => {
@@ -338,12 +339,12 @@ fn unprefix<'a>(ctx: &Context, msg: &'a Message) -> Option<&'a str> {
             let lock = ctx.config.lock().unwrap();
 
             // Try to use global prefix, if fails, try to use any guild prefix.
-            let mut stripped = msg.content.strip_prefix(&lock.global.prefix);
+            let mut stripped = msg.content.strip_prefix(lock.global.prefix());
             let mut guilds = lock.guilds.values();
 
             // While `stripped` is none, i.e. no prefix has matched, and there are still guild configs to check.
             while let (Some(guild), None) = (guilds.next(), stripped) {
-                stripped = msg.content.strip_prefix(&guild.prefix);
+                stripped = msg.content.strip_prefix(guild.prefix());
             }
 
             stripped
@@ -355,7 +356,7 @@ fn unprefix<'a>(ctx: &Context, msg: &'a Message) -> Option<&'a str> {
 fn unalias<'a>(ctx: &'a Context, msg: &Message, stripped: &str) -> Option<Cow<'a, str>> {
     if let Some(guild_id) = msg.guild_id {
         let lock = ctx.config.lock().unwrap();
-        let found = lock.guilds.get(&guild_id)?.aliases.get(stripped)?;
+        let found = lock.guild(guild_id)?.aliases().get(stripped)?;
 
         info!("Found alias '{found}' for '{stripped}'");
 
@@ -426,11 +427,11 @@ impl<'a> CommandContext<'a> {
         let lock = self.config.lock().unwrap();
 
         match guild_id {
-            Some(guild_id) => match lock.guilds.get(&guild_id) {
-                Some(data) => data.prefix.to_string(),
-                None => lock.global.prefix.to_string(),
+            Some(guild_id) => match lock.guild(guild_id) {
+                Some(data) => data.prefix().to_string(),
+                None => lock.global.prefix().to_string(),
             },
-            None => lock.global.prefix.to_string(),
+            None => lock.global.prefix().to_string(),
         }
     }
 }
