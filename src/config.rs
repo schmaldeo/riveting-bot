@@ -1,12 +1,12 @@
 #![allow(dead_code)]
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::fs::OpenOptions;
 use std::io::prelude::*;
 use std::sync::{Arc, Mutex};
 
 use serde::{Deserialize, Serialize};
-use twilight_model::id::marker::GuildMarker;
+use twilight_model::id::marker::{ChannelMarker, GuildMarker, RoleMarker, UserMarker};
 use twilight_model::id::Id;
 
 use crate::commands::admin::alias::Alias;
@@ -29,6 +29,7 @@ macro some_or_default {
 pub struct Settings {
     pub prefix: Option<String>,
     pub aliases: Option<HashMap<String, String>>,
+    pub perms: Option<HashMap<String, PermissionMap>>,
 }
 
 impl Settings {
@@ -43,6 +44,11 @@ impl Settings {
     }
 
     /// This will panic if set to `None`.
+    pub fn perms(&self) -> &HashMap<String, PermissionMap> {
+        self.perms.as_ref().unwrap()
+    }
+
+    /// This will panic if set to `None`.
     pub fn prefix_mut(&mut self) -> &mut String {
         self.prefix.as_mut().unwrap()
     }
@@ -52,11 +58,17 @@ impl Settings {
         self.aliases.as_mut().unwrap()
     }
 
+    /// This will panic if set to `None`.
+    pub fn perms_mut(&mut self) -> &mut HashMap<String, PermissionMap> {
+        self.perms.as_mut().unwrap()
+    }
+
     /// Make sure all settings are set to `Some(_)`.
     fn ensure_some_or_default(&mut self) {
         some_or_default!(self: Settings {
             prefix,
             aliases,
+            perms,
         });
     }
 }
@@ -67,7 +79,74 @@ impl Default for Settings {
         Self {
             prefix: Some("!".to_string()),
             aliases: Some(HashMap::new()),
+            perms: Some(HashMap::new()),
         }
+    }
+}
+
+/// Contains allowed or disallowed ids.
+#[derive(Debug, Default, Clone, Deserialize, Serialize)]
+pub struct PermissionMap {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub users: Option<HashMap<Id<UserMarker>, bool>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub roles: Option<HashMap<Id<RoleMarker>, bool>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub disabled_channels: Option<HashSet<Id<ChannelMarker>>>,
+}
+
+impl PermissionMap {
+    /// Get a user permission, if exists.
+    pub fn user(&self, user_id: Id<UserMarker>) -> Option<bool> {
+        self.users.as_ref()?.get(&user_id).copied()
+    }
+
+    /// Get a role permission, if exists.
+    pub fn role(&self, role_id: Id<RoleMarker>) -> Option<bool> {
+        self.roles.as_ref()?.get(&role_id).copied()
+    }
+
+    /// Set a permission rule for a user, returns replaced rule if there was any.
+    pub fn set_user(&mut self, user_id: Id<UserMarker>, allow: bool) -> Option<bool> {
+        self.users.get_or_insert_default().insert(user_id, allow)
+    }
+
+    /// Set a permission rule for a role, returns replaced rule if there was any.
+    pub fn set_role(&mut self, role_id: Id<RoleMarker>, allow: bool) -> Option<bool> {
+        self.roles.get_or_insert_default().insert(role_id, allow)
+    }
+
+    /// Remove a permission rule for a user, returns removed rule if there was any.
+    pub fn remove_user(&mut self, user_id: Id<UserMarker>) -> Option<bool> {
+        self.users.as_mut()?.remove(&user_id)
+    }
+
+    /// Remove a permission rule for a role, returns removed rule if there was any.
+    pub fn remove_role(&mut self, role_id: Id<RoleMarker>) -> Option<bool> {
+        self.roles.as_mut()?.remove(&role_id)
+    }
+
+    /// Returns `true` if channel is disabled.
+    pub fn is_channel_disabled(&self, channel_id: Id<ChannelMarker>) -> bool {
+        self.disabled_channels
+            .as_ref()
+            .map(|dc| dc.contains(&channel_id))
+            .unwrap_or(false)
+    }
+
+    /// Add channel to the disabled channels list, returns `true` if it was not yet present.
+    pub fn disable_channel(&mut self, channel_id: Id<ChannelMarker>) -> bool {
+        self.disabled_channels
+            .get_or_insert_default()
+            .insert(channel_id)
+    }
+
+    /// Remove a channel from the disabled channels list, returns `true` if it was found and removed.
+    pub fn enable_channel(&mut self, channel_id: Id<ChannelMarker>) -> bool {
+        self.disabled_channels
+            .as_mut()
+            .map(|dc| dc.remove(&channel_id))
+            .unwrap_or(false)
     }
 }
 

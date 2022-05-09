@@ -120,6 +120,8 @@ impl_into_command_error!(Other; twilight_http::response::DeserializeBodyError);
 impl_into_command_error!(Other; twilight_validate::request::ValidationError);
 impl_into_command_error!(Other; twilight_validate::message::MessageValidationError);
 impl_into_command_error!(Other; twilight_standby::future::Canceled);
+impl_into_command_error!(Other; serde_json::Error);
+impl_into_command_error!(Other; std::fmt::Error);
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum CommandAccess {
@@ -223,6 +225,13 @@ impl ChatCommands {
                 .sub(command!(admin; admin::alias::get))
                 .sub(command!(admin; admin::alias::set))
                 .sub(command!(admin; admin::alias::remove))
+                .named(),
+            command!(admin; admin::perms::perms)
+                .desc("Manage command and alias permissions.")
+                .sub(command!(admin; admin::perms::list))
+                .sub(command!(admin; admin::perms::allow))
+                .sub(command!(admin; admin::perms::deny))
+                .sub(command!(admin; admin::perms::clear))
                 .named(),
             command!(admin; admin::muter::muter)
                 .desc("Silence someone.")
@@ -639,6 +648,12 @@ impl Command {
             None => Ok(()),
             // Check for guild permissions.
             Some(guild_id) => {
+                match self.check_custom_permissions(ctx, msg, guild_id) {
+                    Some(true) => return Ok(()),
+                    Some(false) => return Err(CommandError::AccessDenied),
+                    None => (), // Use defaults.
+                }
+
                 let access = match self.access {
                     CommandAccess::User(u) => u == msg.author.id,
                     CommandAccess::Role(r) => {
@@ -676,6 +691,61 @@ impl Command {
                 }
             },
         }
+    }
+
+    /// Check configuration for guild's custom permissions.
+    fn check_custom_permissions(
+        &self,
+        ctx: &Context,
+        msg: &Message,
+        guild_id: Id<GuildMarker>,
+    ) -> Option<bool> {
+        let lock = ctx.config.lock().unwrap();
+        let guild = lock.guild(guild_id)?;
+
+        // FIXME This is sort of a quickfix to cope with the ever-so-naive command splitting.
+        // Everything would explode if there was any subcommands involved.
+        let prefix = lock.guild(guild_id).unwrap_or(&lock.global).prefix();
+        let stripped = msg.content.strip_prefix(prefix)?;
+        let (first, _) = stripped
+            .split_once(char::is_whitespace)
+            .unwrap_or((stripped, ""));
+        let is_alias = lock.guild(guild_id)?.aliases().contains_key(first);
+
+        // Just yeet out of here.
+        if first != self.name && !is_alias {
+            return None;
+        }
+
+        let cmd = if is_alias { first } else { self.name };
+        let perm = guild.perms().get(cmd)?;
+
+        // If the command is disabled in the channel then access is denied.
+        if perm.is_channel_disabled(msg.channel_id) {
+            return Some(false);
+        }
+
+        // Is allowed or denied for user specifically?
+        if let Some(val) = perm.user(msg.author.id) {
+            return Some(val);
+        }
+
+        // Otherwise, check if user has any role with explicit rule.
+        let mut explicit = false;
+
+        for role in msg.member.as_ref().unwrap().roles.iter() {
+            match perm.role(*role) {
+                Some(false) => return Some(false), // Explicitly denied.
+                Some(true) => explicit = true,     // Explicitly allowed.
+                None => (),                        // Not specified.
+            }
+        }
+
+        if explicit {
+            return Some(true);
+        }
+
+        None // Not specified.
     }
 }
 

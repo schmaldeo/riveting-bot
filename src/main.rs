@@ -2,6 +2,7 @@
 #![feature(decl_macro)]
 #![feature(pattern)]
 #![feature(associated_type_bounds)]
+#![feature(option_get_or_insert_default)]
 #![allow(dead_code)]
 
 use std::sync::{Arc, Mutex};
