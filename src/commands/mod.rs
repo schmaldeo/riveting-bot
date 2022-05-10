@@ -13,8 +13,6 @@ use twilight_model::guild::Permissions;
 use twilight_model::id::marker::{GuildMarker, RoleMarker};
 use twilight_model::id::Id;
 use twilight_util::permission_calculator::PermissionCalculator;
-use twilight_validate::message::MessageValidationError;
-use twilight_validate::request::ValidationError;
 
 use crate::utils::prelude::*;
 use crate::Context;
@@ -34,6 +32,22 @@ pub mod admin;
 pub mod owner;
 
 pub type CommandResult = Result<(), CommandError>;
+
+#[derive(Debug, Error)]
+pub struct ClientError(#[from] twilight_http::Error);
+
+impl std::fmt::Display for ClientError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let err = &self.0;
+        match err.kind() {
+            twilight_http::error::ErrorType::Parsing { body }
+            | twilight_http::error::ErrorType::Response { body, .. } => {
+                write!(f, "{err}, body: {}", String::from_utf8_lossy(body))
+            },
+            _ => write!(f, "{err}"),
+        }
+    }
+}
 
 #[derive(Debug, Error)]
 pub enum CommandError {
@@ -77,6 +91,10 @@ pub enum CommandError {
     #[error("Permission requirements not met")]
     AccessDenied,
 
+    /// Twilight client errors, when obscure.
+    #[error(transparent)]
+    Client(#[from] ClientError),
+
     /// Other errors that are or can be converted to `anyhow::Error`.
     #[error(transparent)]
     Other(#[from] anyhow::Error), // Source and Display delegate to `anyhow::Error`
@@ -88,17 +106,19 @@ impl PartialEq for CommandError {
     }
 }
 
-macro impl_into_command_error($t:ty) {
+macro impl_into_command_error($out:ident; $t:ty) {
     impl From<$t> for CommandError {
         fn from(other: $t) -> Self {
-            Self::Other(other.into())
+            Self::$out(other.into())
         }
     }
 }
 
-impl_into_command_error!(ValidationError);
-impl_into_command_error!(MessageValidationError);
-impl_into_command_error!(twilight_http::Error);
+impl_into_command_error!(Client; twilight_http::Error);
+impl_into_command_error!(Other; twilight_http::response::DeserializeBodyError);
+impl_into_command_error!(Other; twilight_validate::request::ValidationError);
+impl_into_command_error!(Other; twilight_validate::message::MessageValidationError);
+impl_into_command_error!(Other; twilight_standby::future::Canceled);
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum CommandAccess {
