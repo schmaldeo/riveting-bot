@@ -25,6 +25,7 @@ use twilight_model::id::Id;
 use twilight_model::oauth::Application;
 use twilight_model::user::CurrentUser;
 use twilight_model::voice::VoiceState;
+use twilight_standby::Standby;
 
 use crate::commands::admin::scheduler::handle_timer;
 use crate::commands::{ChatCommands, CommandError};
@@ -44,6 +45,7 @@ pub struct Context {
     application: Arc<Application>,
     user: Arc<CurrentUser>,
     cache: Arc<InMemoryCache>,
+    standby: Arc<Standby>,
     chat_commands: Arc<ChatCommands>,
     shard: Option<u64>,
 }
@@ -131,6 +133,9 @@ async fn main() -> AnyResult<()> {
     // Create a cache.
     let cache = Arc::new(InMemoryCache::new());
 
+    // Create a standby instance.
+    let standby = Arc::new(Standby::new());
+
     // Initialize chat commands.
     let chat_commands = Arc::new(ChatCommands::new());
 
@@ -141,6 +146,7 @@ async fn main() -> AnyResult<()> {
         application,
         user,
         cache,
+        standby,
         chat_commands,
         shard: None,
     };
@@ -152,6 +158,10 @@ async fn main() -> AnyResult<()> {
     while let Some((id, event)) = events.next().await {
         // Update the cache with the event.
         ctx.cache.update(&event);
+
+        // Update standby events.
+        let processed = ctx.standby.process(&event);
+        println!("{processed:?}");
 
         tokio::spawn(handle_event(ctx.clone().with_shard(id), event));
     }
@@ -203,36 +213,36 @@ async fn handle_guild_create(_ctx: &Context, guild: Guild) -> AnyResult<()> {
 }
 
 async fn handle_interaction_create(ctx: &Context, inter: Interaction) -> AnyResult<()> {
-    match inter {
-        Interaction::Ping(p) => {
-            println!("{:#?}", p);
-        },
-        Interaction::ApplicationCommand(c) => {
-            println!("{:#?}", c);
-        },
-        Interaction::ApplicationCommandAutocomplete(a) => {
-            println!("{:#?}", a);
-        },
-        Interaction::MessageComponent(m) => {
-            println!("{:#?}", m);
-            let inter = ctx.http.interaction(ctx.application.id);
-            let resp = InteractionResponse {
-                kind: InteractionResponseType::UpdateMessage,
-                data: Some(
-                    twilight_util::builder::InteractionResponseDataBuilder::new()
-                        .content("newcontent".to_string())
-                        .build(),
-                ),
-            };
-            inter.create_response(m.id, &m.token, &resp).exec().await?;
+    // match inter {
+    //     Interaction::Ping(p) => {
+    //         println!("{:#?}", p);
+    //     },
+    //     Interaction::ApplicationCommand(c) => {
+    //         println!("{:#?}", c);
+    //     },
+    //     Interaction::ApplicationCommandAutocomplete(a) => {
+    //         println!("{:#?}", a);
+    //     },
+    //     Interaction::MessageComponent(m) => {
+    //         println!("{:#?}", m);
+    //         let inter = ctx.http.interaction(ctx.application.id);
+    //         let resp = InteractionResponse {
+    //             kind: InteractionResponseType::UpdateMessage,
+    //             data: Some(
+    //                 twilight_util::builder::InteractionResponseDataBuilder::new()
+    //                     .content("newcontent".to_string())
+    //                     .build(),
+    //             ),
+    //         };
+    //         inter.create_response(m.id, &m.token, &resp).exec().await?;
 
-            println!("{:#?}", "DONE");
-        },
-        Interaction::ModalSubmit(s) => {
-            println!("{:#?}", s);
-        },
-        i => todo!("not yet implemented: {:?}", i),
-    };
+    //         println!("{:#?}", "DONE");
+    //     },
+    //     Interaction::ModalSubmit(s) => {
+    //         println!("{:#?}", s);
+    //     },
+    //     i => todo!("not yet implemented: {:?}", i),
+    // };
 
     Ok(())
 }
