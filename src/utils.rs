@@ -3,15 +3,19 @@
 use std::borrow::Cow;
 use std::fmt::Display;
 
-use twilight_http::request::channel::message::{CreateMessage, GetChannelMessagesConfigured};
+use twilight_http::request::application::interaction::{CreateFollowup, UpdateResponse};
+use twilight_http::request::channel::message::{
+    CreateMessage, GetChannelMessagesConfigured, UpdateMessage,
+};
 use twilight_http::request::channel::GetChannel;
+use twilight_http::request::guild::emoji::GetEmojis;
 use twilight_http::request::guild::member::GetMember;
 use twilight_http::request::guild::role::GetGuildRoles;
 use twilight_http::request::guild::GetGuild;
 use twilight_http::request::user::GetCurrentUser;
 use twilight_http::request::GetUserApplicationInfo;
 use twilight_model::channel::{Channel, Message};
-use twilight_model::guild::{Guild, Member, Role};
+use twilight_model::guild::{Emoji, Guild, Member, Role};
 use twilight_model::oauth::Application;
 use twilight_model::user::CurrentUser;
 
@@ -53,14 +57,18 @@ macro impl_exec_model_ext($req:ty, $val:ty) {
     }
 }
 
+impl_exec_model_ext!(CreateFollowup<'_>, Message);
 impl_exec_model_ext!(CreateMessage<'_>, Message);
 impl_exec_model_ext!(GetChannel<'_>, Channel);
 impl_exec_model_ext!(GetChannelMessagesConfigured<'_>, Vec<Message>);
 impl_exec_model_ext!(GetCurrentUser<'_>, CurrentUser);
+impl_exec_model_ext!(GetEmojis<'_>, Vec<Emoji>);
 impl_exec_model_ext!(GetGuild<'_>, Guild);
 impl_exec_model_ext!(GetGuildRoles<'_>, Vec<Role>);
 impl_exec_model_ext!(GetMember<'_>, Member);
 impl_exec_model_ext!(GetUserApplicationInfo<'_>, Application);
+impl_exec_model_ext!(UpdateMessage<'_>, Message);
+impl_exec_model_ext!(UpdateResponse<'_>, Message);
 
 /// Macro to simplify manual non-exhaustive `Debug` impl.
 pub macro impl_debug_struct_fields($t:ty, $($field:ident),*) {
