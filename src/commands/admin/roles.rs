@@ -1,18 +1,20 @@
+use std::time::Duration;
+
+use tokio::time;
+use twilight_http::request::channel::reaction::RequestReactionType;
 use twilight_model::application::component::button::ButtonStyle;
 use twilight_model::application::component::select_menu::SelectMenuOption;
-use twilight_model::application::component::text_input::TextInputStyle;
-use twilight_model::application::component::{ActionRow, Button, Component, SelectMenu, TextInput};
+use twilight_model::application::component::{ActionRow, Button, Component, SelectMenu};
 use twilight_model::application::interaction::MessageComponentInteraction;
 use twilight_model::channel::message::MessageFlags;
 use twilight_model::channel::ReactionType;
-use twilight_model::gateway::payload::incoming::{MessageCreate, ReactionAdd};
+use twilight_model::gateway::payload::incoming::ReactionAdd;
 use twilight_model::guild::Permissions;
 use twilight_model::http::interaction::{
     InteractionResponse, InteractionResponseData, InteractionResponseType,
 };
 use twilight_model::id::marker::RoleMarker;
 use twilight_model::id::Id;
-use twilight_util::builder::embed::{EmbedBuilder, EmbedFieldBuilder};
 use twilight_util::builder::InteractionResponseDataBuilder;
 
 use crate::commands::{CommandContext, CommandError, CommandResult};
@@ -24,59 +26,67 @@ pub async fn roles(cc: CommandContext<'_>) -> CommandResult {
         return Err(CommandError::Disabled)
     };
 
-    let done_btn = Component::Button(Button {
-        custom_id: Some("roles_done".to_string()),
-        disabled: false,
-        emoji: None,
-        label: Some("Done".to_string()),
-        style: ButtonStyle::Success,
-        url: None,
-    });
-
-    let cancel_btn = Component::Button(Button {
-        custom_id: Some("roles_cancel".to_string()),
-        disabled: false,
-        emoji: None,
-        label: Some("Cancel".to_string()),
-        style: ButtonStyle::Danger,
-        url: None,
-    });
-
     let components = vec![Component::ActionRow(ActionRow {
-        components: vec![done_btn, cancel_btn],
+        components: vec![
+            // Button to finish adding reactions.
+            Component::Button(Button {
+                custom_id: Some("roles_done".to_string()),
+                disabled: false,
+                emoji: None,
+                label: Some("Done".to_string()),
+                style: ButtonStyle::Success,
+                url: None,
+            }),
+            // Button to cancel the process.
+            Component::Button(Button {
+                custom_id: Some("roles_cancel".to_string()),
+                disabled: false,
+                emoji: None,
+                label: Some("Cancel".to_string()),
+                style: ButtonStyle::Danger,
+                url: None,
+            }),
+        ],
     })];
 
+    // Setup message with controls.
     let mut controller = cc
         .http
         .create_message(cc.msg.channel_id)
         .reply(cc.msg.id)
+        .content("React to this message with an emoji to add reaction-roles.")?
         .components(&components)?
         .send()
         .await?;
 
+    let interaction = cc.http.interaction(cc.application.id);
     let author_id = cc.msg.author.id;
-
     let mut emoji_roles = Vec::new();
 
     let controller_mci = loop {
+        // Future that waits for controller button press.
         let controller_fut = cc
             .standby
             .wait_for_component(controller.id, move |event: &MessageComponentInteraction| {
                 event.author_id() == Some(author_id)
             });
 
+        // Future that waits for a reaction.
         let reaction_fut = cc
             .standby
             .wait_for_reaction(controller.id, move |event: &ReactionAdd| {
                 event.user_id == author_id
             });
 
+        // Wait for a reaction or a controller button.
         let reaction = tokio::select! {
             biased;
-            r = reaction_fut => r?,
-            c = controller_fut => break c?,
+            r = reaction_fut => r?, // Proceed with the reaction.
+            c = controller_fut => break c?, // Exit loop with button interaction.
         };
 
+        // TODO Try cache.
+        // Get all available roles.
         let roles = cc.http.roles(guild_id).send().await?;
 
         let role_opts = roles
@@ -94,62 +104,63 @@ pub async fn roles(cc: CommandContext<'_>) -> CommandResult {
             })
             .collect();
 
-        let role_list = Component::SelectMenu(SelectMenu {
-            custom_id: "role".to_string(),
-            disabled: false,
-            max_values: Some(1),
-            min_values: Some(1),
-            options: role_opts,
-            placeholder: Some("Select a role".to_string()),
-        });
+        // Roles drop-down list.
+        let components = vec![Component::ActionRow(ActionRow {
+            components: vec![Component::SelectMenu(SelectMenu {
+                custom_id: "role".to_string(),
+                disabled: false,
+                max_values: Some(1),
+                min_values: Some(1),
+                options: role_opts,
+                placeholder: Some("Select a role".to_string()),
+            })],
+        })];
 
-        // let add_btn = Component::Button(Button {
-        //     custom_id: Some("roles_add".to_string()),
-        //     disabled: true,
-        //     emoji: None,
-        //     label: Some("Add".to_string()),
-        //     style: ButtonStyle::Primary,
-        //     url: None,
-        // });
-
-        let components = vec![
-            Component::ActionRow(ActionRow {
-                components: vec![role_list],
-            }),
-            // Component::ActionRow(ActionRow {
-            //     components: vec![add_btn],
-            // }),
-        ];
-
-        let res = cc
+        let drop_down = cc
             .http
             .create_message(cc.msg.channel_id)
             .reply(cc.msg.id)
             .components(&components)?
-            .exec()
+            .send()
             .await?;
 
-        let model = res.model().await?;
-
+        // Wait for user to select an option.
         let mut list_mci = cc
             .standby
-            .wait_for_component(model.id, move |event: &MessageComponentInteraction| {
+            .wait_for_component(drop_down.id, move |event: &MessageComponentInteraction| {
                 event.author_id() == Some(author_id)
             })
             .await?;
 
+        // Save the choice.
         emoji_roles.push((
             reaction.emoji.to_owned(),
             list_mci
                 .data
                 .values
                 .pop()
-                .unwrap()
+                .unwrap() // FIXME
                 .parse::<Id<RoleMarker>>()
-                .unwrap(),
+                .unwrap(), // FIXME
         ));
 
+        let resp = InteractionResponse {
+            kind: InteractionResponseType::DeferredUpdateMessage,
+            data: Some(InteractionResponseData::default()),
+        };
+
+        // Acknowledge the interaction.
+        interaction
+            .create_response(list_mci.id, &list_mci.token, &resp)
+            .exec()
+            .await?;
+
+        // Delete the drop-down message.
+        interaction.delete_response(&list_mci.token).exec().await?;
+
+        // Create a message that lists all roles that have been added so far.
         let mut emoji_roles_msg = String::new();
+
         emoji_roles_msg.push_str("```");
         for (emoji, role) in emoji_roles.iter() {
             let emoji = match emoji {
@@ -161,63 +172,128 @@ pub async fn roles(cc: CommandContext<'_>) -> CommandResult {
             };
             emoji_roles_msg.push_str(&emoji);
             emoji_roles_msg.push_str(" : ");
-            emoji_roles_msg.push_str(&role.to_string());
+            // Try to get a name from the cache.
+            let name = cc
+                .cache
+                .role(*role)
+                .map(|r| r.name.to_string())
+                .unwrap_or_else(|| role.to_string());
+            emoji_roles_msg.push_str(&name);
             emoji_roles_msg.push('\n');
         }
         emoji_roles_msg.push_str("```");
 
+        // Update the controller message.
         controller = cc
             .http
             .update_message(controller.channel_id, controller.id)
             .content(Some(&emoji_roles_msg))?
             .send()
             .await?;
+    };
 
-        let inter = cc.http.interaction(cc.application.id);
-
-        let resp = InteractionResponse {
-            kind: InteractionResponseType::DeferredUpdateMessage,
-            data: Some(InteractionResponseData::default()),
-        };
-
-        inter
-            .create_response(list_mci.id, &list_mci.token, &resp)
+    if controller_mci.data.custom_id == "roles_cancel" {
+        // Delete the controller message.
+        cc.http
+            .delete_message(controller.channel_id, controller.id)
             .exec()
             .await?;
 
-        inter.delete_response(&list_mci.token).exec().await?;
-    };
+        // Delete the original command message.
+        cc.http
+            .delete_message(cc.msg.channel_id, cc.msg.id)
+            .exec()
+            .await?;
 
-    let inter = cc.http.interaction(cc.application.id);
+        // Nothing more to be done here.
+        return Ok(());
+    }
+
+    // If no reaction-roles were added.
+    if emoji_roles.is_empty() {
+        let text = "Well, that was kinda pointless... This message will self-destruct in 5 \
+                    seconds."
+            .to_string();
+        let resp = InteractionResponse {
+            kind: InteractionResponseType::UpdateMessage,
+            data: Some(InteractionResponseDataBuilder::new().content(text).build()),
+        };
+
+        interaction
+            .create_response(controller_mci.id, &controller_mci.token, &resp)
+            .exec()
+            .await?;
+
+        time::sleep(Duration::from_secs(5)).await;
+
+        // Delete the controller message.
+        cc.http
+            .delete_message(controller.channel_id, controller.id)
+            .exec()
+            .await?;
+
+        // Delete the original command message.
+        cc.http
+            .delete_message(cc.msg.channel_id, cc.msg.id)
+            .exec()
+            .await?;
+
+        // Nothing more to be done here.
+        return Ok(());
+    }
 
     let resp = InteractionResponse {
-        kind: InteractionResponseType::DeferredChannelMessageWithSource,
+        kind: InteractionResponseType::ChannelMessageWithSource,
         data: Some(
             InteractionResponseDataBuilder::new()
-                .content("Done; Reply to this message to set its content.".to_string())
+                .flags(MessageFlags::EPHEMERAL)
+                .content("Done; Reply to the output message to set its content.".to_string())
                 .build(),
         ),
     };
 
-    inter
+    interaction
         .create_response(controller_mci.id, &controller_mci.token, &resp)
         .exec()
         .await?;
 
-    inter
-        .update_response(&controller_mci.token)
-        .content(Some("content"))?
+    // Delete the controller message.
+    cc.http
+        .delete_message(controller.channel_id, controller.id)
+        .exec()
+        .await?;
+
+    // Delete the original command message.
+    cc.http
+        .delete_message(cc.msg.channel_id, cc.msg.id)
+        .exec()
+        .await?;
+
+    let output = cc
+        .http
+        .create_message(cc.msg.channel_id)
+        .content(&controller.content)?
         .send()
         .await?;
 
-    let followup = inter
-        .create_followup(&controller_mci.token)
-        .flags(MessageFlags::EPHEMERAL)
-        .content("content")?
-        .send()
-        .await?;
+    for (emoji, _role) in emoji_roles {
+        // TODO Save this mapping.
 
-    println!("{:?}", followup);
+        let request_emoji = match emoji {
+            ReactionType::Custom { id, ref name, .. } => RequestReactionType::Custom {
+                id,
+                name: name.as_deref(),
+            },
+            ReactionType::Unicode { ref name } => RequestReactionType::Unicode { name },
+        };
+
+        cc.http
+            .create_reaction(output.channel_id, output.id, &request_emoji)
+            .exec()
+            .await?;
+    }
+
+    // TODO Ability to edit the message with a reply.
 
     Ok(())
 }
