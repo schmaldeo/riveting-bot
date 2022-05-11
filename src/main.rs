@@ -20,7 +20,6 @@ use twilight_model::gateway::event::shard::Connected;
 use twilight_model::gateway::payload::incoming::Ready;
 use twilight_model::gateway::Intents;
 use twilight_model::guild::Guild;
-use twilight_model::http::interaction::{InteractionResponse, InteractionResponseType};
 use twilight_model::id::Id;
 use twilight_model::oauth::Application;
 use twilight_model::user::CurrentUser;
@@ -212,7 +211,8 @@ async fn handle_guild_create(_ctx: &Context, guild: Guild) -> AnyResult<()> {
     Ok(())
 }
 
-async fn handle_interaction_create(ctx: &Context, inter: Interaction) -> AnyResult<()> {
+async fn handle_interaction_create(_ctx: &Context, _inter: Interaction) -> AnyResult<()> {
+    // use twilight_model::http::interaction::{InteractionResponse, InteractionResponseType};
     // match inter {
     //     Interaction::Ping(p) => {
     //         println!("{:#?}", p);
