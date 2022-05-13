@@ -160,7 +160,7 @@ async fn main() -> AnyResult<()> {
 
         // Update standby events.
         let processed = ctx.standby.process(&event);
-        println!("{processed:?}");
+        log_processed(processed);
 
         tokio::spawn(handle_event(ctx.clone().with_shard(id), event));
     }
@@ -296,4 +296,16 @@ fn intents() -> Intents {
         | Intents::GUILD_VOICE_STATES
         | Intents::DIRECT_MESSAGES
         | Intents::DIRECT_MESSAGE_REACTIONS
+}
+
+fn log_processed(p: twilight_standby::ProcessResults) {
+    if p.dropped() + p.fulfilled() + p.matched() + p.sent() > 0 {
+        debug!(
+            "Standby: {{ m: {}, d: {}, f: {}, s: {} }}",
+            p.matched(),
+            p.dropped(),
+            p.fulfilled(),
+            p.sent(),
+        );
+    }
 }
