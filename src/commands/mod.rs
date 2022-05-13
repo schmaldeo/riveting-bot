@@ -7,10 +7,11 @@ use std::pin::Pin;
 
 use futures::Future;
 use thiserror::Error;
+use twilight_mention::parse::MentionType;
 use twilight_model::channel::Message;
 use twilight_model::gateway::payload::incoming::{ChannelUpdate, RoleUpdate};
 use twilight_model::guild::Permissions;
-use twilight_model::id::marker::{GuildMarker, RoleMarker};
+use twilight_model::id::marker::{ChannelMarker, GuildMarker, RoleMarker, UserMarker};
 use twilight_model::id::Id;
 use twilight_util::permission_calculator::PermissionCalculator;
 
@@ -122,8 +123,14 @@ impl_into_command_error!(Other; twilight_standby::future::Canceled);
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum CommandAccess {
+    /// User with this id has access.
+    User(Id<UserMarker>),
+
     /// Users with this role have access.
     Role(Id<RoleMarker>),
+
+    /// Users on this channel have access.
+    Channel(Id<ChannelMarker>),
 
     /// Users with these permissions have access.
     Permissions(Permissions),
@@ -136,6 +143,30 @@ pub enum CommandAccess {
 
     /// Anyone (who can send messages) has access.
     Any,
+}
+
+impl TryFrom<MentionType> for CommandAccess {
+    type Error = CommandError;
+
+    fn try_from(value: MentionType) -> Result<Self, Self::Error> {
+        let expected = "Expected user, role or channel tag";
+
+        match value {
+            MentionType::User(id) => Ok(Self::User(id)),
+            MentionType::Role(id) => Ok(Self::Role(id)),
+            MentionType::Channel(id) => Ok(Self::Channel(id)),
+            MentionType::Emoji(emoji) => Err(CommandError::UnexpectedArgs(format!(
+                "{expected}, got emoji '{emoji}'"
+            ))),
+            MentionType::Timestamp(ts) => Err(CommandError::UnexpectedArgs(format!(
+                "{expected}, got timestamp '{}'",
+                ts.unix()
+            ))),
+            e => Err(CommandError::UnexpectedArgs(format!(
+                "{expected}, got '{e}'"
+            ))),
+        }
+    }
 }
 
 pub struct ChatCommands {
@@ -609,6 +640,7 @@ impl Command {
             // Check for guild permissions.
             Some(guild_id) => {
                 let access = match self.access {
+                    CommandAccess::User(u) => u == msg.author.id,
                     CommandAccess::Role(r) => {
                         // TODO Might have to get roles from http client (and not unwrap).
 
@@ -616,6 +648,7 @@ impl Command {
                         // Also check for `@everyone` role, which has the same id as the guild.
                         msg.member.as_ref().unwrap().roles.contains(&r) || r == guild_id.cast()
                     },
+                    CommandAccess::Channel(c) => c == msg.channel_id,
                     CommandAccess::Permissions(p) => {
                         // The user must have these permissions.
                         sender_has_permissions(ctx, msg, guild_id, p).await?
