@@ -1,6 +1,5 @@
 use std::collections::HashSet;
 
-use indoc::formatdoc;
 use twilight_mention::parse::{MentionType, ParseMention};
 use twilight_model::id::marker::GuildMarker;
 use twilight_model::id::Id;
@@ -18,21 +17,11 @@ pub async fn perms(cc: CommandContext<'_>) -> CommandResult {
     cc.http
         .create_message(cc.msg.channel_id)
         .reply(cc.msg.id)
-        .content(&formatdoc!(
-            "```
-            Command:
-                {}
-            Usage:
-                perms allow <callables: command, alias> <targets: user, role, channel>
-                perms deny <callables: command, alias> <targets: user, role, channel>
-                perms clear <callables or targets: command, alias, user, role, channel>
-            ```",
-            cc.cmd.description,
-        ))?
+        .content(&format!("```{}```", cc.cmd))?
         .send()
         .await?;
 
-    Err(CommandError::MissingArgs)
+    Ok(())
 }
 
 /// Command: List guild's permissions for bot's commands.

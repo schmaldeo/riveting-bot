@@ -5,8 +5,19 @@ use crate::parser;
 use crate::utils::prelude::*;
 
 /// Command: Manage guild command aliases.
-pub async fn alias(_cc: CommandContext<'_>) -> CommandResult {
-    Err(CommandError::NotImplemented)
+pub async fn alias(cc: CommandContext<'_>) -> CommandResult {
+    if cc.msg.guild_id.is_none() {
+        return Err(CommandError::Disabled);
+    }
+
+    cc.http
+        .create_message(cc.msg.channel_id)
+        .reply(cc.msg.id)
+        .content(&format!("```{}```", cc.cmd))?
+        .send()
+        .await?;
+
+    Ok(())
 }
 
 /// Command: List guild command aliases.

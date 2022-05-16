@@ -198,7 +198,8 @@ impl ChatCommands {
                 .named(),
             command!(user::fuel::fuel)
                 .dm(true)
-                .desc("Calculate race fuel needed.")
+                .desc("Calculate race fuel required.")
+                .usage("fuel <length: minutes> <laptime: x:xx.xxx> <fuel per lap: x.xx>")
                 .named(),
             #[cfg(feature = "voice")]
             command!(user::voice::voice)
@@ -216,11 +217,17 @@ impl ChatCommands {
                 .named(),
             command!(admin; admin::config::config)
                 .desc("Manage guild config.")
+                .usage("get")
+                .usage("set <option> <value>")
                 .sub(command!(admin; admin::config::get))
                 .sub(command!(admin; admin::config::set))
                 .named(),
             command!(admin; admin::alias::alias)
                 .desc("Manage guild aliases.")
+                .usage("list")
+                .usage("get <name>")
+                .usage("set <name> <definition>")
+                .usage("remove <name>")
                 .sub(command!(admin; admin::alias::list))
                 .sub(command!(admin; admin::alias::get))
                 .sub(command!(admin; admin::alias::set))
@@ -228,6 +235,10 @@ impl ChatCommands {
                 .named(),
             command!(admin; admin::perms::perms)
                 .desc("Manage command and alias permissions.")
+                .usage("list")
+                .usage("allow <callables: command, alias> <targets: user, role, channel>")
+                .usage("deny <callables: command, alias> <targets: user, role, channel>")
+                .usage("clear <callables or targets: command, alias, user, role, channel>")
                 .sub(command!(admin; admin::perms::list))
                 .sub(command!(admin; admin::perms::allow))
                 .sub(command!(admin; admin::perms::deny))
@@ -235,11 +246,15 @@ impl ChatCommands {
                 .named(),
             command!(admin; admin::muter::muter)
                 .desc("Silence someone.")
+                .usage("mute <user>")
+                .usage("timeout <user>")
                 .sub(command!(admin; admin::muter::mute))
                 .sub(command!(admin; admin::muter::timeout))
                 .named(),
             command!(admin; admin::scheduler::scheduler)
                 .desc("Manage events.")
+                .usage("add <name> <year> <month> <day> <hour> <minute> <second>")
+                .usage("rm <event_id>")
                 .sub(command!(admin; admin::scheduler::add))
                 .sub(command!(admin; admin::scheduler::rm))
                 .named(),
@@ -572,6 +587,7 @@ pub struct Command {
     pub name: &'static str,
     pub func: CommandFn,
     pub description: &'static str,
+    pub usage: Vec<&'static str>,
     pub sub_commands: HashMap<&'static str, Command>,
     pub access: CommandAccess,
     pub dm_enabled: bool,
@@ -588,6 +604,7 @@ impl Command {
             name,
             func,
             description: "",
+            usage: Vec::new(),
             sub_commands: HashMap::new(),
             access: CommandAccess::Any,
             dm_enabled: false,
@@ -636,6 +653,12 @@ impl Command {
     /// Set a description for the command.
     pub fn desc(mut self, desc: &'static str) -> Self {
         self.description = desc;
+        self
+    }
+
+    /// Set a usage for the command.
+    pub fn usage(mut self, usage: &'static str) -> Self {
+        self.usage.push(usage);
         self
     }
 
@@ -746,6 +769,24 @@ impl Command {
         }
 
         None // Not specified.
+    }
+}
+
+impl std::fmt::Display for Command {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::result::Result<(), std::fmt::Error> {
+        writeln!(f, "Command: {}", self.description)?;
+
+        if self.sub_commands.is_empty() {
+            writeln!(f, "Usage: {} <args>", self.name)?;
+        } else {
+            writeln!(f, "Usage: {} <subcommand>", self.name)?;
+        }
+
+        for usage in self.usage.iter() {
+            writeln!(f, "\t{}", usage)?;
+        }
+
+        Ok(())
     }
 }
 

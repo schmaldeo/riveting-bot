@@ -18,14 +18,14 @@ use crate::{parser, Context};
 
 /// Command: Manage community event schedule.
 pub async fn scheduler(cc: CommandContext<'_>) -> CommandResult {
-    // Send help.
+    if cc.msg.guild_id.is_none() {
+        return Err(CommandError::Disabled);
+    }
+
     cc.http
         .create_message(cc.msg.channel_id)
-        .content(
-            "```add - add an event (format: !scheduler add <name> <year> <month> <day> <hour> \
-             <minute> <second>), **time in UTC**\nrm - remove an event (format: !scheduler rm \
-             <event_id>)```",
-        )?
+        .reply(cc.msg.id)
+        .content(&format!("```{}```", cc.cmd))?
         .send()
         .await?;
 

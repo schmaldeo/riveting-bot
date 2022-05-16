@@ -10,9 +10,18 @@ pub async fn config(cc: CommandContext<'_>) -> CommandResult {
         return Err(CommandError::NotImplemented);
     }
 
-    // For now this will force reload the config from file.
-    let mut lock = cc.config.lock().unwrap();
-    lock.reload()?;
+    {
+        // For now this will force reload the config from file.
+        let mut lock = cc.config.lock().unwrap();
+        lock.reload()?;
+    }
+
+    cc.http
+        .create_message(cc.msg.channel_id)
+        .reply(cc.msg.id)
+        .content(&format!("```{}```", cc.cmd))?
+        .send()
+        .await?;
 
     Ok(())
 }

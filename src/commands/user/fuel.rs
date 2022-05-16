@@ -15,16 +15,15 @@ pub async fn fuel(cc: CommandContext<'_>) -> CommandResult {
             cc.http
                 .create_message(cc.msg.channel_id)
                 .reply(cc.msg.id)
-                .content(
-                    "```Command: Calculate fuel required.\nUsage: fuel <length: minutes> \
-                     <laptime: x:xx.xxx> <fuel per lap: x.xx>```",
-                )?
+                .content(&format!("```{}```", cc.cmd))?
                 .send()
                 .await?;
+
             return Err(CommandError::MissingArgs);
         },
     }
     .trim();
+
     let laptime = args.get(1).ok_or(CommandError::MissingArgs)?.trim();
     let fuel_per_lap = args.get(2).ok_or(CommandError::MissingArgs)?.trim();
     parser::ensure_rest_is_empty(args.get(3).copied())?;

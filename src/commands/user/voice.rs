@@ -3,12 +3,18 @@ use crate::commands::{CommandContext, CommandError, CommandResult};
 
 /// Command: Voice channel controls.
 pub async fn voice(cc: CommandContext<'_>) -> CommandResult {
-    if !cc.args.is_empty() {
-        // TODO Display help.
-        return Err(CommandError::NotImplemented);
+    if cc.msg.guild_id.is_none() {
+        return Err(CommandError::Disabled);
     }
 
-    Err(CommandError::NotImplemented)
+    cc.http
+        .create_message(cc.msg.channel_id)
+        .reply(cc.msg.id)
+        .content(&format!("```{}```", cc.cmd))?
+        .send()
+        .await?;
+
+    Ok(())
 }
 
 /// Command: Tell the bot to connect to a voice channel.

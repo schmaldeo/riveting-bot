@@ -3,10 +3,21 @@ use twilight_model::datetime::Timestamp;
 
 use crate::commands::{CommandContext, CommandError, CommandResult};
 use crate::parser;
-// use crate::utils::prelude::*;
+use crate::utils::prelude::*;
 
 /// Command: Silence voice users, or give a timeout.
-pub async fn muter(_cc: CommandContext<'_>) -> CommandResult {
+pub async fn muter(cc: CommandContext<'_>) -> CommandResult {
+    if cc.msg.guild_id.is_none() {
+        return Err(CommandError::Disabled);
+    }
+
+    cc.http
+        .create_message(cc.msg.channel_id)
+        .reply(cc.msg.id)
+        .content(&format!("```{}```", cc.cmd))?
+        .send()
+        .await?;
+
     Ok(())
 }
 
