@@ -3,6 +3,7 @@
 use std::borrow::Cow;
 use std::fmt::Display;
 
+use serde::Serialize;
 use twilight_http::request::application::interaction::{CreateFollowup, UpdateResponse};
 use twilight_http::request::channel::message::{
     CreateMessage, GetChannelMessagesConfigured, UpdateMessage,
@@ -113,4 +114,14 @@ pub fn escape_discord_chars(text: &str) -> Cow<'_, str> {
     }
 
     Cow::Owned(out)
+}
+
+/// Format `obj` with a pretty json formatter with 4 space indent.
+/// # Panics
+/// This will panic if serialization failed or output is invalid utf-8.
+pub fn pretty_nice_json<S: Serialize>(obj: S) -> String {
+    let pretty = serde_json::ser::PrettyFormatter::with_indent(b"    ");
+    let mut ser = serde_json::Serializer::with_formatter(Vec::new(), pretty);
+    obj.serialize(&mut ser).unwrap();
+    String::from_utf8(ser.into_inner()).unwrap()
 }
