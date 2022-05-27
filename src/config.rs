@@ -7,7 +7,10 @@ use std::mem;
 use std::path::Path;
 
 use serde::{Deserialize, Serialize};
-use twilight_model::id::marker::{ChannelMarker, GuildMarker, RoleMarker, UserMarker};
+use twilight_model::channel::ReactionType;
+use twilight_model::id::marker::{
+    ChannelMarker, GuildMarker, MessageMarker, RoleMarker, UserMarker,
+};
 use twilight_model::id::Id;
 
 use crate::commands::admin::alias::Alias;
@@ -15,6 +18,8 @@ use crate::utils::prelude::*;
 
 pub const CONFIG_FILE: &str = "./data/bot.json";
 pub const GUILD_CONFIG_DIR: &str = "./data/guilds/";
+
+type RolesMap = HashMap<String, HashMap<Id<RoleMarker>, ReactionType>>;
 
 /// General settings for the bot.
 #[derive(Deserialize, Serialize, Debug, Clone)]
@@ -25,6 +30,8 @@ pub struct Settings {
     pub aliases: HashMap<String, String>,
     #[serde(default)]
     pub perms: HashMap<String, PermissionMap>,
+    #[serde(default)]
+    pub reaction_roles: RolesMap,
 }
 
 impl Settings {
@@ -59,6 +66,7 @@ impl Default for Settings {
             prefix: "!".to_string(),
             aliases: HashMap::new(),
             perms: HashMap::new(),
+            reaction_roles: HashMap::new(),
         }
     }
 }
@@ -156,7 +164,10 @@ impl Config {
 
         match serde_json::from_str::<Config>(&cfg) {
             Ok(mut c) => {
-                c.load_guild_settings()?;
+                fs::create_dir_all(GUILD_CONFIG_DIR)
+                    .map_err(|e| anyhow::anyhow!("Failed to create guilds dir: {}", e))?;
+
+                c.load_guild_all()?;
 
                 Ok(c)
             },
@@ -191,10 +202,11 @@ impl Config {
             .truncate(true)
             .open(CONFIG_FILE)?;
 
-        serde_json::to_writer_pretty(config, self)?;
+        serde_json::to_writer_pretty(config, self)
+            .map_err(|e| anyhow::anyhow!("Serialization error: {e}"))?;
 
         // Write guild configuration files.
-        self.write_guild_settings()?;
+        self.write_guild_all()?;
 
         Ok(())
     }
@@ -234,28 +246,60 @@ impl Config {
         self.guild_mut(guild_id)?.aliases_mut().remove(alias_name)
     }
 
-    /// Look up all guild configurations in `GUILD_CONFIG_DIR` and save them to `self`.
-    fn load_guild_settings(&mut self) -> AnyResult<()> {
-        fs::create_dir_all(GUILD_CONFIG_DIR)
-            .map_err(|e| anyhow::anyhow!("Failed to create guilds dir: {}", e))?;
+    /// Add a reaction-role configuration.
+    pub fn add_reaction_roles(
+        &mut self,
+        guild_id: Id<GuildMarker>,
+        channel_id: Id<ChannelMarker>,
+        msg_id: Id<MessageMarker>,
+        map: HashMap<Id<RoleMarker>, ReactionType>,
+    ) {
+        let key = format!("{channel_id}.{msg_id}");
 
+        self.guild_or_default(guild_id)
+            .reaction_roles
+            .insert(key, map);
+    }
+
+    /// Look up all guild configurations in `GUILD_CONFIG_DIR` and save them to `self`.
+    pub fn load_guild_all(&mut self) -> AnyResult<()> {
         let paths = fs::read_dir(GUILD_CONFIG_DIR)?.flatten().map(|p| p.path());
 
         for path in paths {
-            let content = fs::read_to_string(&path)?;
-            let settings = serde_json::from_str::<Settings>(&content)?;
-            let name = path
-                .file_stem()
-                .and_then(|s| s.to_str())
-                .ok_or_else(|| anyhow::anyhow!("Invalid file name"))?;
+            let name = match path.file_stem().and_then(|s| s.to_str()) {
+                Some(name) => name,
+                None => {
+                    let path = path.display();
+                    warn!("Invalid file name '{path}'");
+                    continue;
+                },
+            };
 
-            match name.parse() {
-                Ok(id) => {
+            let id = match name.parse() {
+                Ok(id) => id,
+                Err(e) => {
+                    let path = path.display();
+                    warn!("Could not parse guild config file name '{path}': {e}");
+                    continue;
+                },
+            };
+
+            let content = match fs::read_to_string(&path) {
+                Ok(content) => content,
+                Err(e) => {
+                    let path = path.display();
+                    error!("Could not read guild config file '{path}': {e}");
+                    continue;
+                },
+            };
+
+            match serde_json::from_str::<Settings>(&content) {
+                Ok(settings) => {
                     self.guilds.insert(id, settings);
                 },
                 Err(e) => {
                     let path = path.display();
-                    warn!("Could not parse guild config file name '{path}': {e}");
+                    error!("Could not deserialize guild config '{path}': {e}");
                 },
             }
         }
@@ -263,8 +307,20 @@ impl Config {
         Ok(())
     }
 
+    /// Look up a guild configuration in `GUILD_CONFIG_DIR` and save it to `self`.
+    pub fn load_guild(&mut self, guild_id: Id<GuildMarker>) -> AnyResult<()> {
+        let file_name = format!("{guild_id}.json");
+        let path = Path::new(GUILD_CONFIG_DIR).join(file_name);
+        let content = fs::read_to_string(&path)?;
+        let settings = serde_json::from_str::<Settings>(&content)?;
+
+        self.guilds.insert(guild_id, settings);
+
+        Ok(())
+    }
+
     /// Save guild configurations in `self` to `GUILD_CONFIG_DIR`.
-    fn write_guild_settings(&self) -> AnyResult<()> {
+    pub fn write_guild_all(&self) -> AnyResult<()> {
         fs::create_dir_all(GUILD_CONFIG_DIR)
             .map_err(|e| anyhow::anyhow!("Failed to create guilds dir: {}", e))?;
 
@@ -277,8 +333,32 @@ impl Config {
                 .truncate(true)
                 .open(Path::new(GUILD_CONFIG_DIR).join(file_name))?;
 
-            serde_json::to_writer_pretty(guild_config, settings)?;
+            serde_json::to_writer_pretty(guild_config, settings)
+                .map_err(|e| anyhow::anyhow!("Serialization error: {e}"))?;
         }
+
+        Ok(())
+    }
+
+    /// Save a guild configuration in `self` to `GUILD_CONFIG_DIR`.
+    pub fn write_guild(&self, guild_id: Id<GuildMarker>) -> AnyResult<()> {
+        fs::create_dir_all(GUILD_CONFIG_DIR)
+            .map_err(|e| anyhow::anyhow!("Failed to create guilds dir: {}", e))?;
+
+        let settings = self
+            .guild(guild_id)
+            .ok_or_else(|| anyhow::anyhow!("No custom configuration"))?;
+
+        let file_name = format!("{guild_id}.json");
+
+        let guild_config = OpenOptions::new()
+            .write(true)
+            .create(true)
+            .truncate(true)
+            .open(Path::new(GUILD_CONFIG_DIR).join(file_name))?;
+
+        serde_json::to_writer_pretty(guild_config, settings)
+            .map_err(|e| anyhow::anyhow!("Serialization error: {e}"))?;
 
         Ok(())
     }

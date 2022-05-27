@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use std::time::Duration;
 
 use tokio::time;
@@ -134,7 +135,6 @@ pub async fn roles(cc: CommandContext<'_>) -> CommandResult {
 
         // Save the choice.
         emoji_roles.push((
-            reaction.emoji.to_owned(),
             list_mci
                 .data
                 .values
@@ -142,6 +142,7 @@ pub async fn roles(cc: CommandContext<'_>) -> CommandResult {
                 .unwrap() // FIXME
                 .parse::<Id<RoleMarker>>()
                 .unwrap(), // FIXME
+            reaction.emoji.to_owned(),
         ));
 
         let resp = InteractionResponse {
@@ -161,8 +162,7 @@ pub async fn roles(cc: CommandContext<'_>) -> CommandResult {
         // Create a message that lists all roles that have been added so far.
         let mut emoji_roles_msg = String::new();
 
-        emoji_roles_msg.push_str("```");
-        for (emoji, role) in emoji_roles.iter() {
+        for (role, emoji) in emoji_roles.iter() {
             let emoji = match emoji {
                 ReactionType::Custom { id, name, .. } => match name {
                     Some(n) => n.to_string(),
@@ -171,7 +171,7 @@ pub async fn roles(cc: CommandContext<'_>) -> CommandResult {
                 ReactionType::Unicode { name } => name.to_string(),
             };
             emoji_roles_msg.push_str(&emoji);
-            emoji_roles_msg.push_str(" : ");
+            emoji_roles_msg.push_str(" : `");
             // Try to get a name from the cache.
             let name = cc
                 .cache
@@ -179,9 +179,8 @@ pub async fn roles(cc: CommandContext<'_>) -> CommandResult {
                 .map(|r| r.name.to_string())
                 .unwrap_or_else(|| role.to_string());
             emoji_roles_msg.push_str(&name);
-            emoji_roles_msg.push('\n');
+            emoji_roles_msg.push_str("`\n");
         }
-        emoji_roles_msg.push_str("```");
 
         // Update the controller message.
         controller = cc
@@ -276,12 +275,10 @@ pub async fn roles(cc: CommandContext<'_>) -> CommandResult {
         .send()
         .await?;
 
-    for (emoji, _role) in emoji_roles {
-        // TODO Save this mapping.
-
+    for (_, emoji) in emoji_roles.iter() {
         let request_emoji = match emoji {
             ReactionType::Custom { id, ref name, .. } => RequestReactionType::Custom {
-                id,
+                id: *id,
                 name: name.as_deref(),
             },
             ReactionType::Unicode { ref name } => RequestReactionType::Unicode { name },
@@ -291,7 +288,16 @@ pub async fn roles(cc: CommandContext<'_>) -> CommandResult {
             .create_reaction(output.channel_id, output.id, &request_emoji)
             .exec()
             .await?;
+
+        // map.roles.insert(emoji, role);
     }
+
+    let map = HashMap::from_iter(emoji_roles);
+
+    let mut lock = cc.config.lock().unwrap();
+    lock.add_reaction_roles(guild_id, output.channel_id, output.id, map);
+
+    lock.write_guild(guild_id)?;
 
     // TODO Ability to edit the message with a reply.
 
