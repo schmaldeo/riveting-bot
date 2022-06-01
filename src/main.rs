@@ -29,7 +29,7 @@ use twilight_standby::Standby;
 
 use crate::commands::admin::scheduler::handle_timer;
 use crate::commands::{ChatCommands, CommandError};
-use crate::config::{BotConfig, Config};
+use crate::config::Config;
 use crate::utils::prelude::*;
 
 mod commands;
@@ -39,7 +39,7 @@ mod utils;
 
 #[derive(Debug, Clone)]
 pub struct Context {
-    config: BotConfig,
+    config: Arc<Mutex<Config>>,
     http: Arc<Client>,
     cluster: Arc<Cluster>,
     application: Arc<Application>,
@@ -83,7 +83,7 @@ async fn main() -> AnyResult<()> {
         .init();
 
     // Load bot configuration file.
-    let config = BotConfig::new(Config::load()?);
+    let config = Arc::new(Mutex::new(Config::load()?));
 
     // Get discord bot token from environment variable.
     let token = env::var("DISCORD_TOKEN").expect("Expected a token in the environment");
