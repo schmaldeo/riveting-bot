@@ -1,5 +1,5 @@
 use twilight_mention::parse::{MentionType, ParseMention};
-use twilight_model::datetime::Timestamp;
+use twilight_model::util::Timestamp;
 
 use crate::commands::{CommandContext, CommandError, CommandResult};
 use crate::parser;

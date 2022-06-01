@@ -3,7 +3,6 @@ use std::time::Duration;
 use std::{env, fs};
 
 use chrono::{DateTime, TimeZone, Utc};
-use delay_timer::prelude::*;
 use rand::Rng;
 use serde::{Deserialize, Serialize};
 use tokio::time;

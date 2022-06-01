@@ -12,7 +12,6 @@ use futures::stream::StreamExt;
 use tracing::Level;
 use tracing_subscriber::EnvFilter;
 use twilight_cache_inmemory::InMemoryCache;
-use twilight_gateway::cluster::ShardScheme;
 use twilight_gateway::{Cluster, Event};
 use twilight_http::Client;
 use twilight_model::application::interaction::Interaction;
@@ -93,7 +92,6 @@ async fn main() -> AnyResult<()> {
 
     // Start a gateway connection, technically even a single shard would be enough for this, but hey.
     let (cluster, mut events) = Cluster::builder(token, intents())
-        .shard_scheme(ShardScheme::Auto)
         .http_client(Arc::clone(&http))
         .build()
         .await?;
