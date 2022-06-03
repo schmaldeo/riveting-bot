@@ -1,6 +1,6 @@
-use std::collections::HashMap;
 use std::time::Duration;
 
+use serde::{Deserialize, Serialize};
 use tokio::time;
 use twilight_http::request::channel::reaction::RequestReactionType;
 use twilight_model::application::component::button::ButtonStyle;
@@ -135,14 +135,14 @@ pub async fn roles(cc: CommandContext<'_>) -> CommandResult {
 
         // Save the choice.
         emoji_roles.push((
-            list_mci
-                .data
-                .values
-                .pop()
-                .unwrap() // FIXME
-                .parse::<Id<RoleMarker>>()
-                .unwrap(), // FIXME
             reaction.emoji.to_owned(),
+            list_mci
+            .data
+            .values
+            .pop()
+            .unwrap() // FIXME
+            .parse::<Id<RoleMarker>>()
+            .unwrap(), // FIXME
         ));
 
         let resp = InteractionResponse {
@@ -162,7 +162,7 @@ pub async fn roles(cc: CommandContext<'_>) -> CommandResult {
         // Create a message that lists all roles that have been added so far.
         let mut emoji_roles_msg = String::new();
 
-        for (role, emoji) in emoji_roles.iter() {
+        for (emoji, role) in emoji_roles.iter() {
             let emoji = match emoji {
                 ReactionType::Custom { id, name, .. } => match name {
                     Some(n) => n.to_string(),
@@ -275,10 +275,12 @@ pub async fn roles(cc: CommandContext<'_>) -> CommandResult {
         .send()
         .await?;
 
-    for (_, emoji) in emoji_roles.iter() {
+    let mut map = Vec::new();
+
+    for (emoji, role) in emoji_roles {
         let request_emoji = match emoji {
             ReactionType::Custom { id, ref name, .. } => RequestReactionType::Custom {
-                id: *id,
+                id,
                 name: name.as_deref(),
             },
             ReactionType::Unicode { ref name } => RequestReactionType::Unicode { name },
@@ -289,10 +291,8 @@ pub async fn roles(cc: CommandContext<'_>) -> CommandResult {
             .exec()
             .await?;
 
-        // map.roles.insert(emoji, role);
+        map.push(ReactionRole::new(emoji, role));
     }
-
-    let map = HashMap::from_iter(emoji_roles);
 
     let mut lock = cc.config.lock().unwrap();
     lock.add_reaction_roles(guild_id, output.channel_id, output.id, map);
@@ -302,4 +302,16 @@ pub async fn roles(cc: CommandContext<'_>) -> CommandResult {
     // TODO Ability to edit the message with a reply.
 
     Ok(())
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize)]
+pub struct ReactionRole {
+    pub emoji: ReactionType,
+    pub role: Id<RoleMarker>,
+}
+
+impl ReactionRole {
+    pub fn new(emoji: ReactionType, role: Id<RoleMarker>) -> Self {
+        Self { emoji, role }
+    }
 }

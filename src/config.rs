@@ -7,19 +7,17 @@ use std::mem;
 use std::path::Path;
 
 use serde::{Deserialize, Serialize};
-use twilight_model::channel::ReactionType;
 use twilight_model::id::marker::{
     ChannelMarker, GuildMarker, MessageMarker, RoleMarker, UserMarker,
 };
 use twilight_model::id::Id;
 
 use crate::commands::admin::alias::Alias;
+use crate::commands::admin::roles::ReactionRole;
 use crate::utils::prelude::*;
 
 pub const CONFIG_FILE: &str = "./data/bot.json";
 pub const GUILD_CONFIG_DIR: &str = "./data/guilds/";
-
-type RolesMap = HashMap<String, HashMap<Id<RoleMarker>, ReactionType>>;
 
 /// General settings for the bot.
 #[derive(Deserialize, Serialize, Debug, Clone)]
@@ -31,7 +29,7 @@ pub struct Settings {
     #[serde(default)]
     pub perms: HashMap<String, PermissionMap>,
     #[serde(default)]
-    pub reaction_roles: RolesMap,
+    pub reaction_roles: HashMap<String, Vec<ReactionRole>>,
 }
 
 impl Settings {
@@ -252,7 +250,7 @@ impl Config {
         guild_id: Id<GuildMarker>,
         channel_id: Id<ChannelMarker>,
         msg_id: Id<MessageMarker>,
-        map: HashMap<Id<RoleMarker>, ReactionType>,
+        map: Vec<ReactionRole>,
     ) {
         let key = format!("{channel_id}.{msg_id}");
 

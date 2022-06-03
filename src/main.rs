@@ -15,7 +15,7 @@ use twilight_cache_inmemory::InMemoryCache;
 use twilight_gateway::{Cluster, Event};
 use twilight_http::Client;
 use twilight_model::application::interaction::Interaction;
-use twilight_model::channel::Message;
+use twilight_model::channel::{Message, Reaction};
 use twilight_model::gateway::event::shard::Connected;
 use twilight_model::gateway::payload::incoming::Ready;
 use twilight_model::gateway::Intents;
@@ -169,12 +169,14 @@ async fn main() -> AnyResult<()> {
 
 /// Main events handler.
 async fn handle_event(ctx: Context, event: Event) -> AnyResult<()> {
-    match event {
+    let result = match event {
         Event::ShardConnected(c) => handle_shard_connected(&ctx, c).await,
         Event::Ready(r) => handle_ready(&ctx, *r).await,
         Event::GuildCreate(g) => handle_guild_create(&ctx, g.0).await,
         Event::InteractionCreate(i) => handle_interaction_create(&ctx, i.0).await,
         Event::MessageCreate(msg) => handle_message_create(&ctx, msg.0).await,
+        Event::ReactionAdd(r) => handle_reaction_add(&ctx, r.0).await,
+        Event::ReactionRemove(r) => handle_reaction_remove(&ctx, r.0).await,
         Event::VoiceStateUpdate(v) => handle_voice_state(&ctx, v.0).await,
 
         // Other events here...
@@ -184,7 +186,14 @@ async fn handle_event(ctx: Context, event: Event) -> AnyResult<()> {
 
             Ok(())
         },
+    };
+
+    if let Err(e) = result {
+        println!("Event error: {e}");
+        error!("Event error: {e}");
     }
+
+    Ok(())
 }
 
 async fn handle_shard_connected(_ctx: &Context, connected: Connected) -> AnyResult<()> {
@@ -277,6 +286,100 @@ async fn handle_message_create(ctx: &Context, msg: Message) -> AnyResult<()> {
             },
         }
     }
+
+    Ok(())
+}
+
+async fn handle_reaction_add(ctx: &Context, reaction: Reaction) -> AnyResult<()> {
+    let Some(guild_id)  = reaction.guild_id else {
+        return Ok(());
+    };
+
+    let add_roles = {
+        let lock = ctx.config.lock().unwrap();
+
+        let Some(guild) = lock.guild(guild_id) else {
+            return Ok(());
+        };
+
+        let key = format!("{}.{}", reaction.channel_id, reaction.message_id);
+
+        let Some(map) = guild.reaction_roles.get(&key) else {
+            return Ok(());
+        };
+
+        map.iter()
+            .filter(|rr| rr.emoji == reaction.emoji)
+            .map(|rr| rr.role)
+            .collect::<Vec<_>>()
+    };
+
+    let member = ctx
+        .http
+        .guild_member(guild_id, reaction.user_id)
+        .send()
+        .await?;
+
+    let mut roles = member.roles;
+
+    roles.extend(add_roles);
+    roles.sort_unstable();
+    roles.dedup();
+
+    println!("Updating user roles: {:?}", reaction.user_id);
+    println!("ROLES: {:#?}", roles);
+
+    ctx.http
+        .update_guild_member(guild_id, reaction.user_id)
+        .roles(&roles)
+        .exec()
+        .await?;
+
+    Ok(())
+}
+
+async fn handle_reaction_remove(ctx: &Context, reaction: Reaction) -> AnyResult<()> {
+    let Some(guild_id)  = reaction.guild_id else {
+        return Ok(());
+    };
+
+    let remove_roles = {
+        let lock = ctx.config.lock().unwrap();
+
+        let Some(guild) = lock.guild(guild_id) else {
+            return Ok(());
+        };
+
+        let key = format!("{}.{}", reaction.channel_id, reaction.message_id);
+
+        let Some(map) = guild.reaction_roles.get(&key) else {
+            return Ok(());
+        };
+
+        map.iter()
+            .filter(|rr| rr.emoji == reaction.emoji)
+            .map(|rr| rr.role)
+            .collect::<Vec<_>>()
+    };
+
+    let member = ctx
+        .http
+        .guild_member(guild_id, reaction.user_id)
+        .send()
+        .await?;
+
+    let mut roles = member.roles;
+
+    roles.retain(|r| !remove_roles.contains(r));
+
+    println!("Updating user roles: {:?}", reaction.user_id);
+    println!("ROLES: {:#?}", roles);
+
+    ctx.http
+        .update_guild_member(guild_id, reaction.user_id)
+        .roles(&roles)
+        .exec()
+        .await?;
 
     Ok(())
 }
