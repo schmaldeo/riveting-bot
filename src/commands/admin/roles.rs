@@ -9,7 +9,7 @@ use twilight_model::application::component::{ActionRow, Button, Component, Selec
 use twilight_model::application::interaction::MessageComponentInteraction;
 use twilight_model::channel::message::MessageFlags;
 use twilight_model::channel::ReactionType;
-use twilight_model::gateway::payload::incoming::ReactionAdd;
+use twilight_model::gateway::payload::incoming::{ReactionAdd, RoleUpdate};
 use twilight_model::guild::Permissions;
 use twilight_model::http::interaction::{
     InteractionResponse, InteractionResponseData, InteractionResponseType,
@@ -21,8 +21,24 @@ use twilight_util::builder::InteractionResponseDataBuilder;
 use crate::commands::{CommandContext, CommandError, CommandResult};
 use crate::utils::prelude::*;
 
-/// Command: Setup a reaction-roles message.
+/// Command: Manage reaction-roles.
 pub async fn roles(cc: CommandContext<'_>) -> CommandResult {
+    if cc.msg.guild_id.is_none() {
+        return Err(CommandError::Disabled);
+    }
+
+    cc.http
+        .create_message(cc.msg.channel_id)
+        .reply(cc.msg.id)
+        .content(&format!("```{}```", cc.cmd))?
+        .send()
+        .await?;
+
+    Ok(())
+}
+
+/// Command: Setup a reaction-roles message.
+pub async fn setup(cc: CommandContext<'_>) -> CommandResult {
     let Some(guild_id) = cc.msg.guild_id else {
         return Err(CommandError::Disabled)
     };
@@ -86,9 +102,26 @@ pub async fn roles(cc: CommandContext<'_>) -> CommandResult {
             c = controller_fut => break c?, // Exit loop with button interaction.
         };
 
-        // TODO Try cache.
         // Get all available roles.
-        let roles = cc.http.roles(guild_id).send().await?;
+        let roles = cc.cache.guild_roles(guild_id).and_then(|role_ids| {
+            let mut roles = Vec::with_capacity(role_ids.len());
+
+            for id in role_ids.iter() {
+                // Return out of closure if role is not cached.
+                cc.cache
+                    .role(*id)
+                    .map(|r| roles.push(r.resource().to_owned()))?
+            }
+
+            // All roles were cached.
+            Some(roles)
+        });
+
+        // Use cached roles or otherwise fetch from client.
+        let roles = match roles {
+            Some(r) => r,
+            None => cc.http.roles(guild_id).send().await?,
+        };
 
         let role_opts = roles
             .into_iter()
@@ -165,19 +198,38 @@ pub async fn roles(cc: CommandContext<'_>) -> CommandResult {
         for (emoji, role) in emoji_roles.iter() {
             let emoji = match emoji {
                 ReactionType::Custom { id, name, .. } => match name {
-                    Some(n) => n.to_string(),
-                    None => id.to_string(),
+                    Some(n) => format!(":{n}:"),
+                    None => id.to_string(), // This should only happen if emoji was deleted from the guild, or something.
                 },
                 ReactionType::Unicode { name } => name.to_string(),
             };
+
             emoji_roles_msg.push_str(&emoji);
             emoji_roles_msg.push_str(" : `");
+
             // Try to get a name from the cache.
-            let name = cc
-                .cache
-                .role(*role)
-                .map(|r| r.name.to_string())
-                .unwrap_or_else(|| role.to_string());
+            let cached_name = cc.cache.role(*role).map(|r| r.name.to_string());
+            let name = match cached_name {
+                Some(n) => n,
+                None => {
+                    let roles = cc.http.roles(guild_id).send().await?;
+
+                    // Name of this role.
+                    let this = roles
+                        .iter()
+                        .find(|r| r.id == *role)
+                        .map(|r| r.name.to_string())
+                        .unwrap_or_else(|| role.to_string()); // Use id, if all else fails.
+
+                    // Manually update the cache.
+                    for role in roles {
+                        cc.cache.update(&RoleUpdate { guild_id, role });
+                    }
+
+                    this
+                },
+            };
+
             emoji_roles_msg.push_str(&name);
             emoji_roles_msg.push_str("`\n");
         }

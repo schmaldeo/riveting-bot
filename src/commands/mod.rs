@@ -214,6 +214,8 @@ impl ChatCommands {
         list.extend([
             command!(admin; admin::roles::roles)
                 .desc("Manage reaction-roles.")
+                .usage("setup")
+                .sub(command!(admin; admin::roles::setup))
                 .named(),
             command!(admin; admin::config::config)
                 .desc("Manage guild config.")
