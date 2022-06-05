@@ -257,7 +257,10 @@ async fn handle_interaction_create(_ctx: &Context, _inter: Interaction) -> AnyRe
 
 async fn handle_message_create(ctx: &Context, msg: Message) -> AnyResult<()> {
     // Ignore bot users.
-    anyhow::ensure!(!msg.author.bot, "Message sender is a bot");
+    if msg.author.bot {
+        trace!("Message sender is a bot '{}'", msg.author.name);
+        return Ok(());
+    }
 
     // Handle chat commands.
     if let Err(e) = ctx.chat_commands.process(ctx, &msg).await {
