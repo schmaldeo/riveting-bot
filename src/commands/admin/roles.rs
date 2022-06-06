@@ -43,36 +43,41 @@ pub async fn setup(cc: CommandContext<'_>) -> CommandResult {
         return Err(CommandError::Disabled)
     };
 
-    let components = vec![Component::ActionRow(ActionRow {
-        components: vec![
-            // Button to finish adding reactions.
-            Component::Button(Button {
-                custom_id: Some("roles_done".to_string()),
-                disabled: false,
-                emoji: None,
-                label: Some("Done".to_string()),
-                style: ButtonStyle::Success,
-                url: None,
-            }),
-            // Button to cancel the process.
-            Component::Button(Button {
-                custom_id: Some("roles_cancel".to_string()),
-                disabled: false,
-                emoji: None,
-                label: Some("Cancel".to_string()),
-                style: ButtonStyle::Danger,
-                url: None,
-            }),
-        ],
-    })];
+    let controller_components = |disabled| {
+        vec![Component::ActionRow(ActionRow {
+            components: vec![
+                // Button to finish adding reactions.
+                Component::Button(Button {
+                    custom_id: Some("roles_done".to_string()),
+                    disabled,
+                    emoji: None,
+                    label: Some("Done".to_string()),
+                    style: ButtonStyle::Success,
+                    url: None,
+                }),
+                // Button to cancel the process.
+                Component::Button(Button {
+                    custom_id: Some("roles_cancel".to_string()),
+                    disabled,
+                    emoji: None,
+                    label: Some("Cancel".to_string()),
+                    style: ButtonStyle::Danger,
+                    url: None,
+                }),
+            ],
+        })]
+    };
 
     // Setup message with controls.
     let mut controller = cc
         .http
         .create_message(cc.msg.channel_id)
         .reply(cc.msg.id)
-        .content("React to this message with an emoji to add reaction-roles.")?
-        .components(&components)?
+        .content(
+            "React to this message with an emoji to add reaction-roles.\nIf a role is not \
+             displayed in the list, it may be too high or powerful for the bot to give.",
+        )?
+        .components(&controller_components(false))?
         .send()
         .await?;
 
@@ -123,10 +128,23 @@ pub async fn setup(cc: CommandContext<'_>) -> CommandResult {
             None => cc.http.roles(guild_id).send().await?,
         };
 
+        let bot = cc.http.guild_member(guild_id, cc.user.id).send().await?;
+        // Find the highest role that the bot has.
+        let bot_role = roles
+            .iter()
+            .filter(|r| bot.roles.contains(&r.id))
+            .max()
+            .cloned()
+            .ok_or_else(|| anyhow::anyhow!("Could not find maximum role for bot"))?;
+
         let role_opts = roles
             .into_iter()
             // Filter out `@everyone` role.
             .filter(|r| r.id.cast() != guild_id)
+            // Filter out roles that are higher or same as the bot's role.
+            .filter(|r| *r < bot_role)
+            // Filter out roles that are integration managed.
+            .filter(|r| !r.managed)
             // Filter out roles with admin permissions, as a precaution.
             .filter(|r| !r.permissions.contains(Permissions::ADMINISTRATOR))
             .map(|r| SelectMenuOption {
@@ -150,6 +168,15 @@ pub async fn setup(cc: CommandContext<'_>) -> CommandResult {
             })],
         })];
 
+        // Gray out controller buttons.
+        cc.http
+            .update_message(controller.channel_id, controller.id)
+            .content(Some(&controller.content))?
+            .components(Some(&controller_components(true)))?
+            .send()
+            .await?;
+
+        // Create dropdown list interaction.
         let drop_down = cc
             .http
             .create_message(cc.msg.channel_id)
@@ -166,18 +193,6 @@ pub async fn setup(cc: CommandContext<'_>) -> CommandResult {
             })
             .await?;
 
-        // Save the choice.
-        emoji_roles.push((
-            reaction.emoji.to_owned(),
-            list_mci
-            .data
-            .values
-            .pop()
-            .unwrap() // FIXME
-            .parse::<Id<RoleMarker>>()
-            .unwrap(), // FIXME
-        ));
-
         let resp = InteractionResponse {
             kind: InteractionResponseType::DeferredUpdateMessage,
             data: Some(InteractionResponseData::default()),
@@ -191,6 +206,18 @@ pub async fn setup(cc: CommandContext<'_>) -> CommandResult {
 
         // Delete the drop-down message.
         interaction.delete_response(&list_mci.token).exec().await?;
+
+        // Save the choice.
+        emoji_roles.push((
+            reaction.emoji.to_owned(),
+            list_mci
+                .data
+                .values
+                .pop()
+                .unwrap()
+                .parse::<Id<RoleMarker>>()
+                .unwrap(), // TODO Remove unwraps.
+        ));
 
         // Create a message that lists all roles that have been added so far.
         let mut emoji_roles_msg = String::new();
@@ -234,11 +261,12 @@ pub async fn setup(cc: CommandContext<'_>) -> CommandResult {
             emoji_roles_msg.push_str("`\n");
         }
 
-        // Update the controller message.
+        // Update the controller message and re-enable controller buttons.
         controller = cc
             .http
             .update_message(controller.channel_id, controller.id)
             .content(Some(&emoji_roles_msg))?
+            .components(Some(&controller_components(false)))?
             .send()
             .await?;
     };
