@@ -296,20 +296,25 @@ async fn handle_message_create(ctx: &Context, msg: Message) -> AnyResult<()> {
 }
 
 async fn handle_reaction_add(ctx: &Context, reaction: Reaction) -> AnyResult<()> {
-    let Some(guild_id)  = reaction.guild_id else {
+    let (Some(guild_id), Some(member)) = (reaction.guild_id, reaction.member) else {
         return Ok(());
     };
+
+    // Ignore reactions from bots.
+    if member.user.bot {
+        return Ok(());
+    }
 
     let add_roles = {
         let lock = ctx.config.lock().unwrap();
 
-        let Some(guild) = lock.guild(guild_id) else {
+        let Some(settings) = lock.guild(guild_id) else {
             return Ok(());
         };
 
         let key = format!("{}.{}", reaction.channel_id, reaction.message_id);
 
-        let Some(map) = guild.reaction_roles.get(&key) else {
+        let Some(map) = settings.reaction_roles.get(&key) else {
             return Ok(());
         };
 
@@ -319,20 +324,13 @@ async fn handle_reaction_add(ctx: &Context, reaction: Reaction) -> AnyResult<()>
             .collect::<Vec<_>>()
     };
 
-    let member = ctx
-        .http
-        .guild_member(guild_id, reaction.user_id)
-        .send()
-        .await?;
-
     let mut roles = member.roles;
 
     roles.extend(add_roles);
     roles.sort_unstable();
     roles.dedup();
 
-    println!("Updating user roles: {:?}", reaction.user_id);
-    println!("ROLES: {:#?}", roles);
+    info!("Updating roles for '{}'", member.user.name);
 
     ctx.http
         .update_guild_member(guild_id, reaction.user_id)
@@ -344,9 +342,14 @@ async fn handle_reaction_add(ctx: &Context, reaction: Reaction) -> AnyResult<()>
 }
 
 async fn handle_reaction_remove(ctx: &Context, reaction: Reaction) -> AnyResult<()> {
-    let Some(guild_id)  = reaction.guild_id else {
+    let (Some(guild_id), Some(member)) = (reaction.guild_id, reaction.member) else {
         return Ok(());
     };
+
+    // Ignore reactions from bots.
+    if member.user.bot {
+        return Ok(());
+    }
 
     let remove_roles = {
         let lock = ctx.config.lock().unwrap();
@@ -367,18 +370,11 @@ async fn handle_reaction_remove(ctx: &Context, reaction: Reaction) -> AnyResult<
             .collect::<Vec<_>>()
     };
 
-    let member = ctx
-        .http
-        .guild_member(guild_id, reaction.user_id)
-        .send()
-        .await?;
-
     let mut roles = member.roles;
 
     roles.retain(|r| !remove_roles.contains(r));
 
-    println!("Updating user roles: {:?}", reaction.user_id);
-    println!("ROLES: {:#?}", roles);
+    info!("Updating roles for '{}'", member.user.name);
 
     ctx.http
         .update_guild_member(guild_id, reaction.user_id)
