@@ -296,12 +296,20 @@ async fn handle_message_create(ctx: &Context, msg: Message) -> AnyResult<()> {
 }
 
 async fn handle_reaction_add(ctx: &Context, reaction: Reaction) -> AnyResult<()> {
-    let (Some(guild_id), Some(member)) = (reaction.guild_id, reaction.member) else {
+    let Some(guild_id) = reaction.guild_id else {
         return Ok(());
     };
 
+    let user = match reaction.member {
+        Some(m) => m.user,
+        None => match ctx.cache.user(reaction.user_id) {
+            Some(m) => m.to_owned(),
+            None => ctx.http.user(reaction.user_id).send().await?,
+        },
+    };
+
     // Ignore reactions from bots.
-    if member.user.bot {
+    if user.bot {
         return Ok(());
     }
 
@@ -324,30 +332,33 @@ async fn handle_reaction_add(ctx: &Context, reaction: Reaction) -> AnyResult<()>
             .collect::<Vec<_>>()
     };
 
-    let mut roles = member.roles;
+    info!("Adding roles for '{}'", user.name);
 
-    roles.extend(add_roles);
-    roles.sort_unstable();
-    roles.dedup();
-
-    info!("Updating roles for '{}'", member.user.name);
-
-    ctx.http
-        .update_guild_member(guild_id, reaction.user_id)
-        .roles(&roles)
-        .exec()
-        .await?;
+    for role_id in add_roles {
+        ctx.http
+            .add_guild_member_role(guild_id, reaction.user_id, role_id)
+            .exec()
+            .await?;
+    }
 
     Ok(())
 }
 
 async fn handle_reaction_remove(ctx: &Context, reaction: Reaction) -> AnyResult<()> {
-    let (Some(guild_id), Some(member)) = (reaction.guild_id, reaction.member) else {
+    let Some(guild_id) = reaction.guild_id else {
         return Ok(());
     };
 
+    let user = match reaction.member {
+        Some(m) => m.user,
+        None => match ctx.cache.user(reaction.user_id) {
+            Some(m) => m.to_owned(),
+            None => ctx.http.user(reaction.user_id).send().await?,
+        },
+    };
+
     // Ignore reactions from bots.
-    if member.user.bot {
+    if user.bot {
         return Ok(());
     }
 
@@ -370,17 +381,14 @@ async fn handle_reaction_remove(ctx: &Context, reaction: Reaction) -> AnyResult<
             .collect::<Vec<_>>()
     };
 
-    let mut roles = member.roles;
+    info!("Removing roles for '{}'", user.name);
 
-    roles.retain(|r| !remove_roles.contains(r));
-
-    info!("Updating roles for '{}'", member.user.name);
-
-    ctx.http
-        .update_guild_member(guild_id, reaction.user_id)
-        .roles(&roles)
-        .exec()
-        .await?;
+    for role_id in remove_roles {
+        ctx.http
+            .remove_guild_member_role(guild_id, reaction.user_id, role_id)
+            .exec()
+            .await?;
+    }
 
     Ok(())
 }
@@ -419,6 +427,11 @@ async fn update_bot_content(ctx: &Context, msg: Message) -> AnyResult<()> {
             .update_message(replied.channel_id, replied.id)
             .content(Some(&msg.content))?
             .send()
+            .await?;
+
+        ctx.http
+            .delete_message(msg.channel_id, msg.id)
+            .exec()
             .await?;
     }
 
