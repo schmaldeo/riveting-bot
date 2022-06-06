@@ -324,15 +324,27 @@ impl Config {
 
         for (id, settings) in self.guilds.iter() {
             let file_name = format!("{id}.json");
+            let path = Path::new(GUILD_CONFIG_DIR).join(file_name);
 
-            let guild_config = OpenOptions::new()
+            let open = OpenOptions::new()
                 .write(true)
                 .create(true)
                 .truncate(true)
-                .open(Path::new(GUILD_CONFIG_DIR).join(file_name))?;
+                .open(&path);
 
-            serde_json::to_writer_pretty(guild_config, settings)
-                .map_err(|e| anyhow::anyhow!("Serialization error: {e}"))?;
+            let guild_config = match open {
+                Ok(f) => f,
+                Err(e) => {
+                    let path = path.display();
+                    error!("Could not write guild config file '{path}': {e}");
+                    continue;
+                },
+            };
+
+            serde_json::to_writer_pretty(guild_config, settings).unwrap_or_else(|e| {
+                let path = path.display();
+                error!("Could not serialize guild config '{path}': {e}");
+            });
         }
 
         Ok(())
