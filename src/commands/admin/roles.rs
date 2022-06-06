@@ -351,8 +351,6 @@ pub async fn setup(cc: CommandContext<'_>) -> CommandResult {
 
     lock.write_guild(guild_id)?;
 
-    // TODO Ability to edit the message with a reply.
-
     Ok(())
 }
 

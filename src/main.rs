@@ -265,8 +265,10 @@ async fn handle_message_create(ctx: &Context, msg: Message) -> AnyResult<()> {
     // Handle chat commands.
     if let Err(e) = ctx.chat_commands.process(ctx, &msg).await {
         match e {
-            // Message was not meant for us.
-            CommandError::NotPrefixed => (),
+            // Message was not a command. Check if it should update a bot message content.
+            CommandError::NotPrefixed => {
+                update_bot_content(ctx, msg).await?;
+            },
 
             // Log processing errors.
             e => {
@@ -388,6 +390,42 @@ async fn handle_reaction_remove(ctx: &Context, reaction: Reaction) -> AnyResult<
 }
 
 async fn handle_voice_state(_ctx: &Context, _voice: VoiceState) -> AnyResult<()> {
+    Ok(())
+}
+
+/// Check if message event should update a bot message content.
+async fn update_bot_content(ctx: &Context, msg: Message) -> AnyResult<()> {
+    // Ignore if message is not a reply or it is not in a guild.
+    let (Some(replied), Some(guild_id)) = (msg.referenced_message, msg.guild_id) else {
+        return Ok(());
+    };
+
+    // Ignore if replied message is not from a bot.
+    if !replied.author.bot {
+        return Ok(());
+    }
+
+    // Update a reaction-roles message, if found.
+    let update = {
+        let lock = ctx.config.lock().unwrap();
+
+        if let Some(settings) = lock.guild(guild_id) {
+            let key = format!("{}.{}", replied.channel_id, replied.id);
+            settings.reaction_roles.contains_key(&key)
+        } else {
+            false
+        }
+    };
+
+    if update {
+        // Edit message content
+        ctx.http
+            .update_message(replied.channel_id, replied.id)
+            .content(Some(&msg.content))?
+            .send()
+            .await?;
+    }
+
     Ok(())
 }
 
