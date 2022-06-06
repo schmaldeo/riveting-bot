@@ -434,7 +434,8 @@ fn unprefix<'a>(ctx: &Context, msg: &'a Message) -> Option<&'a str> {
 fn unalias<'a>(ctx: &'a Context, msg: &Message, stripped: &str) -> Option<Cow<'a, str>> {
     if let Some(guild_id) = msg.guild_id {
         let lock = ctx.config.lock().unwrap();
-        let found = lock.guild(guild_id)?.aliases().get(stripped)?;
+        let settings = lock.guild(guild_id)?;
+        let found = settings.aliases().get(stripped)?;
 
         info!("Found alias '{found}' for '{stripped}'");
 
@@ -454,7 +455,7 @@ pub struct CommandContext<'a> {
 
 impl<'a> CommandContext<'a> {
     /// Create a new command context.
-    pub fn new(ctx: &'a Context, msg: &'a Message, args: &'a str, cmd: &'a Command) -> Self {
+    pub const fn new(ctx: &'a Context, msg: &'a Message, args: &'a str, cmd: &'a Command) -> Self {
         Self {
             ctx,
             msg,
@@ -629,31 +630,31 @@ impl Command {
     }
 
     /// Returns `(self.name, self)` pair of the command.
-    pub fn named(self) -> (&'static str, Self) {
+    pub const fn named(self) -> (&'static str, Self) {
         (self.name, self)
     }
 
     /// Add a sub-command.
-    pub fn sub(mut self, cmd: Command) -> Self {
+    pub fn sub(mut self, cmd: Self) -> Self {
         self.sub_commands.insert(cmd.name, cmd);
         self
     }
 
     /// Set guild permissions command access.
-    pub fn access(mut self, access: CommandAccess) -> Self {
+    pub const fn access(mut self, access: CommandAccess) -> Self {
         // TODO Inferred sub-command permissions.
         self.access = access;
         self
     }
 
     /// Set direct message access.
-    pub fn dm(mut self, enabled: bool) -> Self {
+    pub const fn dm(mut self, enabled: bool) -> Self {
         self.dm_enabled = enabled;
         self
     }
 
     /// Set a description for the command.
-    pub fn desc(mut self, desc: &'static str) -> Self {
+    pub const fn desc(mut self, desc: &'static str) -> Self {
         self.description = desc;
         self
     }

@@ -50,7 +50,7 @@ pub struct Context {
 }
 
 impl Context {
-    fn with_shard(mut self, id: u64) -> Self {
+    const fn with_shard(mut self, id: u64) -> Self {
         self.shard = Some(id);
         self
     }
@@ -413,12 +413,10 @@ async fn update_bot_content(ctx: &Context, msg: Message) -> AnyResult<()> {
     let update = {
         let lock = ctx.config.lock().unwrap();
 
-        if let Some(settings) = lock.guild(guild_id) {
+        lock.guild(guild_id).map_or(false, |settings| {
             let key = format!("{}.{}", replied.channel_id, replied.id);
             settings.reaction_roles.contains_key(&key)
-        } else {
-            false
-        }
+        })
     };
 
     if update {

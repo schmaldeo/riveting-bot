@@ -389,7 +389,7 @@ pub struct ReactionRole {
 }
 
 impl ReactionRole {
-    pub fn new(emoji: ReactionType, role: Id<RoleMarker>) -> Self {
+    pub const fn new(emoji: ReactionType, role: Id<RoleMarker>) -> Self {
         Self { emoji, role }
     }
 }

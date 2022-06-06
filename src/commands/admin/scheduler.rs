@@ -48,8 +48,8 @@ pub async fn add(cc: CommandContext<'_>) -> CommandResult {
     // Create a date from arguments
     let mut date_vec: Vec<u32> = Vec::new();
 
-    for i in 1..7 {
-        match args[i].parse::<u32>() {
+    for arg in args.iter().take(7).skip(1) {
+        match arg.parse::<u32>() {
             Ok(n) => date_vec.push(n),
             Err(e) => {
                 cc.http

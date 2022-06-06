@@ -37,11 +37,11 @@ impl Settings {
         &self.prefix
     }
 
-    pub fn aliases(&self) -> &HashMap<String, String> {
+    pub const fn aliases(&self) -> &HashMap<String, String> {
         &self.aliases
     }
 
-    pub fn perms(&self) -> &HashMap<String, PermissionMap> {
+    pub const fn perms(&self) -> &HashMap<String, PermissionMap> {
         &self.perms
     }
 
@@ -146,7 +146,7 @@ pub struct Config {
 
 impl Config {
     /// Load the configuration file from `CONFIG_FILE`.
-    pub fn load() -> AnyResult<Config> {
+    pub fn load() -> AnyResult<Self> {
         info!("Loading config file");
 
         let mut cfg = String::new();
@@ -160,7 +160,7 @@ impl Config {
             config.read_to_string(&mut cfg)?;
         }
 
-        match serde_json::from_str::<Config>(&cfg) {
+        match serde_json::from_str::<Self>(&cfg) {
             Ok(mut c) => {
                 fs::create_dir_all(GUILD_CONFIG_DIR)
                     .map_err(|e| anyhow::anyhow!("Failed to create guilds dir: {}", e))?;
@@ -173,7 +173,7 @@ impl Config {
                 debug!("Could not load config: {}", e);
                 info!("Creating a default config file");
 
-                let def = Config::default();
+                let def = Self::default();
                 def.write()?;
 
                 Ok(def)

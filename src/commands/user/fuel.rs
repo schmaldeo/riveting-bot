@@ -36,7 +36,7 @@ pub async fn fuel(cc: CommandContext<'_>) -> CommandResult {
     let fuel_per_lap = fuel_per_lap.parse::<f32>().unwrap();
 
     let length_in_sec = (length * 60) as f32;
-    let laptime_in_sec = (laptime[0] * 60 + laptime[1]) as f32 + (laptime[2] as f32) / 1000 as f32;
+    let laptime_in_sec = (laptime[0] * 60 + laptime[1]) as f32 + (laptime[2] as f32) / 1000.0;
     let amount_of_laps = (length_in_sec / laptime_in_sec).ceil();
     let fuel_needed = amount_of_laps * fuel_per_lap;
 
