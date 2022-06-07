@@ -18,7 +18,7 @@ use twilight_http::Client;
 use twilight_model::application::interaction::Interaction;
 use twilight_model::channel::{Message, Reaction};
 use twilight_model::gateway::event::shard::Connected;
-use twilight_model::gateway::payload::incoming::Ready;
+use twilight_model::gateway::payload::incoming::{MessageDelete, MessageDeleteBulk, Ready};
 use twilight_model::gateway::Intents;
 use twilight_model::guild::Guild;
 use twilight_model::id::Id;
@@ -176,6 +176,8 @@ async fn handle_event(ctx: Context, event: Event) -> AnyResult<()> {
         Event::GuildCreate(g) => handle_guild_create(&ctx, g.0).await,
         Event::InteractionCreate(i) => handle_interaction_create(&ctx, i.0).await,
         Event::MessageCreate(msg) => handle_message_create(&ctx, msg.0).await,
+        Event::MessageDelete(md) => handle_message_delete(&ctx, md).await,
+        Event::MessageDeleteBulk(mdb) => handle_message_delete_bulk(&ctx, mdb).await,
         Event::ReactionAdd(r) => handle_reaction_add(&ctx, r.0).await,
         Event::ReactionRemove(r) => handle_reaction_remove(&ctx, r.0).await,
         Event::VoiceStateUpdate(v) => handle_voice_state(&ctx, v.0).await,
@@ -214,7 +216,7 @@ async fn handle_ready(_ctx: &Context, ready: Ready) -> AnyResult<()> {
 }
 
 async fn handle_guild_create(_ctx: &Context, guild: Guild) -> AnyResult<()> {
-    println!("Guild: {:#?}", guild);
+    println!("Guild: {}", guild.name);
     info!("Guild: '{}'", guild.name);
 
     Ok(())
@@ -291,6 +293,39 @@ async fn handle_message_create(ctx: &Context, msg: Message) -> AnyResult<()> {
                 }
             },
         }
+    }
+
+    Ok(())
+}
+
+async fn handle_message_delete(ctx: &Context, md: MessageDelete) -> AnyResult<()> {
+    let Some(guild_id) = md.guild_id else {
+        return Ok(());
+    };
+
+    let mut lock = ctx.config.lock().unwrap();
+
+    let Some(settings) = lock.guild_mut(guild_id) else {
+        return Ok(());
+    };
+
+    let key = format!("{}.{}", md.channel_id, md.id);
+    settings.reaction_roles.remove(&key);
+
+    lock.write_guild(guild_id)?;
+
+    Ok(())
+}
+
+async fn handle_message_delete_bulk(ctx: &Context, mdb: MessageDeleteBulk) -> AnyResult<()> {
+    let message_delete_with = |id| MessageDelete {
+        channel_id: mdb.channel_id,
+        guild_id: mdb.guild_id,
+        id,
+    };
+
+    for id in mdb.ids {
+        handle_message_delete(ctx, message_delete_with(id)).await?; // Haxxx.
     }
 
     Ok(())
