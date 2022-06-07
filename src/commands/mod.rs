@@ -1,7 +1,7 @@
 #![allow(dead_code)]
 
 use std::borrow::Cow;
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 use std::mem;
 use std::pin::Pin;
 
@@ -794,7 +794,7 @@ impl std::fmt::Display for Command {
 }
 
 /// Calculate if the message sender has `perms` permissions.
-async fn sender_has_permissions(
+pub async fn sender_has_permissions(
     ctx: &Context,
     msg: &Message,
     guild_id: Id<GuildMarker>,
@@ -807,21 +807,28 @@ async fn sender_has_permissions(
     let member_role_ids = msg
         .member
         .as_ref()
-        .unwrap()
+        .ok_or_else(|| anyhow::anyhow!("Not in a guild"))?
         .roles
         .iter()
         .copied()
         .chain([everyone_id])
-        .collect::<HashSet<_>>();
-
-    // Try get the member's roles from the cache.
-    let cached_roles = member_role_ids
-        .iter()
-        .flat_map(|r| ctx.cache.role(*r))
-        .map(|r| r.resource().to_owned())
         .collect::<Vec<_>>();
 
-    let roles = if member_role_ids.len() == cached_roles.len() {
+    let mut iter = member_role_ids.iter();
+    let mut cached_roles = Vec::with_capacity(member_role_ids.len());
+
+    // Try get the member's roles from the cache.
+    let cached = loop {
+        match iter.next() {
+            Some(id) => match ctx.cache.role(*id) {
+                Some(r) => cached_roles.push(r.resource().to_owned()),
+                None => break false,
+            },
+            None => break true,
+        }
+    };
+
+    let roles = if cached {
         // All roles were found in the cache.
         debug!("Using cached roles for '{}'", msg.author.name);
 
@@ -897,4 +904,69 @@ async fn sender_has_permissions(
     let calc = PermissionCalculator::new(guild_id, msg.author.id, everyone_perm, &roles);
 
     Ok(calc.in_channel(channel.kind, &overwrites).contains(perms))
+}
+
+/// Calculate if the message sender has administrator permissions.
+pub async fn sender_has_admin(
+    ctx: &Context,
+    msg: &Message,
+    guild_id: Id<GuildMarker>,
+) -> AnyResult<bool> {
+    // `@everyone` role id is the same as the guild's id.
+    let everyone_id = guild_id.cast();
+
+    // The member's assigned roles' ids + `@everyone` role id.
+    let member_role_ids = msg
+        .member
+        .as_ref()
+        .ok_or_else(|| anyhow::anyhow!("Not in a guild"))?
+        .roles
+        .iter()
+        .copied()
+        .chain([everyone_id])
+        .collect::<Vec<_>>();
+
+    let mut iter = member_role_ids.iter();
+    let mut cached_roles = Vec::with_capacity(member_role_ids.len());
+
+    // Try get the member's roles from the cache.
+    let cached = loop {
+        match iter.next() {
+            Some(id) => match ctx.cache.role(*id) {
+                Some(r) => cached_roles.push(r.resource().to_owned()),
+                None => break false,
+            },
+            None => break true,
+        }
+    };
+
+    let roles = if cached {
+        // All roles were found in the cache.
+        debug!("Using cached roles for '{}'", msg.author.name);
+
+        cached_roles
+    } else {
+        // Need to fetch the guild's roles from the http client.
+        debug!("Fetching roles with http for '{}'", msg.author.name);
+
+        let fetch = ctx.http.roles(guild_id).send().await?;
+
+        // Filter only the roles that the member has.
+        let member_roles = fetch
+            .iter()
+            .filter(|r| member_role_ids.contains(&r.id))
+            .cloned()
+            .collect();
+
+        // Manually update the cache.
+        for role in fetch {
+            ctx.cache.update(&RoleUpdate { guild_id, role });
+        }
+
+        member_roles
+    };
+
+    Ok(roles
+        .into_iter()
+        .any(|r| r.permissions.contains(Permissions::ADMINISTRATOR)))
 }
