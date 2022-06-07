@@ -400,12 +400,17 @@ async fn handle_voice_state(_ctx: &Context, _voice: VoiceState) -> AnyResult<()>
 /// Check if message event should update a bot message content.
 async fn update_bot_content(ctx: &Context, msg: Message) -> AnyResult<()> {
     // Ignore if message is not a reply or it is not in a guild.
-    let (Some(replied), Some(guild_id)) = (msg.referenced_message, msg.guild_id) else {
+    let (Some(replied), Some(guild_id)) = (msg.referenced_message.as_ref(), msg.guild_id) else {
         return Ok(());
     };
 
     // Ignore if replied message is not from a bot.
     if !replied.author.bot {
+        return Ok(());
+    }
+
+    // Ignore if member is not admin.
+    if !commands::sender_has_admin(ctx, &msg, guild_id).await? {
         return Ok(());
     }
 
