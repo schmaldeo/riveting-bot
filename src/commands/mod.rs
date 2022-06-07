@@ -1,7 +1,7 @@
 #![allow(dead_code)]
 
 use std::borrow::Cow;
-use std::collections::HashMap;
+use std::collections::BTreeMap;
 use std::mem;
 use std::pin::Pin;
 
@@ -172,13 +172,13 @@ impl TryFrom<MentionType> for CommandAccess {
 }
 
 pub struct ChatCommands {
-    pub list: HashMap<&'static str, Command>,
+    pub list: BTreeMap<&'static str, Command>,
 }
 
 impl ChatCommands {
     pub fn new() -> Self {
         // Create the commands list and add commands to it.
-        let mut list = HashMap::new();
+        let mut list = BTreeMap::new();
 
         // Basic functionality.
         list.extend([
@@ -591,7 +591,7 @@ pub struct Command {
     pub func: CommandFn,
     pub description: &'static str,
     pub usage: Vec<&'static str>,
-    pub sub_commands: HashMap<&'static str, Command>,
+    pub sub_commands: BTreeMap<&'static str, Command>,
     pub access: CommandAccess,
     pub dm_enabled: bool,
 }
@@ -608,7 +608,7 @@ impl Command {
             func,
             description: "",
             usage: Vec::new(),
-            sub_commands: HashMap::new(),
+            sub_commands: BTreeMap::new(),
             access: CommandAccess::Any,
             dm_enabled: false,
         }
