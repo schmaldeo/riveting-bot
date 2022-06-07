@@ -4,6 +4,7 @@
 #![feature(associated_type_bounds)]
 #![feature(option_get_or_insert_default)]
 #![allow(dead_code)]
+#![allow(clippy::significant_drop_in_scrutinee)]
 
 use std::sync::{Arc, Mutex};
 use std::{env, fs};

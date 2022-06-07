@@ -64,7 +64,7 @@ pub async fn add(cc: CommandContext<'_>) -> CommandResult {
     }
 
     let event_name = args
-        .get(0)
+        .first()
         .ok_or(CommandError::MissingArgs)?
         .trim()
         .to_string();
@@ -230,11 +230,11 @@ async fn check_schedule(ctx: &Context, look_ahead: u64) -> AnyResult<()> {
     loop {
         match futs.join_one().await {
             // All done.
-            Ok(None) => break,
+            None => break,
             // Log if an error occurred inside event waiting.
-            Err(e) => error!("Error in a scheduled event: {}", e),
-            // One completed without errors.
-            _ => (),
+            Some(Err(e)) => error!("Error in a scheduled event: {}", e),
+            // One completed without errors(?).
+            Some(Ok(k)) => debug!("A scheduled event completed with result: {k:?}"),
         }
     }
 

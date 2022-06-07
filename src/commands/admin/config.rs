@@ -70,7 +70,7 @@ pub async fn set(cc: CommandContext<'_>) -> CommandResult {
 
     let args = parser::parse_args(cc.args.trim())?;
 
-    let setting = args.get(0).ok_or(CommandError::MissingArgs)?.trim();
+    let setting = args.first().ok_or(CommandError::MissingArgs)?.trim();
     let value = args.get(1).ok_or(CommandError::MissingArgs)?.trim();
 
     parser::ensure_rest_is_empty(args.get(3).copied())?;

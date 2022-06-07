@@ -9,7 +9,7 @@ use crate::utils::prelude::*;
 pub async fn fuel(cc: CommandContext<'_>) -> CommandResult {
     let args = parser::parse_args(cc.args.trim())?;
 
-    let length = match args.get(0) {
+    let length = match args.first() {
         Some(l) => l,
         None => {
             cc.http

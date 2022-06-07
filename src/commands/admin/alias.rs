@@ -64,7 +64,8 @@ pub async fn set(cc: CommandContext<'_>) -> CommandResult {
         Some(_) => debug!("Replaced an alias in guild '{guild_id}'"),
         None => debug!("Added an alias in guild '{guild_id}'"),
     }
-    lock.write()?;
+
+    lock.write_guild(guild_id)?;
 
     Ok(())
 }
@@ -92,6 +93,8 @@ pub async fn remove(cc: CommandContext<'_>) -> CommandResult {
             )))
         },
     }
+
+    lock.write_guild(guild_id)?;
 
     Ok(())
 }
