@@ -5,29 +5,24 @@ use crate::commands::{CommandContext, CommandError, CommandResult};
 use crate::parser;
 use crate::utils::prelude::*;
 
-/// Command: Silence voice users, or give a timeout.
-pub async fn muter(cc: CommandContext<'_>) -> CommandResult {
-    if cc.msg.guild_id.is_none() {
-        return Err(CommandError::Disabled);
-    }
-
-    cc.http
-        .create_message(cc.msg.channel_id)
-        .reply(cc.msg.id)
-        .content(&format!("```{}```", cc.cmd))?
-        .send()
-        .await?;
-
-    Ok(())
-}
-
-/// Command: Silence a voice user for a set amount or random time.
+/// Command: Silence a voice user for a set amount of time.
 pub async fn mute(cc: CommandContext<'_>) -> CommandResult {
     let Some(guild_id) = cc.msg.guild_id else {
         return Err(CommandError::Disabled)
     };
 
-    let timeout = 30;
+    if cc.args.trim().is_empty() {
+        cc.http
+            .create_message(cc.msg.channel_id)
+            .reply(cc.msg.id)
+            .content(&format!("```{}```", cc.cmd))?
+            .send()
+            .await?;
+
+        return Ok(());
+    }
+
+    let timeout = 60;
 
     let (target, rest) = parser::maybe_quoted_arg(cc.args.trim())?;
     parser::ensure_rest_is_empty(rest)?;
@@ -77,7 +72,18 @@ pub async fn timeout(cc: CommandContext<'_>) -> CommandResult {
         return Err(CommandError::Disabled)
     };
 
-    let timeout = 30;
+    if cc.args.trim().is_empty() {
+        cc.http
+            .create_message(cc.msg.channel_id)
+            .reply(cc.msg.id)
+            .content(&format!("```{}```", cc.cmd))?
+            .send()
+            .await?;
+
+        return Ok(());
+    }
+
+    let timeout = 60;
 
     let now = chrono::Utc::now().timestamp();
     let until = Timestamp::from_secs(now + timeout).unwrap();

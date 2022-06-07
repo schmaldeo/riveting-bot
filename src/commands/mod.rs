@@ -246,12 +246,13 @@ impl ChatCommands {
                 .sub(command!(admin; admin::perms::deny))
                 .sub(command!(admin; admin::perms::clear))
                 .named(),
-            command!(admin; admin::muter::muter)
-                .desc("Silence someone.")
+            command!(admin; admin::silence::mute)
+                .desc("Silence someone in voice channel.")
                 .usage("mute <user>")
+                .named(),
+            command!(admin; admin::silence::timeout)
+                .desc("Give someone a timeout.")
                 .usage("timeout <user>")
-                .sub(command!(admin; admin::muter::mute))
-                .sub(command!(admin; admin::muter::timeout))
                 .named(),
             command!(admin; admin::scheduler::scheduler)
                 .desc("Manage events.")

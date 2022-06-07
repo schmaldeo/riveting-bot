@@ -1,9 +1,9 @@
 pub mod alias;
 pub mod config;
-pub mod muter;
 pub mod perms;
 pub mod roles;
 pub mod scheduler;
+pub mod silence;
 
 #[cfg(feature = "bulk-delete")]
 pub mod bulk {
