@@ -6,7 +6,7 @@ use std::fmt::Display;
 use serde::Serialize;
 use twilight_http::request::application::interaction::{CreateFollowup, UpdateResponse};
 use twilight_http::request::channel::message::{
-    CreateMessage, GetChannelMessagesConfigured, UpdateMessage,
+    CreateMessage, GetChannelMessagesConfigured, GetMessage, UpdateMessage,
 };
 use twilight_http::request::channel::GetChannel;
 use twilight_http::request::guild::emoji::GetEmojis;
@@ -68,6 +68,7 @@ impl_exec_model_ext!(GetEmojis<'_>, Vec<Emoji>);
 impl_exec_model_ext!(GetGuild<'_>, Guild);
 impl_exec_model_ext!(GetGuildRoles<'_>, Vec<Role>);
 impl_exec_model_ext!(GetMember<'_>, Member);
+impl_exec_model_ext!(GetMessage<'_>, Message);
 impl_exec_model_ext!(GetUser<'_>, User);
 impl_exec_model_ext!(GetUserApplicationInfo<'_>, Application);
 impl_exec_model_ext!(UpdateMessage<'_>, Message);

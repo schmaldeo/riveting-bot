@@ -219,8 +219,10 @@ impl ChatCommands {
                 .named(),
             command!(admin; admin::config::config)
                 .desc("Manage guild config.")
+                .usage("cleanup")
                 .usage("get")
                 .usage("set <option> <value>")
+                .sub(command!(admin; admin::config::cleanup))
                 .sub(command!(admin; admin::config::get))
                 .sub(command!(admin; admin::config::set))
                 .named(),
