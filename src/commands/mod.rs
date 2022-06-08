@@ -412,7 +412,7 @@ fn unprefix<'a>(ctx: &Context, msg: &'a Message) -> Option<&'a str> {
 
             // See if guild has set a prefix, otherwise use global.
 
-            let prefix = lock.guild(guild_id).unwrap_or(&lock.global).prefix();
+            let prefix = &lock.guild(guild_id).unwrap_or(&lock.global).prefix;
             msg.content.strip_prefix(prefix)
         },
         None => {
@@ -420,12 +420,12 @@ fn unprefix<'a>(ctx: &Context, msg: &'a Message) -> Option<&'a str> {
             let lock = ctx.config.lock().unwrap();
 
             // Try to use global prefix, if fails, try to use any guild prefix.
-            let mut stripped = msg.content.strip_prefix(lock.global.prefix());
+            let mut stripped = msg.content.strip_prefix(&lock.global.prefix);
             let mut guilds = lock.guilds.values();
 
             // While `stripped` is none, i.e. no prefix has matched, and there are still guild configs to check.
             while let (Some(guild), None) = (guilds.next(), stripped) {
-                stripped = msg.content.strip_prefix(guild.prefix());
+                stripped = msg.content.strip_prefix(&guild.prefix);
             }
 
             stripped
@@ -438,7 +438,7 @@ fn unalias<'a>(ctx: &'a Context, msg: &Message, stripped: &str) -> Option<Cow<'a
     if let Some(guild_id) = msg.guild_id {
         let lock = ctx.config.lock().unwrap();
         let settings = lock.guild(guild_id)?;
-        let found = settings.aliases().get(stripped)?;
+        let found = settings.aliases.get(stripped)?;
 
         info!("Found alias '{found}' for '{stripped}'");
 
@@ -510,10 +510,10 @@ impl<'a> CommandContext<'a> {
 
         match guild_id {
             Some(guild_id) => match lock.guild(guild_id) {
-                Some(data) => data.prefix().to_string(),
-                None => lock.global.prefix().to_string(),
+                Some(data) => data.prefix.to_string(),
+                None => lock.global.prefix.to_string(),
             },
-            None => lock.global.prefix().to_string(),
+            None => lock.global.prefix.to_string(),
         }
     }
 }
@@ -734,12 +734,12 @@ impl Command {
 
         // FIXME This is sort of a quickfix to cope with the ever-so-naive command splitting.
         // Everything would explode if there was any subcommands involved.
-        let prefix = lock.guild(guild_id).unwrap_or(&lock.global).prefix();
+        let prefix = &lock.guild(guild_id).unwrap_or(&lock.global).prefix;
         let stripped = msg.content.strip_prefix(prefix)?;
         let (first, _) = stripped
             .split_once(char::is_whitespace)
             .unwrap_or((stripped, ""));
-        let is_alias = lock.guild(guild_id)?.aliases().contains_key(first);
+        let is_alias = lock.guild(guild_id)?.aliases.contains_key(first);
 
         // Just yeet out of here.
         if first != self.name && !is_alias {
@@ -747,7 +747,7 @@ impl Command {
         }
 
         let cmd = if is_alias { first } else { self.name };
-        let perm = guild.perms().get(cmd)?;
+        let perm = guild.perms.get(cmd)?;
 
         // If the command is disabled in the channel then access is denied.
         if perm.is_channel_disabled(msg.channel_id) {

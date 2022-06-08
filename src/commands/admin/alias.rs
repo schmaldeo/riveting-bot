@@ -30,7 +30,7 @@ pub async fn list(cc: CommandContext<'_>) -> CommandResult {
         let lock = cc.config.lock().unwrap();
 
         match lock.guild(guild_id) {
-            Some(data) => format!("```json\n{:#?}```", data.aliases()), // Quick haxx
+            Some(data) => format!("```json\n{:#?}```", data.aliases), // Quick haxx
             None => String::new(),
         }
     };

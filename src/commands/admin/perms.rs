@@ -65,7 +65,7 @@ pub async fn allow(cc: CommandContext<'_>) -> CommandResult {
     }
 
     let mut lock = cc.config.lock().unwrap();
-    let perms = lock.guild_or_default(guild_id).perms_mut();
+    let perms = &mut lock.guild_or_default(guild_id).perms;
 
     debug!("Setting custom permissions to 'allowed' in {callables:?} for {targets:?}");
 
@@ -103,7 +103,7 @@ pub async fn deny(cc: CommandContext<'_>) -> CommandResult {
     }
 
     let mut lock = cc.config.lock().unwrap();
-    let perms = lock.guild_or_default(guild_id).perms_mut();
+    let perms = &mut lock.guild_or_default(guild_id).perms;
 
     debug!("Setting custom permissions to 'denied' in {callables:?} for {targets:?}");
 
@@ -161,12 +161,12 @@ pub async fn clear(cc: CommandContext<'_>) -> CommandResult {
         debug!("Removing custom permissions for {callables:?}");
         // Remove all permissions from commands or aliases.
         for callable in callables {
-            guild.perms_mut().remove(callable);
+            guild.perms.remove(callable);
         }
     } else if callables.is_empty() {
         debug!("Removing custom permissions for {targets:?}");
         // For all commands or aliases remove each `target`.
-        for perm in guild.perms_mut().values_mut() {
+        for perm in guild.perms.values_mut() {
             for target in targets.iter() {
                 match target {
                     CommandAccess::User(id) => perm.remove_user(*id),
@@ -180,7 +180,7 @@ pub async fn clear(cc: CommandContext<'_>) -> CommandResult {
         debug!("Removing custom permissions in {callables:?} for {targets:?}");
         // Remove specific permissions from commands or aliases.
         for callable in callables {
-            let Some(perm) = guild.perms_mut().get_mut(callable) else {
+            let Some(perm) = guild.perms.get_mut(callable) else {
                 continue;
             };
 
@@ -226,7 +226,7 @@ fn collect_parts<'a>(
 
                 // Try to find a matching alias.
                 if let Some(data) = lock.guild(guild_id) {
-                    if data.aliases().contains_key(arg) {
+                    if data.aliases.contains_key(arg) {
                         callables.insert(arg);
                         continue; // Found a matching alias, go next.
                     }

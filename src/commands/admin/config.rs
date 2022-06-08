@@ -51,8 +51,8 @@ pub async fn get(cc: CommandContext<'_>) -> CommandResult {
             ```yaml
             {:#?}
             ```",
-            guild.prefix(),
-            guild.aliases()
+            guild.prefix,
+            guild.aliases
         )
     };
 

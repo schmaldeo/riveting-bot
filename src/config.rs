@@ -32,32 +32,6 @@ pub struct Settings {
     pub reaction_roles: HashMap<String, Vec<ReactionRole>>,
 }
 
-impl Settings {
-    pub fn prefix(&self) -> &str {
-        &self.prefix
-    }
-
-    pub const fn aliases(&self) -> &HashMap<String, String> {
-        &self.aliases
-    }
-
-    pub const fn perms(&self) -> &HashMap<String, PermissionMap> {
-        &self.perms
-    }
-
-    pub fn prefix_mut(&mut self) -> &mut String {
-        &mut self.prefix
-    }
-
-    pub fn aliases_mut(&mut self) -> &mut HashMap<String, String> {
-        &mut self.aliases
-    }
-
-    pub fn perms_mut(&mut self) -> &mut HashMap<String, PermissionMap> {
-        &mut self.perms
-    }
-}
-
 impl Default for Settings {
     fn default() -> Self {
         Self {
@@ -235,13 +209,13 @@ impl Config {
     /// Add an alias, returns `Some(alias_command)` if it replaced one.
     pub fn add_alias(&mut self, guild_id: Id<GuildMarker>, alias: Alias) -> Option<String> {
         self.guild_or_default(guild_id)
-            .aliases_mut()
+            .aliases
             .insert(alias.name, alias.command)
     }
 
     /// Remove an alias, returns the removed alias value `Some(alias_command)` if successful.
     pub fn remove_alias(&mut self, guild_id: Id<GuildMarker>, alias_name: &str) -> Option<String> {
-        self.guild_mut(guild_id)?.aliases_mut().remove(alias_name)
+        self.guild_mut(guild_id)?.aliases.remove(alias_name)
     }
 
     /// Add a reaction-role configuration.
