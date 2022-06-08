@@ -25,20 +25,16 @@ COPY ./src ./src
 # Build for release.
 RUN cargo build --release && strip --strip-all ./target/release/riveting-bot
 
-# Make data dir for the bot.
-RUN mkdir ./data
-
 # Final.
 # FROM gcr.io/distroless/cc
 FROM ubuntu:latest
-RUN apt update && apt upgrade -y
+RUN apt update && apt upgrade -y && apt install ca-certificates -y && update-ca-certificates
 
 # Copy the build artifact from the build stage.
-COPY --from=builder /app/target/release/riveting-bot /
-COPY --from=builder /app/data /
+COPY --from=builder /app/target/release/riveting-bot /app/riveting-bot
 
 # Run as non-root.
-USER 1000:1000
+# USER 1000:1000
 
 # Set the startup command.
-CMD ["/riveting-bot"]
+CMD ["/app/riveting-bot"]
