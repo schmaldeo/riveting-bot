@@ -212,11 +212,6 @@ impl ChatCommands {
         // Moderation functionality.
         #[cfg(feature = "admin")]
         list.extend([
-            command!(admin; admin::roles::roles)
-                .desc("Manage reaction-roles.")
-                .usage("setup")
-                .sub(command!(admin; admin::roles::setup))
-                .named(),
             command!(admin; admin::config::config)
                 .desc("Manage guild config.")
                 .usage("cleanup")
@@ -247,6 +242,18 @@ impl ChatCommands {
                 .sub(command!(admin; admin::perms::allow))
                 .sub(command!(admin; admin::perms::deny))
                 .sub(command!(admin; admin::perms::clear))
+                .named(),
+            command!(admin; admin::roles::roles)
+                .desc("Manage reaction-roles.")
+                .usage("setup")
+                .sub(command!(admin; admin::roles::setup))
+                .named(),
+            command!(admin; admin::bot::bot)
+                .desc("Create or edit bot messages.")
+                .usage("edit (reply) <text>")
+                .usage("say <text>")
+                .sub(command!(admin; admin::bot::edit))
+                .sub(command!(admin; admin::bot::say))
                 .named(),
             command!(admin; admin::silence::mute)
                 .desc("Silence someone in voice channel.")
