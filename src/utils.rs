@@ -15,7 +15,7 @@ use twilight_http::request::guild::role::GetGuildRoles;
 use twilight_http::request::guild::GetGuild;
 use twilight_http::request::user::{GetCurrentUser, GetCurrentUserGuildMember, GetUser};
 use twilight_http::request::GetUserApplicationInfo;
-use twilight_model::channel::{Channel, Message};
+use twilight_model::channel::{Channel, Message, ReactionType};
 use twilight_model::guild::{Emoji, Guild, Member, Role};
 use twilight_model::oauth::Application;
 use twilight_model::user::{CurrentUser, User};
@@ -117,6 +117,25 @@ pub fn escape_discord_chars(text: &str) -> Cow<'_, str> {
     }
 
     Cow::Owned(out)
+}
+
+/// Display reaction in discord emoji format.
+/// Returns `Err(id)` *(id as string)* if emoji name is unavailable.
+pub fn display_reaction_emoji(reaction: &ReactionType) -> Result<String, String> {
+    match reaction {
+        ReactionType::Custom {
+            animated: true,
+            id,
+            name: Some(n),
+        } => Ok(format!("<a:{n}:{id}>")),
+        ReactionType::Custom {
+            animated: false,
+            id,
+            name: Some(n),
+        } => Ok(format!("<:{n}:{id}>")),
+        ReactionType::Custom { id, name: None, .. } => Err(id.to_string()), // This should only happen if emoji was deleted from the guild, or something.
+        ReactionType::Unicode { name } => Ok(name.to_string()),
+    }
 }
 
 /// Format `obj` with a pretty json formatter with 4 space indent.

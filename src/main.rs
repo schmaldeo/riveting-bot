@@ -481,9 +481,11 @@ fn intents() -> Intents {
     #[cfg(feature = "all-intents")]
     return Intents::all();
     Intents::MESSAGE_CONTENT
+        | Intents::GUILDS
         | Intents::GUILD_MESSAGES
         | Intents::GUILD_MESSAGE_REACTIONS
         | Intents::GUILD_MEMBERS
+        | Intents::GUILD_PRESENCES
         | Intents::GUILD_VOICE_STATES
         | Intents::DIRECT_MESSAGES
         | Intents::DIRECT_MESSAGE_REACTIONS

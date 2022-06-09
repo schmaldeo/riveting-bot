@@ -14,11 +14,12 @@ use twilight_model::guild::Permissions;
 use twilight_model::http::interaction::{
     InteractionResponse, InteractionResponseData, InteractionResponseType,
 };
-use twilight_model::id::marker::RoleMarker;
+use twilight_model::id::marker::{GuildMarker, RoleMarker};
 use twilight_model::id::Id;
 use twilight_util::builder::InteractionResponseDataBuilder;
 
 use crate::commands::{CommandContext, CommandError, CommandResult};
+use crate::utils;
 use crate::utils::prelude::*;
 
 /// Command: Manage reaction-roles.
@@ -68,15 +69,24 @@ pub async fn setup(cc: CommandContext<'_>) -> CommandResult {
         })]
     };
 
+    let info_text = indoc::formatdoc! {"
+        **Reaction-roles setup**
+        
+            *Step 1:*  React to this message.
+            *Step 2:*  Select a role from the dropdown menu.
+            *Step 3:*  Repeat until you are happy with the role mappings.
+            *Step 4:*  Press **Done** to finalize the reaction-roles message.
+        
+        If any role is not displayed in the list, it may be too stronk for the bot.
+        "
+    };
+
     // Setup message with controls.
     let mut controller = cc
         .http
         .create_message(cc.msg.channel_id)
         .reply(cc.msg.id)
-        .content(
-            "React to this message with an emoji to add reaction-roles.\nIf a role is not \
-             displayed in the list, it may be too high or powerful for the bot to give.",
-        )?
+        .content(&info_text)?
         .components(&controller_components(false))?
         .send()
         .await?;
@@ -125,7 +135,16 @@ pub async fn setup(cc: CommandContext<'_>) -> CommandResult {
         // Use cached roles or otherwise fetch from client.
         let roles = match roles {
             Some(r) => r,
-            None => cc.http.roles(guild_id).send().await?,
+            None => {
+                let fetch = cc.http.roles(guild_id).send().await?;
+
+                // Manually update the cache.
+                for role in fetch.iter().cloned() {
+                    cc.cache.update(&RoleUpdate { guild_id, role });
+                }
+
+                fetch
+            },
         };
 
         let bot = cc.http.guild_member(guild_id, cc.user.id).send().await?;
@@ -153,8 +172,16 @@ pub async fn setup(cc: CommandContext<'_>) -> CommandResult {
                 emoji: Some(reaction.emoji.to_owned()),
                 label: r.name,
                 value: r.id.to_string(),
-            })
-            .collect();
+            }).chain([
+                SelectMenuOption {
+                    default: false,
+                    description: Some("Cancel".to_string()),
+                    emoji: Some(reaction.emoji.to_owned()),
+                    label: " ".to_string(), // Empty, but not.
+                    value: " ".to_string(), // Empty, but not.
+                }
+            ])
+            .collect::<Vec<_>>();
 
         // Roles drop-down list.
         let components = vec![Component::ActionRow(ActionRow {
@@ -164,7 +191,7 @@ pub async fn setup(cc: CommandContext<'_>) -> CommandResult {
                 max_values: Some(1),
                 min_values: Some(1),
                 options: role_opts,
-                placeholder: Some("Select a role".to_string()),
+                placeholder: Some("Select a role to add".to_string()),
             })],
         })];
 
@@ -207,68 +234,54 @@ pub async fn setup(cc: CommandContext<'_>) -> CommandResult {
         // Delete the drop-down message.
         interaction.delete_response(&list_mci.token).exec().await?;
 
-        // Save the choice.
-        emoji_roles.push((
-            reaction.emoji.to_owned(),
-            list_mci
-                .data
-                .values
-                .pop()
-                .unwrap()
-                .parse::<Id<RoleMarker>>()
-                .unwrap(), // TODO Remove unwraps.
-        ));
+        let choice = list_mci.data.values.pop().unwrap_or_default();
 
-        // Create a message that lists all roles that have been added so far.
-        let mut emoji_roles_msg = String::new();
+        if choice.trim().is_empty() {
+            // Cancelling.
+            // Update the controller message and re-enable controller buttons.
+            controller = cc
+                .http
+                .update_message(controller.channel_id, controller.id)
+                .content(Some(&controller.content))?
+                .components(Some(&controller_components(false)))?
+                .send()
+                .await?;
 
-        for (emoji, role) in emoji_roles.iter() {
-            let emoji = match emoji {
-                ReactionType::Custom { id, name, .. } => match name {
-                    Some(n) => format!(":{n}:"),
-                    None => id.to_string(), // This should only happen if emoji was deleted from the guild, or something.
-                },
-                ReactionType::Unicode { name } => name.to_string(),
-            };
-
-            emoji_roles_msg.push_str(&emoji);
-            emoji_roles_msg.push_str(" : `");
-
-            // Try to get a name from the cache.
-            let cached_name = cc.cache.role(*role).map(|r| r.name.to_string());
-            let name = match cached_name {
-                Some(n) => n,
-                None => {
-                    let roles = cc.http.roles(guild_id).send().await?;
-
-                    // Name of this role.
-                    let this = roles
-                        .iter()
-                        .find(|r| r.id == *role)
-                        .map(|r| r.name.to_string())
-                        .unwrap_or_else(|| role.to_string()); // Use id, if all else fails.
-
-                    // Manually update the cache.
-                    for role in roles {
-                        cc.cache.update(&RoleUpdate { guild_id, role });
-                    }
-
-                    this
-                },
-            };
-
-            emoji_roles_msg.push_str(&name);
-            emoji_roles_msg.push_str("`\n");
+            continue;
         }
 
-        // Update the controller message and re-enable controller buttons.
-        controller = cc
-            .http
-            .update_message(controller.channel_id, controller.id)
-            .content(Some(&emoji_roles_msg))?
-            .components(Some(&controller_components(false)))?
-            .send()
-            .await?;
+        match choice.parse::<Id<RoleMarker>>() {
+            Ok(role_id) => {
+                // Save the choice.
+                emoji_roles.push((reaction.emoji.to_owned(), role_id));
+
+                // Create a message that lists all roles that have been added so far.
+                let list = display_emoji_roles(&cc, guild_id, &emoji_roles).await?;
+                let content = format!("{info_text}\n{list}");
+
+                // Update the controller message and re-enable controller buttons.
+                controller = cc
+                    .http
+                    .update_message(controller.channel_id, controller.id)
+                    .content(Some(&content))?
+                    .components(Some(&controller_components(false)))?
+                    .send()
+                    .await?;
+            },
+            Err(e) => {
+                // Error parsing the choice.
+                warn!("Could not parse role choice: {e}");
+
+                // Update the controller message and re-enable controller buttons.
+                controller = cc
+                    .http
+                    .update_message(controller.channel_id, controller.id)
+                    .content(Some(&controller.content))?
+                    .components(Some(&controller_components(false)))?
+                    .send()
+                    .await?;
+            },
+        }
     };
 
     if controller_mci.data.custom_id == "roles_cancel" {
@@ -348,10 +361,18 @@ pub async fn setup(cc: CommandContext<'_>) -> CommandResult {
         .exec()
         .await?;
 
+    let list = display_emoji_roles(&cc, guild_id, &emoji_roles).await?;
+    let output_content = indoc::formatdoc! {"
+        React to give yourself some roles:
+        
+        {list}
+        "
+    };
+
     let output = cc
         .http
         .create_message(cc.msg.channel_id)
-        .content(&controller.content)?
+        .content(&output_content)?
         .send()
         .await?;
 
@@ -380,6 +401,49 @@ pub async fn setup(cc: CommandContext<'_>) -> CommandResult {
     lock.write_guild(guild_id)?;
 
     Ok(())
+}
+
+async fn display_emoji_roles(
+    cc: &CommandContext<'_>,
+    guild_id: Id<GuildMarker>,
+    emoji_roles: &[(ReactionType, Id<RoleMarker>)],
+) -> Result<String, CommandError> {
+    let mut emoji_roles_msg = String::new();
+
+    for (emoji, role) in emoji_roles.iter() {
+        let (Ok(emoji) | Err(emoji)) = utils::display_reaction_emoji(emoji);
+
+        emoji_roles_msg.push_str(&emoji);
+        emoji_roles_msg.push_str(" : `");
+
+        // Try to get a name from the cache.
+        let cached_name = cc.cache.role(*role).map(|r| r.name.to_string());
+        let name = match cached_name {
+            Some(n) => n,
+            None => {
+                let roles = cc.http.roles(guild_id).send().await?;
+
+                // Name of this role.
+                let this = roles
+                    .iter()
+                    .find(|r| r.id == *role)
+                    .map(|r| r.name.to_string())
+                    .unwrap_or_else(|| role.to_string()); // Use id, if all else fails.
+
+                // Manually update the cache.
+                for role in roles {
+                    cc.cache.update(&RoleUpdate { guild_id, role });
+                }
+
+                this
+            },
+        };
+
+        emoji_roles_msg.push_str(&name);
+        emoji_roles_msg.push_str("`\n");
+    }
+
+    Ok(emoji_roles_msg)
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
