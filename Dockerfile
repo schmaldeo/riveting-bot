@@ -26,9 +26,9 @@ COPY ./src ./src
 RUN cargo build --release && strip --strip-all ./target/release/riveting-bot
 
 # Final.
-# FROM gcr.io/distroless/cc
-FROM ubuntu:latest
-RUN apt update && apt upgrade -y && apt install ca-certificates -y && update-ca-certificates
+FROM gcr.io/distroless/cc
+# FROM ubuntu:latest
+# RUN apt update && apt upgrade -y && apt install ca-certificates -y && update-ca-certificates
 
 # Copy the build artifact from the build stage.
 COPY --from=builder /app/target/release/riveting-bot /app/riveting-bot
