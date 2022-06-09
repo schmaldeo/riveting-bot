@@ -450,10 +450,14 @@ fn unalias<'a>(ctx: &'a Context, msg: &Message, stripped: &str) -> Option<Cow<'a
 
 #[derive(Debug, Clone)]
 pub struct CommandContext<'a> {
+    /// Base bot context. (auto-derefed)
     ctx: &'a Context,
+    /// Received message.
     msg: &'a Message,
+    /// Command or subcommand arguments.
     args: &'a str,
-    cmd: &'a Command, // Eh maybe?
+    /// Reference to the command that is being executed.
+    cmd: &'a Command,
 }
 
 impl<'a> CommandContext<'a> {
