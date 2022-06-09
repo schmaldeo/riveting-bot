@@ -18,7 +18,9 @@ use twilight_http::Client;
 use twilight_model::application::interaction::Interaction;
 use twilight_model::channel::{Message, Reaction};
 use twilight_model::gateway::event::shard::Connected;
-use twilight_model::gateway::payload::incoming::{MessageDelete, MessageDeleteBulk, Ready};
+use twilight_model::gateway::payload::incoming::{
+    MessageDelete, MessageDeleteBulk, MessageUpdate, Ready,
+};
 use twilight_model::gateway::Intents;
 use twilight_model::guild::Guild;
 use twilight_model::id::Id;
@@ -175,7 +177,8 @@ async fn handle_event(ctx: Context, event: Event) -> AnyResult<()> {
         Event::Ready(r) => handle_ready(&ctx, *r).await,
         Event::GuildCreate(g) => handle_guild_create(&ctx, g.0).await,
         Event::InteractionCreate(i) => handle_interaction_create(&ctx, i.0).await,
-        Event::MessageCreate(msg) => handle_message_create(&ctx, msg.0).await,
+        Event::MessageCreate(mc) => handle_message_create(&ctx, mc.0).await,
+        Event::MessageUpdate(mu) => handle_message_update(&ctx, *mu).await,
         Event::MessageDelete(md) => handle_message_delete(&ctx, md).await,
         Event::MessageDeleteBulk(mdb) => handle_message_delete_bulk(&ctx, mdb).await,
         Event::ReactionAdd(r) => handle_reaction_add(&ctx, r.0).await,
@@ -298,6 +301,12 @@ async fn handle_message_create(ctx: &Context, msg: Message) -> AnyResult<()> {
     Ok(())
 }
 
+async fn handle_message_update(ctx: &Context, mu: MessageUpdate) -> AnyResult<()> {
+    // TODO Check if updated message is something that should update content from the bot.
+
+    Ok(())
+}
+
 async fn handle_message_delete(ctx: &Context, md: MessageDelete) -> AnyResult<()> {
     let Some(guild_id) = md.guild_id else {
         return Ok(());
@@ -349,6 +358,14 @@ async fn handle_reaction_add(ctx: &Context, reaction: Reaction) -> AnyResult<()>
         return Ok(());
     }
 
+    // Check if message is cached.
+    if let Some(msg) = ctx.cache.message(reaction.message_id) {
+        // Ignore if message is not from this bot.
+        if msg.author() != ctx.user.id {
+            return Ok(());
+        }
+    }
+
     let add_roles = {
         let lock = ctx.config.lock().unwrap();
 
@@ -369,6 +386,9 @@ async fn handle_reaction_add(ctx: &Context, reaction: Reaction) -> AnyResult<()>
     };
 
     info!("Adding roles for '{}'", user.name);
+    if add_roles.is_empty() {
+        return Err(anyhow::anyhow!("List of roles should not be empty"));
+    }
 
     for role_id in add_roles {
         ctx.http
@@ -398,6 +418,14 @@ async fn handle_reaction_remove(ctx: &Context, reaction: Reaction) -> AnyResult<
         return Ok(());
     }
 
+    // Check if message is cached.
+    if let Some(msg) = ctx.cache.message(reaction.message_id) {
+        // Ignore if message is not from this bot.
+        if msg.author() != ctx.user.id {
+            return Ok(());
+        }
+    }
+
     let remove_roles = {
         let lock = ctx.config.lock().unwrap();
 
@@ -408,6 +436,7 @@ async fn handle_reaction_remove(ctx: &Context, reaction: Reaction) -> AnyResult<
         let key = format!("{}.{}", reaction.channel_id, reaction.message_id);
 
         let Some(map) = guild.reaction_roles.get(&key) else {
+            trace!("No reaction-roles config for key '{key}'");
             return Ok(());
         };
 
@@ -418,6 +447,9 @@ async fn handle_reaction_remove(ctx: &Context, reaction: Reaction) -> AnyResult<
     };
 
     info!("Removing roles for '{}'", user.name);
+    if remove_roles.is_empty() {
+        return Err(anyhow::anyhow!("List of roles should not be empty"));
+    }
 
     for role_id in remove_roles {
         ctx.http
