@@ -17,6 +17,8 @@ use twilight_http::request::user::{GetCurrentUser, GetCurrentUserGuildMember, Ge
 use twilight_http::request::GetUserApplicationInfo;
 use twilight_model::channel::{Channel, Message, ReactionType};
 use twilight_model::guild::{Emoji, Guild, Member, Role};
+use twilight_model::id::marker::EmojiMarker;
+use twilight_model::id::Id;
 use twilight_model::oauth::Application;
 use twilight_model::user::{CurrentUser, User};
 
@@ -146,4 +148,25 @@ pub fn pretty_nice_json<S: Serialize>(obj: S) -> String {
     let mut ser = serde_json::Serializer::with_formatter(Vec::new(), pretty);
     obj.serialize(&mut ser).unwrap();
     String::from_utf8(ser.into_inner()).unwrap()
+}
+
+#[derive(Debug, PartialEq, Eq)]
+pub struct Shenanigans<'a> {
+    id: Option<Id<EmojiMarker>>,
+    name: Option<&'a str>,
+}
+
+impl<'a> From<&'a ReactionType> for Shenanigans<'a> {
+    fn from(other: &'a ReactionType) -> Self {
+        match other {
+            ReactionType::Custom { id, name, .. } => Self {
+                id: Some(*id),
+                name: name.as_deref(),
+            },
+            ReactionType::Unicode { name } => Self {
+                id: None,
+                name: Some(name),
+            },
+        }
+    }
 }

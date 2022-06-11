@@ -33,6 +33,7 @@ use crate::commands::admin::scheduler::handle_timer;
 use crate::commands::{ChatCommands, CommandError};
 use crate::config::Config;
 use crate::utils::prelude::*;
+use crate::utils::Shenanigans;
 
 mod commands;
 mod config;
@@ -380,7 +381,7 @@ async fn handle_reaction_add(ctx: &Context, reaction: Reaction) -> AnyResult<()>
         };
 
         map.iter()
-            .filter(|rr| rr.emoji == reaction.emoji)
+            .filter(|rr| Shenanigans::from(&rr.emoji) == Shenanigans::from(&reaction.emoji))
             .map(|rr| rr.role)
             .collect::<Vec<_>>()
     };
@@ -429,19 +430,19 @@ async fn handle_reaction_remove(ctx: &Context, reaction: Reaction) -> AnyResult<
     let remove_roles = {
         let lock = ctx.config.lock().unwrap();
 
-        let Some(guild) = lock.guild(guild_id) else {
+        let Some(settings) = lock.guild(guild_id) else {
             return Ok(());
         };
 
         let key = format!("{}.{}", reaction.channel_id, reaction.message_id);
 
-        let Some(map) = guild.reaction_roles.get(&key) else {
+        let Some(map) = settings.reaction_roles.get(&key) else {
             trace!("No reaction-roles config for key '{key}'");
             return Ok(());
         };
 
         map.iter()
-            .filter(|rr| rr.emoji == reaction.emoji)
+            .filter(|rr| Shenanigans::from(&rr.emoji) == Shenanigans::from(&reaction.emoji))
             .map(|rr| rr.role)
             .collect::<Vec<_>>()
     };
