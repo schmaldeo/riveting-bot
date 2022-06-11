@@ -37,4 +37,4 @@ COPY --from=builder /app/target/release/riveting-bot /app/riveting-bot
 # USER 1000:1000
 
 # Set the startup command.
-CMD ["/app/riveting-bot"]
+ENTRYPOINT ["/app/riveting-bot"]
