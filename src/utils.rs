@@ -77,7 +77,7 @@ impl_exec_model_ext!(UpdateMessage<'_>, Message);
 impl_exec_model_ext!(UpdateResponse<'_>, Message);
 
 /// Macro to simplify manual non-exhaustive `Debug` impl.
-pub macro impl_debug_struct_fields($t:ty, $($field:ident),*) {
+pub macro impl_debug_struct_fields($t:ty { $($field:ident),* $(,)? }) {
     impl std::fmt::Debug for $t {
         fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
             f.debug_struct(stringify!($t))

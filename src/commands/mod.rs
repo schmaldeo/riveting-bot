@@ -596,6 +596,7 @@ macro wrap($func:expr) {{
     }
     wrapper
 }}
+
 type CommandFuture<'a> = Pin<Box<dyn Future<Output = CommandResult> + Send + 'a>>;
 type CommandFn = fn(CommandContext) -> CommandFuture;
 
@@ -610,7 +611,14 @@ pub struct Command {
     pub dm_enabled: bool,
 }
 
-impl_debug_struct_fields!(Command, name, sub_commands, access, dm_enabled);
+impl_debug_struct_fields!(Command {
+    name,
+    description,
+    usage,
+    sub_commands,
+    access,
+    dm_enabled,
+});
 
 impl Command {
     /// Create a new command.
