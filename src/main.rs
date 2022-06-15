@@ -467,7 +467,9 @@ async fn handle_reaction_remove(ctx: &Context, reaction: Reaction) -> AnyResult<
     Ok(())
 }
 
-async fn handle_voice_state(_ctx: &Context, _voice: VoiceState) -> AnyResult<()> {
+async fn handle_voice_state(_ctx: &Context, voice: VoiceState) -> AnyResult<()> {
+    println!("{voice:#?}",);
+
     Ok(())
 }
 

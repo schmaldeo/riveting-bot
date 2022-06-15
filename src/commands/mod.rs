@@ -405,7 +405,7 @@ impl std::fmt::Debug for ChatCommands {
 }
 
 impl std::fmt::Display for ChatCommands {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::result::Result<(), std::fmt::Error> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{}", self.commands_help())
     }
 }
@@ -798,7 +798,7 @@ impl Command {
 }
 
 impl std::fmt::Display for Command {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::result::Result<(), std::fmt::Error> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         writeln!(f, "Command: {}", self.description)?;
 
         if self.sub_commands.is_empty() {
