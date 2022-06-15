@@ -807,6 +807,116 @@ impl std::fmt::Display for Command {
     }
 }
 
+#[derive(Debug)]
+pub struct CommandCall<'a> {
+    prefix: &'a str,
+    cmds: Vec<&'a Command>,
+    args: &'a str,
+}
+
+impl<'a> CommandCall<'a> {
+    /// Create a new command call from parameters.
+    pub fn new(prefix: &'a str, cmds: Vec<&'a Command>, args: &'a str) -> Self {
+        Self { prefix, cmds, args }
+    }
+
+    /// Parse a commands and args from `text` in the context of `ctx` and `guild_id`.
+    /// Returns `None` if no base command is found (the first *thing* after prefix),
+    /// or none of the prefixes from the context were matched.
+    pub fn parse_from(
+        ctx: &'a Context,
+        guild_id: Option<Id<GuildMarker>>,
+        text: &'a str,
+    ) -> Option<Self> {
+        let prefixes = {
+            let lock = ctx.config.lock().unwrap();
+
+            match guild_id {
+                // In a guild, use custom prefix, otherwise global default.
+                Some(guild_id) => vec![lock
+                    .guild(guild_id)
+                    .map(|s| s.prefix.clone())
+                    .unwrap_or_else(|| lock.global.prefix.clone())],
+
+                // In a DM, global default or any guild prefix is accepted.
+                None => {
+                    let mut prefixes = [&lock.global]
+                        .into_iter()
+                        .chain(lock.guilds.values())
+                        .map(|s| &s.prefix)
+                        .filter(|s| !s.is_empty())
+                        .cloned()
+                        .collect::<Vec<_>>();
+
+                    prefixes.sort_unstable();
+                    prefixes.dedup();
+                    prefixes
+                },
+            }
+        };
+
+        let (prefix, unprefixed) = unprefix_with(prefixes, text)?;
+
+        // `args` is shortened in the loop as more commands are found.
+        let (cmd, mut args) = unprefixed
+            .split_once(char::is_whitespace)
+            .unwrap_or((unprefixed, ""));
+
+        // If no base command is found, all hope is lost.
+        let base = ctx.chat_commands.list.get(cmd)?;
+
+        let mut parsed = Self::new(prefix, vec![base], "");
+
+        parsed.args = loop {
+            // Split by whitespace, otherwise `args` is the last thing to check.
+            let (cmd, rest) = args.split_once(char::is_whitespace).unwrap_or((args, ""));
+
+            // `parsed` should always have at least one element.
+            match parsed.cmds.last().and_then(|c| c.sub_commands.get(cmd)) {
+                Some(cmd) => parsed.cmds.push(cmd), // Add last found command.
+                None => break args, // No command found, rest of the string is arguments.
+            }
+
+            // To be checked next iteration.
+            args = rest;
+        };
+
+        Some(parsed)
+    }
+}
+
+impl std::fmt::Display for CommandCall<'_> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.prefix)?;
+
+        for cmd in self.cmds.iter() {
+            write!(f, "{} ", cmd.name)?;
+        }
+
+        write!(f, "{}", self.args)
+    }
+}
+
+/// Returns `Some(prefix, unprefixed)`,
+/// where `prefix` is the matched prefix and `unprefixed` is everything after.
+/// Otherwise, returns `None` if no prefix was matched from `prefixes`.
+fn unprefix_with<I, T>(prefixes: I, text: &str) -> Option<(&str, &str)>
+where
+    I: IntoIterator<Item = T>,
+    T: AsRef<str>,
+{
+    for prefix in prefixes {
+        let prefix = prefix.as_ref();
+        let stripped = text.strip_prefix(prefix);
+
+        if let Some(stripped) = stripped {
+            return Some((&text[..prefix.len()], stripped));
+        }
+    }
+
+    None
+}
+
 /// Calculate if the message sender has `perms` permissions.
 pub async fn sender_has_permissions(
     ctx: &Context,

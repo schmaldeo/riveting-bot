@@ -30,7 +30,7 @@ use twilight_model::voice::VoiceState;
 use twilight_standby::Standby;
 
 use crate::commands::admin::scheduler::handle_timer;
-use crate::commands::{ChatCommands, CommandError};
+use crate::commands::{ChatCommands, CommandCall, CommandError};
 use crate::config::Config;
 use crate::utils::prelude::*;
 use crate::utils::Shenanigans;
@@ -304,6 +304,11 @@ async fn handle_message_create(ctx: &Context, msg: Message) -> AnyResult<()> {
 
 async fn handle_message_update(ctx: &Context, mu: MessageUpdate) -> AnyResult<()> {
     // TODO Check if updated message is something that should update content from the bot.
+
+    let text = mu.content.unwrap_or_default();
+    let ccall = CommandCall::parse_from(ctx, mu.guild_id, &text).unwrap();
+
+    println!("{}", ccall);
 
     Ok(())
 }
