@@ -246,7 +246,9 @@ impl ChatCommands {
             command!(admin; admin::roles::roles)
                 .desc("Manage reaction-roles.")
                 .usage("setup")
+                .usage("edit (reply)")
                 .sub(command!(admin; admin::roles::setup))
+                .sub(command!(admin; admin::roles::edit))
                 .named(),
             command!(admin; admin::bot::bot)
                 .desc("Create or edit bot messages.")
