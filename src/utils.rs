@@ -170,3 +170,8 @@ impl<'a> From<&'a ReactionType> for Shenanigans<'a> {
         }
     }
 }
+
+/// Equality of two of `ReactionType`, but ignore some less useful fields that might not always be equal.
+pub fn reaction_type_eq(this: &ReactionType, other: &ReactionType) -> bool {
+    Shenanigans::from(this) == Shenanigans::from(other)
+}

@@ -386,7 +386,7 @@ async fn handle_reaction_add(ctx: &Context, reaction: Reaction) -> AnyResult<()>
         };
 
         map.iter()
-            .filter(|rr| Shenanigans::from(&rr.emoji) == Shenanigans::from(&reaction.emoji))
+            .filter(|rr| utils::reaction_type_eq(&rr.emoji, &reaction.emoji))
             .map(|rr| rr.role)
             .collect::<Vec<_>>()
     };
@@ -447,7 +447,7 @@ async fn handle_reaction_remove(ctx: &Context, reaction: Reaction) -> AnyResult<
         };
 
         map.iter()
-            .filter(|rr| Shenanigans::from(&rr.emoji) == Shenanigans::from(&reaction.emoji))
+            .filter(|rr| utils::reaction_type_eq(&rr.emoji, &reaction.emoji))
             .map(|rr| rr.role)
             .collect::<Vec<_>>()
     };
