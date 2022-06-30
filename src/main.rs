@@ -306,9 +306,16 @@ async fn handle_message_update(ctx: &Context, mu: MessageUpdate) -> AnyResult<()
     // TODO Check if updated message is something that should update content from the bot.
 
     let text = mu.content.unwrap_or_default();
-    let ccall = CommandCall::parse_from(ctx, mu.guild_id, &text).unwrap();
 
-    println!("{}", ccall);
+    if let Some(author) = mu.author {
+        if author.bot {
+            return Ok(());
+        }
+
+        if let Some(ccall) = CommandCall::parse_from(ctx, mu.guild_id, &text) {
+            println!("Updated message command: {}", ccall);
+        }
+    }
 
     Ok(())
 }
