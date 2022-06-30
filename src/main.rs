@@ -33,7 +33,6 @@ use crate::commands::admin::scheduler::handle_timer;
 use crate::commands::{ChatCommands, CommandCall, CommandError};
 use crate::config::Config;
 use crate::utils::prelude::*;
-use crate::utils::Shenanigans;
 
 mod commands;
 mod config;

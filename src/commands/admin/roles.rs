@@ -20,8 +20,8 @@ use twilight_model::id::Id;
 use twilight_util::builder::InteractionResponseDataBuilder;
 
 use crate::commands::{CommandContext, CommandError, CommandResult};
+use crate::utils;
 use crate::utils::prelude::*;
-use crate::utils::{self, Shenanigans};
 
 /// Command: Manage reaction-roles.
 pub async fn roles(cc: CommandContext<'_>) -> CommandResult {
