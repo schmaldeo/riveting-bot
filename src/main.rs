@@ -271,10 +271,8 @@ async fn handle_message_create(ctx: &Context, msg: Message) -> AnyResult<()> {
     // Handle chat commands.
     if let Err(e) = ctx.chat_commands.process(ctx, &msg).await {
         match e {
-            // Message was not a command. Check if it should update a bot message content.
-            CommandError::NotPrefixed => {
-                update_bot_content(ctx, msg).await?;
-            },
+            // Message was not a command.
+            CommandError::NotPrefixed => (),
 
             // Log processing errors.
             e => {
@@ -475,50 +473,6 @@ async fn handle_reaction_remove(ctx: &Context, reaction: Reaction) -> AnyResult<
 
 async fn handle_voice_state(_ctx: &Context, voice: VoiceState) -> AnyResult<()> {
     println!("{voice:#?}",);
-
-    Ok(())
-}
-
-/// Check if message event should update a bot message content.
-async fn update_bot_content(ctx: &Context, msg: Message) -> AnyResult<()> {
-    // Ignore if message is not a reply or it is not in a guild.
-    let (Some(replied), Some(guild_id)) = (msg.referenced_message.as_ref(), msg.guild_id) else {
-        return Ok(());
-    };
-
-    // Ignore if replied message is not from a bot.
-    if !replied.author.bot {
-        return Ok(());
-    }
-
-    // Ignore if member is not admin.
-    if !commands::sender_has_admin(ctx, &msg, guild_id).await? {
-        return Ok(());
-    }
-
-    // Update a reaction-roles message, if found.
-    let update = {
-        let lock = ctx.config.lock().unwrap();
-
-        lock.guild(guild_id).map_or(false, |settings| {
-            let key = format!("{}.{}", replied.channel_id, replied.id);
-            settings.reaction_roles.contains_key(&key)
-        })
-    };
-
-    if update {
-        // Edit message content
-        ctx.http
-            .update_message(replied.channel_id, replied.id)
-            .content(Some(&msg.content))?
-            .send()
-            .await?;
-
-        ctx.http
-            .delete_message(msg.channel_id, msg.id)
-            .exec()
-            .await?;
-    }
 
     Ok(())
 }
