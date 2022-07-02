@@ -45,7 +45,30 @@ pub async fn setup(cc: CommandContext<'_>) -> CommandResult {
         return Err(CommandError::Disabled)
     };
 
-    roles_setup_process(&cc, guild_id, None).await?;
+    let Some(mappings) = roles_setup_process(&cc, guild_id, None).await? else {
+        return Ok(()) // Canceled or whatever.
+    };
+
+    let list = display_emoji_roles(&cc, guild_id, &mappings).await?;
+    let output_content = indoc::formatdoc! {"
+        React to give yourself some roles:
+
+        {list}
+        "
+    };
+
+    let output = cc
+        .http
+        .create_message(cc.msg.channel_id)
+        .content(&output_content)?
+        .send()
+        .await?;
+
+    add_reactions_to_message(&cc, &mappings, &output).await?;
+
+    let mut lock = cc.config.lock().unwrap();
+    lock.add_reaction_roles(guild_id, output.channel_id, output.id, mappings);
+    lock.write_guild(guild_id)?;
 
     Ok(())
 }
@@ -83,9 +106,31 @@ pub async fn edit(cc: CommandContext<'_>) -> CommandResult {
         ));
     }
 
-    roles_setup_process(&cc, guild_id, reaction_roles).await?;
+    let Some(mappings) = roles_setup_process(&cc, guild_id, reaction_roles).await? else {
+        return Ok(()) // Canceled or whatever.
+    };
 
-    // TODO Edit the previous thingy.
+    let list = display_emoji_roles(&cc, guild_id, &mappings).await?;
+    let output_content = indoc::formatdoc! {"
+        React to give yourself some roles:
+
+        {list}
+        "
+    };
+
+    // NOTE This will just overwrite all content of the original message.
+    let output = cc
+        .http
+        .update_message(replied.channel_id, replied.id)
+        .content(Some(&output_content))?
+        .send()
+        .await?;
+
+    add_reactions_to_message(&cc, &mappings, &output).await?;
+
+    let mut lock = cc.config.lock().unwrap();
+    lock.add_reaction_roles(guild_id, output.channel_id, output.id, mappings);
+    lock.write_guild(guild_id)?;
 
     Ok(())
 }
@@ -94,7 +139,7 @@ async fn roles_setup_process(
     cc: &CommandContext<'_>,
     guild_id: Id<GuildMarker>,
     preset: Option<Vec<ReactionRole>>,
-) -> CommandResult {
+) -> Result<Option<Vec<ReactionRole>>, CommandError> {
     let info_text = indoc::formatdoc! {"
     **Reaction-roles setup**
     
@@ -215,6 +260,14 @@ async fn roles_setup_process(
                     // Canceling, re-enable controller buttons.
                     update_controller(cc, &mut controller, None, true).await?;
 
+                    // Remove canceled reaction.
+                    let request_emoji = request_from_emoji(&added.emoji);
+
+                    cc.http
+                        .delete_all_reaction(controller.channel_id, controller.id, &request_emoji)
+                        .exec()
+                        .await?;
+
                     continue;
                 }
 
@@ -253,13 +306,7 @@ async fn roles_setup_process(
 
                 update_controller(cc, &mut controller, Some(&content), true).await?;
 
-                let request_emoji = match &removed.emoji {
-                    ReactionType::Custom { id, name, .. } => RequestReactionType::Custom {
-                        id: *id,
-                        name: name.as_deref(),
-                    },
-                    ReactionType::Unicode { name } => RequestReactionType::Unicode { name },
-                };
+                let request_emoji = request_from_emoji(&removed.emoji);
 
                 cc.http
                     .delete_all_reaction(controller.channel_id, controller.id, &request_emoji)
@@ -287,7 +334,7 @@ async fn roles_setup_process(
             .await?;
 
         // Nothing more to be done here.
-        return Ok(());
+        return Ok(None);
     }
 
     // If no reaction-roles were added or all were removed.
@@ -321,7 +368,7 @@ async fn roles_setup_process(
             .await?;
 
         // Nothing more to be done here.
-        return Ok(());
+        return Ok(None);
     }
 
     let resp = InteractionResponse {
@@ -356,29 +403,7 @@ async fn roles_setup_process(
         .await
         .ok(); // Ignore outcome.
 
-    let list = display_emoji_roles(cc, guild_id, &mappings).await?;
-    let output_content = indoc::formatdoc! {"
-        React to give yourself some roles:
-
-        {list}
-        "
-    };
-
-    let output = cc
-        .http
-        .create_message(cc.msg.channel_id)
-        .content(&output_content)?
-        .send()
-        .await?;
-
-    add_reactions_to_message(cc, &mappings, &output).await?;
-
-    let mut lock = cc.config.lock().unwrap();
-    lock.add_reaction_roles(guild_id, output.channel_id, output.id, mappings);
-
-    lock.write_guild(guild_id)?;
-
-    Ok(())
+    Ok(Some(mappings))
 }
 
 async fn add_reactions_to_message(
@@ -387,13 +412,7 @@ async fn add_reactions_to_message(
     message: &Message,
 ) -> AnyResult<()> {
     for rr in mappings.iter() {
-        let request_emoji = match &rr.emoji {
-            ReactionType::Custom { id, name, .. } => RequestReactionType::Custom {
-                id: *id,
-                name: name.as_deref(),
-            },
-            ReactionType::Unicode { name } => RequestReactionType::Unicode { name },
-        };
+        let request_emoji = request_from_emoji(&rr.emoji);
 
         cc.http
             .create_reaction(message.channel_id, message.id, &request_emoji)
@@ -587,6 +606,16 @@ async fn display_emoji_roles(
     }
 
     Ok(emoji_roles_msg)
+}
+
+fn request_from_emoji(r: &ReactionType) -> RequestReactionType {
+    match r {
+        ReactionType::Custom { id, name, .. } => RequestReactionType::Custom {
+            id: *id,
+            name: name.as_deref(),
+        },
+        ReactionType::Unicode { name } => RequestReactionType::Unicode { name },
+    }
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
