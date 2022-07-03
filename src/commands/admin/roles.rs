@@ -20,8 +20,8 @@ use twilight_model::id::Id;
 use twilight_util::builder::InteractionResponseDataBuilder;
 
 use crate::commands::{CommandContext, CommandError, CommandResult};
-use crate::utils;
 use crate::utils::prelude::*;
+use crate::{config, utils};
 
 /// Command: Manage reaction-roles.
 pub async fn roles(cc: CommandContext<'_>) -> CommandResult {
@@ -94,7 +94,7 @@ pub async fn edit(cc: CommandContext<'_>) -> CommandResult {
         let lock = cc.config.lock().unwrap();
         lock.guild(guild_id)
             .and_then(|s| {
-                let key = format!("{}.{}", replied.channel_id, replied.id);
+                let key = config::reaction_roles_key(replied.channel_id, replied.id);
                 s.reaction_roles.get(&key)
             })
             .cloned()

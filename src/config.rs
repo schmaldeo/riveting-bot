@@ -14,6 +14,7 @@ use twilight_model::id::Id;
 
 use crate::commands::admin::alias::Alias;
 use crate::commands::admin::roles::ReactionRole;
+use crate::config;
 use crate::utils::prelude::*;
 
 pub const CONFIG_FILE: &str = "./data/bot.json";
@@ -223,10 +224,10 @@ impl Config {
         &mut self,
         guild_id: Id<GuildMarker>,
         channel_id: Id<ChannelMarker>,
-        msg_id: Id<MessageMarker>,
+        message_id: Id<MessageMarker>,
         map: Vec<ReactionRole>,
     ) {
-        let key = format!("{channel_id}.{msg_id}");
+        let key = config::reaction_roles_key(channel_id, message_id);
 
         self.guild_or_default(guild_id)
             .reaction_roles
@@ -346,4 +347,9 @@ impl Config {
 
         Ok(())
     }
+}
+
+/// Returns a key which can be used to access reaction-roles mappings in `Settings`.
+pub fn reaction_roles_key(channel_id: Id<ChannelMarker>, message_id: Id<MessageMarker>) -> String {
+    format!("{channel_id}.{message_id}")
 }

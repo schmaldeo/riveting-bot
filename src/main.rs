@@ -328,7 +328,8 @@ async fn handle_message_delete(ctx: &Context, md: MessageDelete) -> AnyResult<()
         return Ok(());
     };
 
-    let key = format!("{}.{}", md.channel_id, md.id);
+    // Remove reaction roles mappping, if deleted message was one.
+    let key = config::reaction_roles_key(md.channel_id, md.id);
     settings.reaction_roles.remove(&key);
 
     lock.write_guild(guild_id)?;
@@ -383,7 +384,7 @@ async fn handle_reaction_add(ctx: &Context, reaction: Reaction) -> AnyResult<()>
             return Ok(());
         };
 
-        let key = format!("{}.{}", reaction.channel_id, reaction.message_id);
+        let key = config::reaction_roles_key(reaction.channel_id, reaction.message_id);
 
         let Some(map) = settings.reaction_roles.get(&key) else {
             return Ok(());
@@ -443,7 +444,7 @@ async fn handle_reaction_remove(ctx: &Context, reaction: Reaction) -> AnyResult<
             return Ok(());
         };
 
-        let key = format!("{}.{}", reaction.channel_id, reaction.message_id);
+        let key = config::reaction_roles_key(reaction.channel_id, reaction.message_id);
 
         let Some(map) = settings.reaction_roles.get(&key) else {
             trace!("No reaction-roles config for key '{key}'");
