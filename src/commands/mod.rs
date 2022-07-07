@@ -201,6 +201,11 @@ impl ChatCommands {
                 .desc("Calculate race fuel required.")
                 .usage("fuel <length: minutes> <laptime: x:xx.xxx> <fuel per lap: x.xx>")
                 .named(),
+            command!(user::time::time)
+                .dm(true)
+                .desc("Display a discord timestamp.")
+                .usage("time <date or time>")
+                .named(),
             #[cfg(feature = "voice")]
             command!(user::voice::voice)
                 .desc("Manage voice connection.")
