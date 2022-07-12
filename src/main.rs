@@ -218,9 +218,21 @@ async fn handle_ready(_ctx: &Context, ready: Ready) -> AnyResult<()> {
     Ok(())
 }
 
-async fn handle_guild_create(_ctx: &Context, guild: Guild) -> AnyResult<()> {
+async fn handle_guild_create(ctx: &Context, guild: Guild) -> AnyResult<()> {
     println!("Guild: {}", guild.name);
     info!("Guild: '{}'", guild.name);
+
+    let whitelist = ctx.config.lock().unwrap().whitelist.clone();
+
+    // If whitelist is enabled, check if this guild is in it.
+    if let Some(whitelist) = whitelist {
+        if !whitelist.contains(&guild.id) {
+            info!("Leaving a non-whitelisted guild '{}'", guild.id);
+            ctx.http.leave_guild(guild.id).exec().await?;
+        } else {
+            debug!("Whitelisted guild: '{}'", guild.id)
+        }
+    }
 
     Ok(())
 }
