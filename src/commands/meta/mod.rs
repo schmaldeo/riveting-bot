@@ -41,7 +41,7 @@ pub async fn about(cc: CommandContext<'_>) -> CommandResult {
 pub async fn help(cc: CommandContext<'_>) -> CommandResult {
     let help_msg = {
         let lock = cc.config.lock().unwrap();
-        let global_prefix = &lock.global.prefix;
+        let global_prefix = &lock.prefix;
         let mut prefix_msg = format!("Prefix: '{}'", global_prefix);
 
         if let Some(guild_id) = cc.msg.guild_id {

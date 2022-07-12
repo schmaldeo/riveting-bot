@@ -20,6 +20,11 @@ use crate::utils::prelude::*;
 pub const CONFIG_FILE: &str = "./data/bot.json";
 pub const GUILD_CONFIG_DIR: &str = "./data/guilds/";
 
+/// Returns the default command prefix string.
+fn default_prefix() -> String {
+    String::from("!")
+}
+
 /// General settings for the bot.
 #[derive(Deserialize, Serialize, Debug, Clone)]
 pub struct Settings {
@@ -36,7 +41,7 @@ pub struct Settings {
 impl Default for Settings {
     fn default() -> Self {
         Self {
-            prefix: "!".to_string(),
+            prefix: default_prefix(),
             aliases: HashMap::new(),
             perms: HashMap::new(),
             reaction_roles: HashMap::new(),
@@ -113,8 +118,15 @@ impl PermissionMap {
 /// Serializable bot configuration.
 #[derive(Deserialize, Serialize, Debug, Default, Clone)]
 pub struct Config {
-    pub global: Settings,
-    // Guild settings are serialized to separate files.
+    /// Global prefix.
+    #[serde(default = "default_prefix")]
+    pub prefix: String,
+
+    /// Whitelisted guilds, disabled if `None`.
+    #[serde(default)]
+    pub whitelist: Option<HashSet<Id<GuildMarker>>>,
+
+    /// Guild settings are serialized to separate files.
     #[serde(skip_serializing, default)]
     pub guilds: HashMap<Id<GuildMarker>, Settings>,
 }
@@ -141,6 +153,7 @@ impl Config {
                     .map_err(|e| anyhow::anyhow!("Failed to create guilds dir: {}", e))?;
 
                 c.load_guild_all()?;
+                c.write()?; // Write back what was loaded.
 
                 Ok(c)
             },
@@ -149,7 +162,7 @@ impl Config {
                 info!("Creating a default config file");
 
                 let def = Self::default();
-                def.write()?;
+                def.write()?; // Write the default config.
 
                 Ok(def)
             },
@@ -205,6 +218,12 @@ impl Config {
             &mut self.guild_or_default(guild_id).prefix,
             prefix.to_string(),
         )
+    }
+
+    pub fn guild_or_global_prefix(&self, guild_id: Id<GuildMarker>) -> &str {
+        self.guild(guild_id)
+            .map(|s| &s.prefix)
+            .unwrap_or(&self.prefix)
     }
 
     /// Add an alias, returns `Some(alias_command)` if it replaced one.

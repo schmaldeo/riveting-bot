@@ -426,7 +426,7 @@ fn unprefix<'a>(ctx: &Context, msg: &'a Message) -> Option<&'a str> {
 
             // See if guild has set a prefix, otherwise use global.
 
-            let prefix = &lock.guild(guild_id).unwrap_or(&lock.global).prefix;
+            let prefix = lock.guild_or_global_prefix(guild_id);
             msg.content.strip_prefix(prefix)
         },
         None => {
@@ -434,7 +434,7 @@ fn unprefix<'a>(ctx: &Context, msg: &'a Message) -> Option<&'a str> {
             let lock = ctx.config.lock().unwrap();
 
             // Try to use global prefix, if fails, try to use any guild prefix.
-            let mut stripped = msg.content.strip_prefix(&lock.global.prefix);
+            let mut stripped = msg.content.strip_prefix(&lock.prefix);
             let mut guilds = lock.guilds.values();
 
             // While `stripped` is none, i.e. no prefix has matched, and there are still guild configs to check.
@@ -529,9 +529,9 @@ impl<'a> CommandContext<'a> {
         match guild_id {
             Some(guild_id) => match lock.guild(guild_id) {
                 Some(data) => data.prefix.to_string(),
-                None => lock.global.prefix.to_string(),
+                None => lock.prefix.to_string(),
             },
-            None => lock.global.prefix.to_string(),
+            None => lock.prefix.to_string(),
         }
     }
 }
@@ -760,7 +760,7 @@ impl Command {
 
         // FIXME This is sort of a quickfix to cope with the ever-so-naive command splitting.
         // Everything would explode if there was any subcommands involved.
-        let prefix = &lock.guild(guild_id).unwrap_or(&lock.global).prefix;
+        let prefix = lock.guild_or_global_prefix(guild_id);
         let stripped = msg.content.strip_prefix(prefix)?;
         let (first, _) = stripped
             .split_once(char::is_whitespace)
@@ -851,14 +851,13 @@ impl<'a> CommandCall<'a> {
                 Some(guild_id) => vec![lock
                     .guild(guild_id)
                     .map(|s| s.prefix.clone())
-                    .unwrap_or_else(|| lock.global.prefix.clone())],
+                    .unwrap_or_else(|| lock.prefix.clone())],
 
                 // In a DM, global default or any guild prefix is accepted.
                 None => {
-                    let mut prefixes = [&lock.global]
+                    let mut prefixes = [&lock.prefix]
                         .into_iter()
-                        .chain(lock.guilds.values())
-                        .map(|s| &s.prefix)
+                        .chain(lock.guilds.values().map(|s| &s.prefix))
                         .filter(|s| !s.is_empty())
                         .cloned()
                         .collect::<Vec<_>>();
