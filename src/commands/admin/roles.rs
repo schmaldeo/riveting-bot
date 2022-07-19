@@ -7,7 +7,7 @@ use twilight_http::request::channel::reaction::RequestReactionType;
 use twilight_model::application::component::button::ButtonStyle;
 use twilight_model::application::component::select_menu::SelectMenuOption;
 use twilight_model::application::component::{ActionRow, Button, Component, SelectMenu};
-use twilight_model::application::interaction::MessageComponentInteraction;
+use twilight_model::application::interaction::{Interaction, InteractionData};
 use twilight_model::channel::message::MessageFlags;
 use twilight_model::channel::{Message, Reaction, ReactionType};
 use twilight_model::gateway::payload::incoming::RoleUpdate;
@@ -178,7 +178,7 @@ async fn roles_setup_process(
         // Future that waits for controller button press.
         let controller_fut = cc
             .standby
-            .wait_for_component(controller.id, move |event: &MessageComponentInteraction| {
+            .wait_for_component(controller.id, move |event: &Interaction| {
                 event.author_id() == Some(author_id)
             });
 
@@ -233,9 +233,9 @@ async fn roles_setup_process(
                     .await?;
 
                 // Wait for user to select an option.
-                let mut list_mci = cc
+                let list_mci = cc
                     .standby
-                    .wait_for_component(dropdown.id, move |event: &MessageComponentInteraction| {
+                    .wait_for_component(dropdown.id, move |event: &Interaction| {
                         event.author_id() == Some(author_id)
                     })
                     .await?;
@@ -254,7 +254,15 @@ async fn roles_setup_process(
                 // Delete the dropdown message.
                 interaction.delete_response(&list_mci.token).exec().await?;
 
-                let choice = list_mci.data.values.pop().unwrap_or_default();
+                let choice = match list_mci.data {
+                    Some(InteractionData::MessageComponent(mut data)) => {
+                        data.values.pop().unwrap_or_default()
+                    },
+                    _ => {
+                        error!("Received invalid interaction data in reaction-roles setup");
+                        "cancel".to_string() // Because of this error, act as if it was canceled.
+                    },
+                };
 
                 if choice == "cancel" {
                     // Canceling, re-enable controller buttons.
@@ -320,7 +328,14 @@ async fn roles_setup_process(
         }
     };
 
-    if controller_mci.data.custom_id == "roles_cancel" {
+    let data = match controller_mci.data {
+        Some(InteractionData::MessageComponent(data)) => data,
+        _ => Err(anyhow::anyhow!(
+            "Received invalid interaction data in reaction-roles setup"
+        ))?,
+    };
+
+    if data.custom_id == "roles_cancel" {
         // Delete the controller message.
         cc.http
             .delete_message(controller.channel_id, controller.id)

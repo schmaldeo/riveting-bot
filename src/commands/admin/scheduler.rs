@@ -228,7 +228,7 @@ async fn check_schedule(ctx: &Context, look_ahead: u64) -> AnyResult<()> {
 
     // This will wait for all tasks to complete in this period.
     loop {
-        match futs.join_one().await {
+        match futs.join_next().await {
             // All done.
             None => break,
             // Log if an error occurred inside event waiting.
