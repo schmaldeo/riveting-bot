@@ -4,6 +4,7 @@ use std::borrow::Cow;
 use std::fmt::Display;
 
 use serde::Serialize;
+use twilight_http::request::application::command::{SetGlobalCommands, SetGuildCommands};
 use twilight_http::request::application::interaction::{CreateFollowup, UpdateResponse};
 use twilight_http::request::channel::message::{
     CreateMessage, GetChannelMessagesConfigured, GetMessage, UpdateMessage,
@@ -15,6 +16,7 @@ use twilight_http::request::guild::role::GetGuildRoles;
 use twilight_http::request::guild::GetGuild;
 use twilight_http::request::user::{GetCurrentUser, GetCurrentUserGuildMember, GetUser};
 use twilight_http::request::GetUserApplicationInfo;
+use twilight_model::application::command::Command;
 use twilight_model::channel::{Channel, Message, ReactionType};
 use twilight_model::guild::{Emoji, Guild, Member, Role};
 use twilight_model::id::marker::EmojiMarker;
@@ -73,6 +75,8 @@ impl_exec_model_ext!(GetMember<'_>, Member);
 impl_exec_model_ext!(GetMessage<'_>, Message);
 impl_exec_model_ext!(GetUser<'_>, User);
 impl_exec_model_ext!(GetUserApplicationInfo<'_>, Application);
+impl_exec_model_ext!(SetGlobalCommands<'_>, Vec<Command>);
+impl_exec_model_ext!(SetGuildCommands<'_>, Vec<Command>);
 impl_exec_model_ext!(UpdateMessage<'_>, Message);
 impl_exec_model_ext!(UpdateResponse<'_>, Message);
 
