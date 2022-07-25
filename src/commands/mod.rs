@@ -18,6 +18,9 @@ use twilight_util::permission_calculator::PermissionCalculator;
 use crate::utils::prelude::*;
 use crate::Context;
 
+/// Command builder functions.
+pub mod builder;
+
 /// Generic commands.
 pub mod meta;
 

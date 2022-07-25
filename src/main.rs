@@ -3,6 +3,7 @@
 #![feature(pattern)]
 #![feature(associated_type_bounds)]
 #![feature(option_get_or_insert_default)]
+#![feature(iterator_try_reduce)]
 #![allow(dead_code)]
 #![allow(clippy::significant_drop_in_scrutinee)]
 
