@@ -11,6 +11,7 @@ pub async fn ping(cc: CommandContext<'_>) -> CommandResult {
         .content("Pong!")?
         .send()
         .await?;
+
     Ok(())
 }
 

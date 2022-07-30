@@ -15,6 +15,7 @@ use tracing::Level;
 use tracing_subscriber::EnvFilter;
 use twilight_cache_inmemory::InMemoryCache;
 use twilight_gateway::{Cluster, Event};
+use twilight_http::client::InteractionClient;
 use twilight_http::Client;
 use twilight_model::application::interaction::Interaction;
 use twilight_model::channel::{Message, Reaction};
@@ -54,9 +55,15 @@ pub struct Context {
 }
 
 impl Context {
+    /// This context with the provided shard id.
     const fn with_shard(mut self, id: u64) -> Self {
         self.shard = Some(id);
         self
+    }
+
+    /// Shortcut for `self.http.interaction(self.application.id)`.
+    pub fn interaction(&self) -> InteractionClient {
+        self.http.interaction(self.application.id)
     }
 }
 

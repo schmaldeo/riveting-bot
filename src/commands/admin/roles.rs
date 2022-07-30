@@ -152,7 +152,7 @@ async fn roles_setup_process(
     "};
 
     let author_id = cc.msg.author.id;
-    let interaction = cc.http.interaction(cc.application.id);
+    let interaction = cc.interaction();
     let mut mappings = preset.unwrap_or_default();
 
     // Initial content of the controller message.

@@ -110,6 +110,12 @@ impl PartialEq for CommandError {
     }
 }
 
+impl From<&'static str> for CommandError {
+    fn from(s: &'static str) -> Self {
+        Self::Other(anyhow::anyhow!(s))
+    }
+}
+
 macro impl_into_command_error($out:ident; $t:ty) {
     impl From<$t> for CommandError {
         fn from(other: $t) -> Self {

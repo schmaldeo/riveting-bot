@@ -455,7 +455,7 @@ impl std::fmt::Debug for FunctionCommand {
         f.debug_struct("FunctionCommand")
             .field("name", &self.name)
             .field("description", &self.description)
-            .field("function", &"CommandFn")
+            .field("function", &stringify!(CommandFn))
             .field("options", &self.options)
             .finish()
     }
@@ -504,9 +504,9 @@ impl FunctionCommandBuilder {
 /// A command group.
 #[derive(Debug, Clone)]
 pub struct FunctionCommandGroup {
-    name: &'static str,
-    description: &'static str,
-    subs: Vec<FunctionCommand>,
+    pub name: &'static str,
+    pub description: &'static str,
+    pub subs: Vec<FunctionCommand>,
 }
 
 impl From<FunctionCommandGroupBuilder> for FunctionCommandGroup {
