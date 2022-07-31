@@ -2,6 +2,7 @@ services:
   app:
     image: samzyre/riveting-bot
     container_name: riveting-bot
+    env_file: .env
     environment:
       - DISCORD_TOKEN=${DISCORD_TOKEN:?discord token not set}
     volumes:
