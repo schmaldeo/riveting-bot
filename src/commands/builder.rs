@@ -2,8 +2,8 @@
 //!
 //! ### Base command creation:
 //! ```
-//! macro command!(function, description) -> MappedCommand
-//! macro command!(function, name, description) -> MappedCommand
+//! macro command!(function, description) -> MappedCommandBuilder
+//! macro command!(function, name, description) -> MappedCommandBuilder
 //! ```
 //!
 //! ### Subcommand creation:
@@ -320,7 +320,7 @@ impl TryFrom<&MappedCommand> for Command {
     }
 }
 
-/// Builder for function-command mapping.
+/// Builder for base command.
 #[derive(Debug, Clone)]
 pub struct MappedCommandBuilder(MappedCommand);
 
