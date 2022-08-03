@@ -26,6 +26,7 @@
 //! ```
 //!
 
+use thiserror::Error;
 use twilight_model::application::command::{
     Command, CommandOption, CommandType, Number, OptionsCommandOptionData,
 };
@@ -68,6 +69,10 @@ mod traits {
 
     pub trait CommandBuilderExt<Output = Command>: Sized {
         fn build_checked(self) -> AnyResult<Output>;
+    }
+
+    pub trait CommandOptionExt {
+        fn name(&self) -> &str;
     }
 }
 
@@ -114,49 +119,69 @@ impl CommandBuilderExt for CommandBuilder {
     }
 }
 
+impl CommandOptionExt for CommandOption {
+    fn name(&self) -> &str {
+        match self {
+            CommandOption::SubCommand(data) => &data.name,
+            CommandOption::SubCommandGroup(data) => &data.name,
+            CommandOption::String(data) => &data.name,
+            CommandOption::Integer(data) => &data.name,
+            CommandOption::Boolean(data) => &data.name,
+            CommandOption::User(data) => &data.name,
+            CommandOption::Channel(data) => &data.name,
+            CommandOption::Role(data) => &data.name,
+            CommandOption::Mentionable(data) => &data.name,
+            CommandOption::Number(data) => &data.name,
+            CommandOption::Attachment(data) => &data.name,
+        }
+    }
+}
+
+#[derive(Debug, Error)]
+pub enum CommandValidationError {
+    /// Multiple uses of same option name.
+    #[error("Option names must be locally unique")]
+    AmbiguousName,
+
+    /// Twilight's validation error.
+    #[error(transparent)]
+    Twilight(#[from] twilight_validate::command::CommandValidationError),
+}
+
 /// Validates options in the command.
 pub fn validate_command(cmd: &Command) -> AnyResult<()> {
-    // Check with twilight's validation.
-    twilight_validate::command::command(cmd)?;
+    use twilight_validate::command::option_name as check_option_name;
 
-    // Check for mutually exclusive options.
-    let (mut sub, mut other) = (false, false);
+    // Check with twilight's validations.
+    twilight_validate::command::command(cmd)?; // Does not check for options.
+    twilight_validate::command::options(&cmd.options)?; // Does not check subcommand/group names or multiple uses.
 
-    for opt in cmd.options.iter() {
-        match opt {
-            CommandOption::SubCommand(_) | CommandOption::SubCommandGroup(_) => sub |= true,
-            _ => other |= true,
-        }
-    }
+    /// Checks the validity of each option and for local multiples of same option names.
+    fn options_are_valid(options: &[CommandOption]) -> Result<(), CommandValidationError> {
+        options.iter().enumerate().try_for_each(|(idx, opt)| {
+            let name = opt.name();
 
-    anyhow::ensure!(
-        !(sub && other),
-        "Subcommands and subcommand groups are mutually exclusive with other options"
-    );
-
-    // Check for options ordering.
-    fn check_ordering(opts: &[CommandOption]) -> AnyResult<()> {
-        opts.iter()
-            .map(CommandOption::is_required)
-            .try_reduce(|a, b| {
-                if a || !b {
-                    Ok(b)
-                } else {
-                    anyhow::bail!("All required command options must be before any optional ones")
+            // Check for local ambiguity:
+            // All the rest of the options must not have this name.
+            if let Some(slice) = options.get(idx + 1..) {
+                if slice.iter().any(|c| c.name() == name) {
+                    return Err(CommandValidationError::AmbiguousName);
                 }
-            })
-            .map(|_| ())?;
-
-        for opt in opts.iter() {
-            if let CommandOption::SubCommand(d) | CommandOption::SubCommandGroup(d) = opt {
-                check_ordering(&d.options)?;
             }
-        }
 
-        Ok(())
+            // Check for valid name and any subcommands or groups.
+            match opt {
+                CommandOption::SubCommand(data) | CommandOption::SubCommandGroup(data) => {
+                    check_option_name(name)?;
+                    options_are_valid(&data.options)
+                },
+                _ => Ok(check_option_name(name)?),
+            }
+        })
     }
 
-    check_ordering(&cmd.options)?;
+    check_option_name(&cmd.name)?;
+    options_are_valid(&cmd.options)?;
 
     Ok(())
 }
@@ -202,7 +227,7 @@ pub macro func {
     }},
 }
 
-/// Macro for making a base command containing a function-command mapping
+/// Macro for making a base command builder containing a function-command mapping
 /// with the provided name, description and a function.
 ///
 /// Example:
@@ -213,15 +238,15 @@ pub macro func {
 /// ```
 /// Expands to
 /// ```
-/// MappedCommand::new(func!(path::to::command, "command", "description"))
+/// MappedCommandBuilder::new(func!(path::to::command, "command", "description"))
 /// ```
 pub macro command {
     ($function:expr, $name:expr, $description:expr) => {{
-        MappedCommand::new(func!($function, $name, $description))
+        MappedCommandBuilder::new(func!($function, $name, $description))
     }},
     ($function:expr, $description:expr) => {{
         let name = super::name_from_rust_path(stringify!($function));
-        MappedCommand::new(func!($function, name, $description))
+        MappedCommandBuilder::new(func!($function, name, $description))
     }},
 }
 
@@ -240,60 +265,6 @@ pub struct MappedCommand {
 }
 
 impl MappedCommand {
-    /// Creates a new default base command with a function-command mapping.
-    pub fn new(cmd: impl Into<FunctionCommand>) -> Self {
-        Self {
-            cmd: cmd.into(),
-            help: String::new(),
-            default_member_permissions: None,
-            dm_permission: None,
-        }
-    }
-
-    /// Set default permissions required for a guild member to run the command.
-    ///
-    /// Setting this [`Permissions::empty()`] will prohibit anyone from running
-    /// the command, except for guild administrators.
-    pub fn default_member_permissions(mut self, default_member_permissions: Permissions) -> Self {
-        self.default_member_permissions = Some(default_member_permissions);
-        self
-    }
-
-    /// Set default permissions required for a guild member to run the command, if not yet set.
-    ///
-    /// Setting this [`Permissions::empty()`] will prohibit anyone from running
-    /// the command, except for guild administrators.
-    pub fn default_member_permissions_or(
-        mut self,
-        default_member_permissions: Permissions,
-    ) -> Self {
-        self.default_member_permissions
-            .get_or_insert(default_member_permissions);
-        self
-    }
-
-    /// Set whether the command is available in DMs.
-    ///
-    /// This is only relevant for globally-scoped commands. By default, commands are visible in DMs.
-    pub fn dm_permission(mut self, dm_permission: bool) -> Self {
-        self.dm_permission = Some(dm_permission);
-        self
-    }
-
-    /// Set whether the command is available in DMs, if not yet set.
-    ///
-    /// This is only relevant for globally-scoped commands. By default, commands are visible in DMs.
-    pub fn dm_permission_or(mut self, dm_permission: bool) -> Self {
-        self.dm_permission.get_or_insert(dm_permission);
-        self
-    }
-
-    /// Add a command option to the base command.
-    pub fn option(mut self, option: impl Into<MappedCommandOption>) -> Self {
-        self.cmd.add(option);
-        self
-    }
-
     /// Try to convert to a twilight command, this will fail if the validation fails.
     pub fn to_command(&self) -> AnyResult<Command> {
         self.try_into()
@@ -346,6 +317,78 @@ impl TryFrom<&MappedCommand> for Command {
         validate_command(&cmd)?;
 
         Ok(cmd)
+    }
+}
+
+/// Builder for function-command mapping.
+#[derive(Debug, Clone)]
+pub struct MappedCommandBuilder(MappedCommand);
+
+impl MappedCommandBuilder {
+    /// Creates a new default base command builder with a function-command mapping.
+    pub fn new(cmd: impl Into<FunctionCommand>) -> Self {
+        Self(MappedCommand {
+            cmd: cmd.into(),
+            help: String::new(),
+            default_member_permissions: None,
+            dm_permission: None,
+        })
+    }
+
+    /// Set default permissions required for a guild member to run the command.
+    ///
+    /// Setting this [`Permissions::empty()`] will prohibit anyone from running
+    /// the command, except for guild administrators.
+    pub fn default_member_permissions(mut self, default_member_permissions: Permissions) -> Self {
+        self.0.default_member_permissions = Some(default_member_permissions);
+        self
+    }
+
+    /// Set default permissions required for a guild member to run the command, if not yet set.
+    ///
+    /// Setting this [`Permissions::empty()`] will prohibit anyone from running
+    /// the command, except for guild administrators.
+    pub fn default_member_permissions_or(
+        mut self,
+        default_member_permissions: Permissions,
+    ) -> Self {
+        self.0
+            .default_member_permissions
+            .get_or_insert(default_member_permissions);
+        self
+    }
+
+    /// Set whether the command is available in DMs.
+    ///
+    /// This is only relevant for globally-scoped commands. By default, commands are visible in DMs.
+    pub fn dm_permission(mut self, dm_permission: bool) -> Self {
+        self.0.dm_permission = Some(dm_permission);
+        self
+    }
+
+    /// Set whether the command is available in DMs, if not yet set.
+    ///
+    /// This is only relevant for globally-scoped commands. By default, commands are visible in DMs.
+    pub fn dm_permission_or(mut self, dm_permission: bool) -> Self {
+        self.0.dm_permission.get_or_insert(dm_permission);
+        self
+    }
+
+    /// Add a command option to the base command.
+    pub fn option(mut self, option: impl Into<MappedCommandOption>) -> Self {
+        self.0.cmd.add(option);
+        self
+    }
+
+    /// Validate the command and its options.
+    pub fn validate(self) -> AnyResult<Self> {
+        self.0.to_command()?; // HACK Mostly a waste of cpu cycles.
+        Ok(self)
+    }
+
+    /// Finalize the command.
+    pub fn build(self) -> MappedCommand {
+        self.0
     }
 }
 
