@@ -181,7 +181,15 @@ pub fn validate_command(cmd: &Command) -> AnyResult<()> {
     }
 
     check_option_name(&cmd.name)?;
-    options_are_valid(&cmd.options)?;
+
+    if matches!(cmd.kind, CommandType::User | CommandType::Message) {
+        anyhow::ensure!(
+            cmd.options.is_empty(),
+            "GUI-based commands cannot have options"
+        )
+    } else {
+        options_are_valid(&cmd.options)?;
+    }
 
     Ok(())
 }
@@ -262,6 +270,7 @@ pub struct MappedCommand {
     pub help: String,
     pub default_member_permissions: Option<Permissions>,
     pub dm_permission: Option<bool>,
+    pub kind: CommandType,
 }
 
 impl MappedCommand {
@@ -302,11 +311,15 @@ impl TryFrom<&MappedCommand> for Command {
             application_id: None,
             default_member_permissions: value.default_member_permissions,
             dm_permission: value.dm_permission,
-            description: value.cmd.description.to_string(),
+            description: if matches!(value.kind, CommandType::ChatInput) {
+                value.cmd.description.to_string()
+            } else {
+                " ".to_string() // GUI-based commands can't have description.
+            },
             description_localizations: None,
             guild_id: None,
             id: None,
-            kind: CommandType::ChatInput,
+            kind: value.kind,
             name: value.cmd.name.to_string(),
             name_localizations: None,
             options: value.cmd.options.iter().cloned().map(Into::into).collect(),
@@ -332,6 +345,7 @@ impl MappedCommandBuilder {
             help: String::new(),
             default_member_permissions: None,
             dm_permission: None,
+            kind: CommandType::ChatInput,
         })
     }
 
@@ -371,6 +385,11 @@ impl MappedCommandBuilder {
     /// This is only relevant for globally-scoped commands. By default, commands are visible in DMs.
     pub fn dm_permission_or(mut self, dm_permission: bool) -> Self {
         self.0.dm_permission.get_or_insert(dm_permission);
+        self
+    }
+
+    pub fn kind(mut self, kind: CommandType) -> Self {
+        self.0.kind = kind;
         self
     }
 
