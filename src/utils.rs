@@ -168,7 +168,7 @@ pub macro impl_variant_option {
 /// Create a slightly nicer, comma separated, list from a slice.
 pub fn nice_list<T: Display>(list: &[T]) -> impl Display {
     let mut list = list.iter();
-    let mut out = list.next().map(|s| format!("`{}`", s)).unwrap_or_default();
+    let mut out = list.next().map(|s| format!("`{s}`")).unwrap_or_default();
 
     for item in list {
         out = format!("{}", format_args!("{out}, `{item}`"));

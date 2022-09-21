@@ -7,15 +7,16 @@ use std::mem;
 use std::path::Path;
 
 use serde::{Deserialize, Serialize};
+use twilight_model::channel::ReactionType;
 use twilight_model::id::marker::{
     ChannelMarker, GuildMarker, MessageMarker, RoleMarker, UserMarker,
 };
 use twilight_model::id::Id;
 
-use crate::commands::admin::alias::Alias;
-use crate::commands::admin::roles::ReactionRole;
-use crate::config;
+use crate::commands_v2::CommandError;
 use crate::utils::prelude::*;
+use crate::utils::{self};
+use crate::{config, parser};
 
 pub const CONFIG_FILE: &str = "./data/bot.json";
 pub const GUILD_CONFIG_DIR: &str = "./data/guilds/";
@@ -23,6 +24,11 @@ pub const GUILD_CONFIG_DIR: &str = "./data/guilds/";
 /// Returns the default command prefix string.
 fn default_prefix() -> String {
     String::from("!")
+}
+
+/// Returns a key which can be used to access reaction-roles mappings in `Settings`.
+pub fn reaction_roles_key(channel_id: Id<ChannelMarker>, message_id: Id<MessageMarker>) -> String {
+    format!("{channel_id}.{message_id}")
 }
 
 /// General settings for the bot.
@@ -368,7 +374,57 @@ impl Config {
     }
 }
 
-/// Returns a key which can be used to access reaction-roles mappings in `Settings`.
-pub fn reaction_roles_key(channel_id: Id<ChannelMarker>, message_id: Id<MessageMarker>) -> String {
-    format!("{channel_id}.{message_id}")
+#[derive(Deserialize, Serialize, Debug, Clone, PartialEq, Eq, Hash)]
+pub struct Alias {
+    pub name: String,
+    pub command: String,
+}
+
+impl std::str::FromStr for Alias {
+    type Err = CommandError;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let args = s.trim();
+
+        // Parse first arg as the name part.
+        let (name, rest) = parser::maybe_quoted_arg(args)?;
+
+        // Spaces in names are not supported, at least not yet.
+        if name.contains(char::is_whitespace) {
+            return Err(CommandError::UnexpectedArgs(format!(
+                "Spaces in an alias name are not supported: '{name}'",
+            )));
+        }
+
+        // Parse next arg as the command part.
+        let (command, rest) = match rest {
+            Some(command) => parser::maybe_quoted_arg(command)?,
+            None => return Err(CommandError::MissingArgs),
+        };
+
+        parser::ensure_rest_is_empty(rest)?;
+
+        Ok(Self {
+            name: name.to_string(),
+            command: command.to_string(),
+        })
+    }
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize)]
+pub struct ReactionRole {
+    pub emoji: ReactionType,
+    pub role: Id<RoleMarker>,
+}
+
+impl ReactionRole {
+    pub const fn new(emoji: ReactionType, role: Id<RoleMarker>) -> Self {
+        Self { emoji, role }
+    }
+}
+
+impl PartialEq for ReactionRole {
+    fn eq(&self, other: &Self) -> bool {
+        utils::reaction_type_eq(&self.emoji, &other.emoji) && self.role == other.role
+    }
 }

@@ -3,7 +3,7 @@
 
 use std::str::pattern::{Pattern, ReverseSearcher};
 
-use crate::commands::{CommandError, CommandResult};
+use crate::commands_v2::CommandError;
 use crate::utils::{self, consts};
 
 /// Returns `Some((prefix, unprefixed))`,
@@ -103,19 +103,16 @@ pub fn strip_delimits<'a, P>(input: &'a str, delimits: P) -> &'a str
 where
     P: Pattern<'a, Searcher: ReverseSearcher<'a>> + Copy,
 {
-    match is_surrounded_by(input, delimits) {
-        Some(b) => {
-            if b {
-                input
-                    .strip_prefix(delimits)
-                    .and_then(|s| s.strip_suffix(delimits))
-                    .unwrap_or(input)
-            } else {
-                input
-            }
-        },
-        None => input,
-    }
+    is_surrounded_by(input, delimits).map_or(input, |b| {
+        if b {
+            input
+                .strip_prefix(delimits)
+                .and_then(|s| s.strip_suffix(delimits))
+                .unwrap_or(input)
+        } else {
+            input
+        }
+    })
 }
 
 /// Returns `Some(true)` if `target` is surrounded by any matching pair of delimiters.
@@ -132,7 +129,7 @@ where
 }
 
 /// Make sure there's nothing else by mistake.
-pub fn ensure_rest_is_empty(rest: Option<&str>) -> CommandResult {
+pub fn ensure_rest_is_empty(rest: Option<&str>) -> Result<(), CommandError> {
     if let Some(rest) = rest {
         if !rest.trim().is_empty() {
             return Err(CommandError::UnexpectedArgs(
