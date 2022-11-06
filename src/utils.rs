@@ -2,6 +2,7 @@
 
 use std::borrow::Cow;
 use std::fmt::Display;
+use std::sync::Arc;
 
 use serde::Serialize;
 use twilight_http::request::application::command::{SetGlobalCommands, SetGuildCommands};
@@ -48,6 +49,29 @@ pub trait ExecModelExt {
 
     /// Send the command by calling `exec()` and `model()`.
     async fn send(self) -> AnyResult<Self::Value>;
+}
+
+/// Arc utility trait.
+pub trait IntoArc<T>: Sized {
+    fn into_arc(self) -> Arc<T>;
+}
+
+impl<T> IntoArc<T> for T {
+    fn into_arc(self) -> Arc<T> {
+        Arc::new(self)
+    }
+}
+
+impl<T> IntoArc<T> for Arc<T> {
+    fn into_arc(self) -> Arc<T> {
+        self
+    }
+}
+
+impl<T> IntoArc<T> for &Arc<T> {
+    fn into_arc(self) -> Arc<T> {
+        Arc::clone(self)
+    }
 }
 
 /// Macro to implement `ExecModelExt` in a one-liner.

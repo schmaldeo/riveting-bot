@@ -1,11 +1,37 @@
 //! Functions for parsing arguments.
-//! (Still pretty goofy, but works)
 #![allow(dead_code)]
 
 use std::str::pattern::{Pattern, ReverseSearcher};
 
 use crate::commands::{CommandError, CommandResult};
 use crate::utils::{self, consts};
+
+/// Returns `Some((prefix, unprefixed))`,
+/// where `prefix` is the matched prefix and `unprefixed` is everything after.
+/// Otherwise, returns `None` if no prefix was matched from `prefixes`.
+pub fn unprefix_with<I, T>(prefixes: I, text: &str) -> Option<(&str, &str)>
+where
+    I: IntoIterator<Item = T>,
+    T: AsRef<str>,
+{
+    for prefix in prefixes {
+        let prefix = prefix.as_ref();
+        let stripped = text.strip_prefix(prefix);
+
+        if let Some(stripped) = stripped {
+            return Some((&text[..prefix.len()], stripped));
+        }
+    }
+
+    None
+}
+
+/// Returns a tuple of `(next, rest)`, where `next` is the part before any whitespaces and `rest` is everything after any whitespaces.
+pub fn split_once_whitespace(text: &str) -> (&str, Option<&str>) {
+    text.split_once(char::is_whitespace)
+        .map_or((text, None), |(n, r)| (n, Some(r)))
+    // .unwrap_or((text, ""))
+}
 
 /// Try to parse string-slice into arg parts.
 /// For more details about individual argument parsing, see [`maybe_quoted_arg`](maybe_quoted_arg)
@@ -72,10 +98,7 @@ pub fn maybe_quoted_arg(input: &str) -> Result<(&str, Option<&str>), CommandErro
         Ok((&input[1..idx], input.get(idx + 1..)))
     } else {
         // Did not start with a delimiter, try to split by whitespace instead.
-        match input.split_once(char::is_whitespace) {
-            Some((next, rest)) => Ok((next, Some(rest))),
-            None => Ok((input, None)),
-        }
+        Ok(split_once_whitespace(input))
     }
 }
 
