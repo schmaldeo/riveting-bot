@@ -303,7 +303,7 @@ impl Config {
     pub fn load_guild(&mut self, guild_id: Id<GuildMarker>) -> AnyResult<()> {
         let file_name = format!("{guild_id}.json");
         let path = Path::new(GUILD_CONFIG_DIR).join(file_name);
-        let content = fs::read_to_string(&path)?;
+        let content = fs::read_to_string(path)?;
         let settings = serde_json::from_str::<Settings>(&content)?;
 
         self.guilds.insert(guild_id, settings);

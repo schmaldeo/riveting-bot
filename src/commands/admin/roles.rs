@@ -53,8 +53,9 @@ pub async fn setup(cc: CommandContext<'_>) -> CommandResult {
     let output_content = indoc::formatdoc! {"
         React to give yourself some roles:
 
-        {list}
-        "
+        {}
+        ",
+        list
     };
 
     let output = cc
@@ -114,8 +115,9 @@ pub async fn edit(cc: CommandContext<'_>) -> CommandResult {
     let output_content = indoc::formatdoc! {"
         React to give yourself some roles:
 
-        {list}
-        "
+        {}
+        ",
+        list
     };
 
     // NOTE This will just overwrite all content of the original message.
