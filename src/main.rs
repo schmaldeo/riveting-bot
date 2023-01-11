@@ -25,6 +25,7 @@ use twilight_model::gateway::payload::incoming::{
 };
 use twilight_model::gateway::Intents;
 use twilight_model::guild::Guild;
+use twilight_model::id::marker::GuildMarker;
 use twilight_model::id::Id;
 use twilight_model::oauth::Application;
 use twilight_model::user::CurrentUser;
@@ -64,6 +65,19 @@ impl Context {
     /// Shortcut for `self.http.interaction(self.application.id)`.
     pub fn interaction(&self) -> InteractionClient {
         self.http.interaction(self.application.id)
+    }
+
+    /// Return currently active classic command prefix, either global prefix or a guild specific one.
+    pub fn classic_prefix(&self, guild_id: Option<Id<GuildMarker>>) -> String {
+        let lock = self.config.lock().unwrap();
+
+        match guild_id {
+            Some(guild_id) => match lock.guild(guild_id) {
+                Some(data) => data.prefix.to_string(),
+                None => lock.prefix.to_string(),
+            },
+            None => lock.prefix.to_string(),
+        }
     }
 }
 
