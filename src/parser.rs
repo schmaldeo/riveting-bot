@@ -157,7 +157,6 @@ mod tests {
     fn overly_ugly_arguments() {
         let s = r#"    foo    bar "baz\n    `.-_' thing" abc-goo'`" "sample text \\\"* ;    "#;
         assert_eq!(
-            parse_args(s),
             Ok(vec![
                 r#"foo"#,
                 r#"bar"#,
@@ -166,31 +165,32 @@ mod tests {
                 r#"sample text \\\"#,
                 r#"*"#,
                 r#";"#,
-            ])
+            ]),
+            parse_args(s)
         );
     }
 
     #[test]
     fn empty_arguments() {
         let s = "";
-        assert_eq!(parse_args(s), Ok(vec![]));
+        assert_eq!(Ok(vec![]), parse_args(s));
 
         let s = "  \t  ";
-        assert_eq!(parse_args(s), Ok(vec![]));
+        assert_eq!(Ok(vec![]), parse_args(s));
     }
 
     #[test]
     fn parse_one_arg() {
         let s = r#"    foo    bar"#;
-        assert_eq!(maybe_quoted_arg(s), Ok(("foo", Some(r#"   bar"#))));
+        assert_eq!(Ok(("foo", Some(r#"   bar"#))), maybe_quoted_arg(s));
 
         let s = r#"foo bar"#;
-        assert_eq!(maybe_quoted_arg(s), Ok(("foo", Some(r#"bar"#))));
+        assert_eq!(Ok(("foo", Some(r#"bar"#))), maybe_quoted_arg(s));
 
         let s = r#"    "foo"bar "#;
-        assert_eq!(maybe_quoted_arg(s), Ok(("foo", Some(r#"bar "#))));
+        assert_eq!(Ok(("foo", Some(r#"bar "#))), maybe_quoted_arg(s));
 
         let s = r#""foo" bar "#;
-        assert_eq!(maybe_quoted_arg(s), Ok(("foo", Some(r#" bar "#))));
+        assert_eq!(Ok(("foo", Some(r#" bar "#))), maybe_quoted_arg(s));
     }
 }
