@@ -1,3 +1,4 @@
+use twilight_model::channel::ChannelType;
 // use twilight_model::channel::ChannelType;
 use twilight_model::guild::Permissions;
 
@@ -43,6 +44,7 @@ pub fn create_commands() -> AnyResult<CommandsBuilder> {
             command("help", "List bot commands.")
                 .attach(meta::Help::classic)
                 .attach(meta::Help::slash)
+                .option(string("command", "Get help on a command."))
                 .dm(),
         );
 
@@ -57,6 +59,7 @@ pub fn create_commands() -> AnyResult<CommandsBuilder> {
             command("time", "Display a discord timestamp.")
                 .attach(user::time::Time::classic)
                 .attach(user::time::Time::slash)
+                .option(string("expression", "Time expression to evaluate."))
                 .dm(),
         );
 
@@ -68,7 +71,12 @@ pub fn create_commands() -> AnyResult<CommandsBuilder> {
             .option(
                 sub("join", "Join the bot to a voice channel.")
                     .attach(user::voice::Join::classic)
-                    .attach(user::voice::Join::slash),
+                    .attach(user::voice::Join::slash)
+                    .option(
+                        channel("channel", "Voice channel to join.")
+                            .required()
+                            .types([ChannelType::GuildVoice, ChannelType::GuildStageVoice]),
+                    ),
             )
             .option(
                 sub("leave", "Disconnect the bot from a voice channel.")
@@ -136,8 +144,18 @@ pub fn create_commands() -> AnyResult<CommandsBuilder> {
                 .attach(admin::bot::Bot::classic)
                 .attach(admin::bot::Bot::slash)
                 .permissions(Permissions::ADMINISTRATOR)
-                .option(sub("say", "Post a message by the bot."))
-                .option(sub("edit", "Edit an existing bot message.")),
+                .option(
+                    sub("say", "Post a message by the bot.")
+                        .attach(admin::bot::Say::classic)
+                        .attach(admin::bot::Say::slash)
+                        .option(string("text", "What to say.").required()),
+                )
+                .option(
+                    sub("edit", "Edit an existing bot message.")
+                        .attach(admin::bot::Edit::classic)
+                        .attach(admin::bot::Edit::slash)
+                        .option(message("message", "Message to edit.").required()),
+                ),
         )
         .bind(
             command("mute", "Silence someone in voice channel.")
@@ -161,7 +179,13 @@ pub fn create_commands() -> AnyResult<CommandsBuilder> {
         command("bulk-delete", "Delete many of messages.")
             .attach(admin::bulk::BulkDelete::classic)
             .attach(admin::bulk::BulkDelete::slash)
-            .permissions(Permissions::ADMINISTRATOR),
+            .permissions(Permissions::ADMINISTRATOR)
+            .option(
+                integer("amount", "Number of messages to delete.")
+                    .required()
+                    .min(0)
+                    .max(100),
+            ),
     );
 
     // Bot owner functionality.

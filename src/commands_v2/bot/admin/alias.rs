@@ -8,6 +8,10 @@ pub struct Alias;
 impl Command for Alias {
     type Data = Self;
 
+    async fn uber(_ctx: Context, _data: Self::Data) -> CommandResult {
+        todo!()
+    }
+
     async fn classic(ctx: Context, _req: ClassicRequest) -> CommandResult {
         Self::uber(ctx, Default::default()).await
     }
@@ -19,6 +23,10 @@ pub struct List;
 
 impl Command for List {
     type Data = Self;
+
+    async fn uber(_ctx: Context, _data: Self::Data) -> CommandResult {
+        todo!()
+    }
 
     async fn classic(ctx: Context, _req: ClassicRequest) -> CommandResult {
         Self::uber(ctx, Default::default()).await
@@ -32,6 +40,10 @@ pub struct Get;
 impl Command for Get {
     type Data = Self;
 
+    async fn uber(_ctx: Context, _data: Self::Data) -> CommandResult {
+        todo!()
+    }
+
     async fn classic(ctx: Context, _req: ClassicRequest) -> CommandResult {
         Self::uber(ctx, Default::default()).await
     }
@@ -44,6 +56,10 @@ pub struct Set;
 impl Command for Set {
     type Data = Self;
 
+    async fn uber(_ctx: Context, _data: Self::Data) -> CommandResult {
+        todo!()
+    }
+
     async fn classic(ctx: Context, _req: ClassicRequest) -> CommandResult {
         Self::uber(ctx, Default::default()).await
     }
@@ -55,6 +71,10 @@ pub struct Remove;
 
 impl Command for Remove {
     type Data = Self;
+
+    async fn uber(_ctx: Context, _data: Self::Data) -> CommandResult {
+        todo!()
+    }
 
     async fn classic(ctx: Context, _req: ClassicRequest) -> CommandResult {
         Self::uber(ctx, Default::default()).await

@@ -2,21 +2,15 @@
 //!
 //! # Overview
 //!
-//! ### Base command creation:
-//! ```
-//! macro command!(function, "description") -> BaseCommandBuilder
-//! macro command!(function as "name", "description") -> BaseCommandBuilder
-//! ```
-//!
-//! ### Subcommand creation:
-//! ```
-//! macro sub!(function, "description") -> CommandFunctionBuilder
-//! macro sub!(function as "name", "description") -> CommandFunctionBuilder
-//! ```
-//!
-//! ### Command options:
-//! ```
+//! ### Base command, subcommand and group creation:
+//! ```text
+//! fn command("name", "description") -> BaseCommandBuilder
+//! fn sub("name", "description") -> CommandFunctionBuilder
 //! fn group("name", "description") -> CommandGroupBuilder
+//! ```
+//!
+//! ### Command parameter options:
+//! ```text
 //! fn bool("name", "description") -> ArgDesc
 //! fn number("name", "description") -> NumberOptionBuilder
 //! fn integer("name", "description") -> IntegerOptionBuilder
@@ -30,15 +24,13 @@
 //! ```
 //!
 
-// FIXME MODULE COMMENT
-
+use derive_more::{Display, IsVariant, Unwrap};
 use futures::Future;
-use twilight_model::application::command::Command as TwilightCommand;
 use twilight_model::channel::ChannelType;
 use twilight_model::guild::Permissions;
 
 use crate::commands_v2::builder::twilight::{
-    CommandValidationError, MessageCommand, SlashCommand, UserCommand,
+    CommandValidationError, MessageCommand, SlashCommand, TwilightCommand, UserCommand,
 };
 use crate::commands_v2::function::{Function, IntoFunction};
 use crate::commands_v2::CommandResult;
@@ -88,8 +80,8 @@ pub fn channel(name: &'static str, description: &'static str) -> ChannelOptionBu
 }
 
 /// Create a new argument with kind `Message`.
-pub fn message(name: &'static str, description: &'static str) -> MessageOptionBuilder {
-    MessageOptionBuilder::new(name, description)
+pub fn message(name: &'static str, description: &'static str) -> ArgDesc {
+    ArgDesc::new(name, description, ArgKind::Message)
 }
 
 /// Create a new argument with kind `Attachment`.
@@ -310,43 +302,6 @@ impl ChannelOptionBuilder {
     }
 }
 
-#[derive(Debug, Clone)]
-pub struct MessageOptionBuilder(ArgDesc);
-
-impl MessageOptionBuilder {
-    /// Create new message option builder.
-    pub fn new(name: &'static str, description: &'static str) -> Self {
-        Self(ArgDesc::new(
-            name,
-            description,
-            ArgKind::Message(MessageData::default()),
-        ))
-    }
-
-    /// Set argument to be inferred from replied message (for classic commands).
-    pub fn inferred(mut self) -> Self {
-        self.inner_mut().infer = true;
-        self
-    }
-
-    /// Set argument to be required. All required arguments must be before any optional ones.
-    pub const fn required(mut self) -> Self {
-        self.0.required = true;
-        self
-    }
-
-    /// Finalize the argument.
-    pub fn build(self) -> ArgDesc {
-        self.0
-    }
-
-    /// Get inner data struct.
-    fn inner_mut(&mut self) -> &mut MessageData {
-        let ArgKind::Message(ref mut data) = self.0.kind else { unreachable!() };
-        data
-    }
-}
-
 #[derive(Debug, Default, Clone)]
 pub struct NumericalData<T> {
     pub min: Option<T>,
@@ -366,22 +321,36 @@ pub struct ChannelData {
     pub channel_types: Vec<ChannelType>,
 }
 
-#[derive(Debug, Default, Clone)]
-pub struct MessageData {
-    pub infer: bool,
-}
-
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Display)]
 pub enum ArgKind {
+    #[display(fmt = "bool")]
     Bool,
+
+    #[display(fmt = "number")]
     Number(NumericalData<f64>),
+
+    #[display(fmt = "integer")]
     Integer(NumericalData<i64>),
+
+    #[display(fmt = "string")]
     String(StringData),
+
+    #[display(fmt = "channel")]
     Channel(ChannelData),
-    Message(MessageData),
+
+    #[display(fmt = "message")]
+    Message,
+
+    #[display(fmt = "attachment")]
     Attachment, // TODO: Define if this should try to capture the object (eg. uploaded attachment or attachment in replied message)
-    User,       // TODO: Define if this should try to capture the object (eg. sender)
+
+    #[display(fmt = "user")]
+    User, // TODO: Define if this should try to capture the object (eg. sender)
+
+    #[display(fmt = "role")]
     Role,
+
+    #[display(fmt = "mention")]
     Mention,
 }
 
@@ -421,26 +390,24 @@ pub struct BaseCommand {
 
 impl BaseCommand {
     /// Generate commands to be integrated to discord.
-    pub fn twilight_commands(&self) -> Result<Vec<TwilightCommand>, CommandValidationError> {
-        self.command
-            .functions
-            .iter()
-            .filter_map(|f| match f {
-                Function::Classic(_) => None,
-                Function::Slash(_) => Some(SlashCommand::try_from(self.clone()).map(Into::into)),
-                Function::Message(_) => {
-                    Some(MessageCommand::try_from(self.clone()).map(Into::into))
-                },
-                Function::User(_) => Some(UserCommand::try_from(self.clone()).map(Into::into)),
-            })
-            .try_collect()
+    pub fn twilight_commands(
+        &self,
+    ) -> impl Iterator<Item = Result<TwilightCommand, CommandValidationError>> + '_ {
+        self.command.functions.iter().filter_map(|f| match f {
+            Function::Classic(_) => None,
+            Function::Slash(_) => Some(SlashCommand::try_from(self.clone()).map(Into::into)),
+            Function::Message(_) => Some(MessageCommand::try_from(self.clone()).map(Into::into)),
+            Function::User(_) => Some(UserCommand::try_from(self.clone()).map(Into::into)),
+        })
     }
 
     /// Validate the command.
     pub fn validate(&self) -> Result<(), CommandValidationError> {
+        // HACK: Mostly waste of cpu cycles.
         self.twilight_commands()
-            .context("Failed to validate command")?; // HACK: Mostly waste of cpu cycles.
-        Ok(())
+            .try_for_each(|c| c.map(|_| ()))
+            .context("Failed to validate command")
+            .map_err(Into::into)
     }
 }
 
@@ -529,6 +496,10 @@ impl CommandFunction {
 
     pub fn has_user(&self) -> bool {
         self.functions.iter().any(Function::is_user)
+    }
+
+    pub fn args(&self) -> impl Iterator<Item = &ArgDesc> {
+        self.options.iter().filter_map(|o| o.arg())
     }
 }
 
@@ -635,7 +606,7 @@ impl CommandGroupBuilder {
 }
 
 /// Command option types.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, IsVariant, Unwrap)]
 pub enum CommandOption {
     Arg(ArgDesc),
     Sub(CommandFunction),
@@ -643,6 +614,12 @@ pub enum CommandOption {
 }
 
 impl CommandOption {
+    impl_variant_option!(
+        pub fn arg(&self: Arg(val)) -> &ArgDesc;
+        pub fn sub(&self: Sub(val)) -> &CommandFunction;
+        pub fn group(&self: Group(val)) -> &CommandGroup;
+    );
+
     pub const fn name(&self) -> &str {
         match self {
             Self::Arg(a) => a.name,
@@ -672,12 +649,6 @@ impl From<StringOptionBuilder> for CommandOption {
 
 impl From<ChannelOptionBuilder> for CommandOption {
     fn from(value: ChannelOptionBuilder) -> Self {
-        value.build().into()
-    }
-}
-
-impl From<MessageOptionBuilder> for CommandOption {
-    fn from(value: MessageOptionBuilder) -> Self {
         value.build().into()
     }
 }
@@ -719,7 +690,7 @@ mod tests {
 
     #[test]
     fn valid_commands() {
-        // FIXME Numerical choices must be in range of min and max, this should give some warning at least
+        // FIXME: Numerical choices must be in range of min and max, this should give some warning at least
 
         fn assert_valid(c: BaseCommandBuilder) {
             println!("{c:#?}");
@@ -733,7 +704,7 @@ mod tests {
                 .attach(mock::message)
                 .attach(mock::user)
                 .dm()
-                .option(message("message", "description").inferred()),
+                .option(message("message", "description")),
         );
 
         assert_valid(command("a", "description"));

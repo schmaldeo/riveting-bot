@@ -30,9 +30,6 @@ use twilight_model::gateway::payload::incoming::{
 };
 use twilight_model::gateway::{GatewayReaction, Intents};
 use twilight_model::guild::Guild;
-use twilight_model::http::interaction::{
-    InteractionResponse, InteractionResponseData, InteractionResponseType,
-};
 use twilight_model::id::marker::GuildMarker;
 use twilight_model::id::Id;
 use twilight_model::oauth::Application;
@@ -227,8 +224,9 @@ async fn handle_event(ctx: Context, event: Event) -> AnyResult<()> {
     };
 
     if let Err(e) = result {
-        println!("Event error: {e}");
-        error!("Event error: {e}");
+        let chain = e.oneliner();
+        eprintln!("Event error: {e:?}");
+        error!("Event error: {chain}");
     }
 
     Ok(())
@@ -247,13 +245,7 @@ async fn handle_ready(ctx: &Context, ready: Ready) -> AnyResult<()> {
     println!("Ready: '{}'", ready.user.name);
     info!("Ready: '{}'", ready.user.name);
 
-    // TODO: Get commands from `ctx`.
-    let commands: Vec<_> = commands_v2::bot::create_commands()
-        .unwrap()
-        .build()
-        .values()
-        .flat_map(|c| c.twilight_commands().unwrap())
-        .collect();
+    let commands = ctx.commands.twilight_commands()?;
 
     debug!("Creating {} global commands", commands.len());
 
@@ -300,27 +292,9 @@ async fn handle_interaction_create(ctx: &Context, mut inter: Interaction) -> Any
     match inter.data.take() {
         Some(InteractionData::ApplicationCommand(d)) => {
             println!("{d:#?}");
-            //
-            let interaction = ctx.interaction();
-
-            let resp = InteractionResponse {
-                kind: InteractionResponseType::DeferredChannelMessageWithSource,
-                data: Some(InteractionResponseData::default()),
-            };
-
-            // Acknowledge the interaction.
-            interaction
-                .create_response(inter.id, &inter.token, &resp)
-                .await?;
-
-            // TODO WIP
-
-            // Delete the response.
-            interaction.delete_response(&inter.token).await?;
-
-            // Process the command.
-            let inter = Arc::new(inter); // Might be needed later.
-            crate::commands_v2::handle::interaction_command(ctx, inter, Arc::new(*d)).await?;
+            crate::commands_v2::handle::application_command(ctx, inter, *d)
+                .await
+                .context("Failed to handle application command")?;
         },
         Some(InteractionData::MessageComponent(d)) => {
             println!("{d:#?}");
@@ -353,12 +327,13 @@ async fn handle_message_create(ctx: &Context, msg: Message) -> AnyResult<()> {
         .await
         .context("Failed to handle classic command")
     {
-        Ok(k) => println!("{k:?}"),
         Err(e) if e.downcast_ref() == Some(&CommandError::NotPrefixed) => (), // Message was not a command.
         Err(e) => {
+            let chain = e.oneliner();
+
             // Log processing errors.
-            eprintln!("Error processing command: {e}");
-            error!("Error processing command: {e}");
+            eprintln!("Error processing command: {e:?}\n");
+            error!("Error processing command: {chain}");
 
             if let Ok(id) = env::var("DISCORD_BOTDEV_CHANNEL") {
                 // On a bot dev channel, reply with error message.
@@ -368,12 +343,13 @@ async fn handle_message_create(ctx: &Context, msg: Message) -> AnyResult<()> {
                     ctx.http
                         .create_message(bot_dev)
                         .reply(msg.id)
-                        .content(&e.to_string())?
+                        .content(&format!("{e:?}"))?
                         .send()
                         .await?;
                 }
             }
         },
+        _ => (),
     }
 
     Ok(())
@@ -381,18 +357,6 @@ async fn handle_message_create(ctx: &Context, msg: Message) -> AnyResult<()> {
 
 async fn handle_message_update(_ctx: &Context, _mu: MessageUpdate) -> AnyResult<()> {
     // TODO Check if updated message is something that should update content from the bot.
-
-    // let text = mu.content.unwrap_or_default();
-
-    // if let Some(author) = mu.author {
-    //     if author.bot {
-    //         return Ok(());
-    //     }
-
-    //     if let Some(ccall) = CommandCall::parse_from(ctx, mu.guild_id, &text) {
-    //         println!("Updated message command: {ccall}");
-    //     }
-    // }
 
     Ok(())
 }

@@ -1,11 +1,10 @@
 use crate::commands_v2::prelude::*;
-use crate::commands_v2::request::Arg;
 // use crate::utils::prelude::*;
 
 /// Command: Calculate fuel required.
 #[derive(Default)]
 pub struct Fuel {
-    args: Vec<Arg>,
+    args: Args,
 }
 
 impl Command for Fuel {

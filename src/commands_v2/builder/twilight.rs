@@ -5,6 +5,8 @@ use twilight_util::builder::command::*;
 use crate::commands_v2::builder::BaseCommand;
 use crate::utils::prelude::*;
 
+pub type TwilightCommand = Command;
+
 /// Helper trait for twilight builders where the value may be optional.
 /// This trait lets you apply the optional value if it is present,
 /// otherwise preserve the builder default.
@@ -139,14 +141,6 @@ impl TryFrom<BaseCommand> for SlashCommand {
         .default_member_permissions(value.member_permissions);
 
         for opt in value.command.options {
-            // Ignore special case of inferred message argument.
-            if let super::CommandOption::Arg(super::ArgDesc {
-                kind: super::ArgKind::Message(super::MessageData { infer: true }),
-                ..
-            }) = opt
-            {
-                continue;
-            }
             cmd = cmd.option(CommandOption::from(opt));
         }
 
@@ -269,7 +263,7 @@ impl From<super::ArgDesc> for CommandOption {
                 .required(value.required)
                 .channel_types(d.channel_types)
                 .build(),
-            super::ArgKind::Message(_) => StringBuilder::new(value.name, value.description)
+            super::ArgKind::Message => StringBuilder::new(value.name, value.description)
                 .required(value.required)
                 .min_length(1)
                 .max_length(32)

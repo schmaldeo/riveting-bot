@@ -7,6 +7,10 @@ pub struct Quote;
 
 impl Command for Quote {
     type Data = Self;
+
+    async fn uber(_ctx: Context, _data: Self::Data) -> CommandResult {
+        todo!()
+    }
 }
 
 /// Command: Add a quote.
@@ -15,6 +19,10 @@ pub struct Add;
 
 impl Command for Add {
     type Data = Self;
+
+    async fn uber(_ctx: Context, _data: Self::Data) -> CommandResult {
+        todo!()
+    }
 }
 
 /// Command: Remove a quote.
@@ -23,6 +31,10 @@ pub struct Remove;
 
 impl Command for Remove {
     type Data = Self;
+
+    async fn uber(_ctx: Context, _data: Self::Data) -> CommandResult {
+        todo!()
+    }
 }
 
 fn quote_user(text: &str, user: &str) -> String {

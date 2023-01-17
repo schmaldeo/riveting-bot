@@ -20,8 +20,8 @@ pub mod bulk {
     /// Command: Delete a bunch of messages at once.
     #[derive(Default)]
     pub struct BulkDelete {
+        args: Args,
         timestamp: i64,
-        amount: Option<i64>,
         channel_id: Option<Id<ChannelMarker>>,
         message_id: Option<Id<MessageMarker>>,
     }
@@ -34,15 +34,13 @@ pub mod bulk {
 
             let two_weeks_ago = data.timestamp - TWO_WEEKS_SECS;
 
-            let Some(count) = data.amount else {
+            let Some(count) = data.args.get("amount").integer() else {
                 return Err(CommandError::MissingArgs);
             };
 
-            let Ok(delete_count) = count.max(MAX_DELETE).try_into() else {
+            let Ok(delete_count) = count.min(MAX_DELETE).try_into() else {
                 return Err(CommandError::UnexpectedArgs(format!("Could not parse delete count: '{count}'")))
             };
-
-            println!("{delete_count:?}");
 
             if delete_count == 0 {
                 return Ok(Response::Clear);
@@ -53,14 +51,14 @@ pub mod bulk {
             };
 
             let Some(message_id) = data.message_id else {
-                return Err(CommandError::MissingArgs); // FIXME
+                return Err(CommandError::MissingArgs); // FIXME: Slash command has no message id.
             };
 
             // Fetch and filter messages that are not older than two weeks.
             let msgs: Vec<_> = ctx
                 .http
                 .channel_messages(channel_id)
-                .around(message_id)
+                .before(message_id)
                 .limit(delete_count)?
                 .send()
                 .await?
@@ -81,10 +79,9 @@ pub mod bulk {
         }
 
         async fn classic(ctx: Context, req: ClassicRequest) -> CommandResult {
-            println!("{:?}", req.args);
             Self::uber(ctx, Self {
+                args: req.args,
                 timestamp: req.message.timestamp.as_secs(),
-                amount: req.args.first().and_then(|a| a.value.clone().integer()),
                 channel_id: Some(req.message.channel_id),
                 message_id: Some(req.message.id),
             })
@@ -92,10 +89,9 @@ pub mod bulk {
         }
 
         async fn slash(ctx: Context, req: SlashRequest) -> CommandResult {
-            println!("{:?}", req.args);
             Self::uber(ctx, Self {
+                args: req.args,
                 timestamp: chrono::Utc::now().timestamp(),
-                amount: req.args.first().and_then(|a| a.value.clone().integer()),
                 channel_id: req.interaction.channel_id,
                 message_id: None,
             })

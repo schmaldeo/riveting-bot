@@ -22,7 +22,7 @@ HTP examples:
 /// Command: Display a discord timestamp.
 #[derive(Default)]
 pub struct Time {
-    expr: Option<String>,
+    args: Args,
     channel_id: Option<Id<ChannelMarker>>,
     message_id: Option<Id<MessageMarker>>,
 }
@@ -31,7 +31,7 @@ impl Command for Time {
     type Data = Self;
 
     async fn uber(ctx: Context, data: Self::Data) -> CommandResult {
-        let Some(expr) = data.expr else {
+        let Some(expr) = data.args.get("expression").string().cloned() else {
             return Err(CommandError::MissingArgs);
         };
 
@@ -40,7 +40,7 @@ impl Command for Time {
         };
 
         let Some(message_id) = data.message_id else {
-            return Err(CommandError::MissingArgs); // FIXME
+            return Err(CommandError::MissingArgs); // FIXME: Slash command has no message id.
         };
 
         let now = chrono::Utc::now();
@@ -68,7 +68,7 @@ impl Command for Time {
 
     async fn classic(ctx: Context, req: ClassicRequest) -> CommandResult {
         Self::uber(ctx, Self {
-            expr: req.args.first().and_then(|a| a.value.string().cloned()),
+            args: req.args,
             channel_id: Some(req.message.channel_id),
             message_id: Some(req.message.id),
         })
@@ -77,7 +77,7 @@ impl Command for Time {
 
     async fn slash(ctx: Context, req: SlashRequest) -> CommandResult {
         Self::uber(ctx, Self {
-            expr: req.args.first().and_then(|a| a.value.string().cloned()),
+            args: req.args,
             channel_id: req.interaction.channel_id,
             message_id: None,
         })

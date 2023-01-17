@@ -27,6 +27,10 @@ pub struct Join;
 
 impl Command for Join {
     type Data = Self;
+
+    async fn uber(_ctx: Context, _data: Self::Data) -> CommandResult {
+        todo!()
+    }
 }
 
 /// Command: Tell the bot to disconnect from a voice channel.
@@ -35,4 +39,8 @@ pub struct Leave;
 
 impl Command for Leave {
     type Data = Self;
+
+    async fn uber(_ctx: Context, _data: Self::Data) -> CommandResult {
+        todo!()
+    }
 }

@@ -5,6 +5,10 @@ use crate::utils::prelude::*;
 pub struct Shutdown;
 
 impl Command for Shutdown {
+    async fn uber(_ctx: Context, _data: Self::Data) -> CommandResult {
+        todo!()
+    }
+
     async fn classic(ctx: Context, req: ClassicRequest) -> CommandResult {
         info!("Shutting down by chat command");
 

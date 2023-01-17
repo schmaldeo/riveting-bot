@@ -5,6 +5,10 @@ use crate::commands_v2::prelude::*;
 pub struct Config;
 
 impl Command for Config {
+    async fn uber(_ctx: Context, _data: Self::Data) -> CommandResult {
+        todo!()
+    }
+
     async fn classic(_ctx: Context, _req: ClassicRequest) -> CommandResult {
         Ok(Response::None)
     }
@@ -14,6 +18,10 @@ impl Command for Config {
 pub struct Get;
 
 impl Command for Get {
+    async fn uber(_ctx: Context, _data: Self::Data) -> CommandResult {
+        todo!()
+    }
+
     async fn classic(_ctx: Context, _req: ClassicRequest) -> CommandResult {
         Ok(Response::None)
     }
@@ -23,6 +31,10 @@ impl Command for Get {
 pub struct Set;
 
 impl Command for Set {
+    async fn uber(_ctx: Context, _data: Self::Data) -> CommandResult {
+        todo!()
+    }
+
     async fn classic(_ctx: Context, _req: ClassicRequest) -> CommandResult {
         Ok(Response::None)
     }
@@ -32,6 +44,10 @@ impl Command for Set {
 pub struct Cleanup;
 
 impl Command for Cleanup {
+    async fn uber(_ctx: Context, _data: Self::Data) -> CommandResult {
+        todo!()
+    }
+
     async fn classic(_ctx: Context, _req: ClassicRequest) -> CommandResult {
         Ok(Response::None)
     }

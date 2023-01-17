@@ -3,9 +3,11 @@ use twilight_model::id::marker::{ChannelMarker, GuildMarker, MessageMarker};
 use twilight_model::id::Id;
 
 use crate::commands_v2::prelude::*;
-use crate::utils::prelude::*;
+// use crate::utils::prelude::*;
 use crate::Context;
 
+/// Command: Ping Pong!
+#[derive(Default)]
 pub struct Ping;
 
 impl Command for Ping {
@@ -14,6 +16,7 @@ impl Command for Ping {
     }
 }
 
+/// Command: Info about the bot.
 #[derive(Default)]
 pub struct About {
     guild_id: Option<Id<GuildMarker>>,
@@ -27,7 +30,7 @@ impl Command for About {
     async fn uber(ctx: Context, data: Self::Data) -> CommandResult {
         let about_msg = formatdoc!(
             "I am a RivetingBot!
-            You can list my commands with the `{prefix}help` command.
+            You can list my commands with `/help` or `{prefix}help` command.
             My current version *(allegedly)* is `{version}`.
             My source is available at <{link}>
             ",
@@ -36,19 +39,7 @@ impl Command for About {
             link = env!("CARGO_PKG_REPOSITORY"),
         );
 
-        let res = ctx
-            .http
-            .create_message(data.channel_id.unwrap())
-            .content(&about_msg)?;
-
-        match data.message_id {
-            Some(message_id) => res.reply(message_id),
-            None => res,
-        }
-        .send()
-        .await?;
-
-        Ok(Response::Clear)
+        Ok(Response::CreateMessage(about_msg))
     }
 
     async fn classic(ctx: Context, req: ClassicRequest) -> CommandResult {
@@ -70,8 +61,10 @@ impl Command for About {
     }
 }
 
+/// Command: Help for using the bot, commands and usage.
 #[derive(Default)]
 pub struct Help {
+    args: Args,
     guild_id: Option<Id<GuildMarker>>,
     channel_id: Option<Id<ChannelMarker>>,
     message_id: Option<Id<MessageMarker>>,
@@ -81,6 +74,11 @@ impl Command for Help {
     type Data = Self;
 
     async fn uber(ctx: Context, data: Self::Data) -> CommandResult {
+        if let Some(_value) = data.args.get("command").string().cloned() {
+            // TODO: If "command" argument exists, show help on that command instead.
+            todo!("get rekt");
+        }
+
         let help_msg = {
             let lock = ctx.config.lock().unwrap();
             let global_prefix = &lock.prefix;
@@ -97,35 +95,23 @@ impl Command for Help {
                     );
                 }
             }
-            // FIXME: Commands v2 display
             formatdoc!(
                 "```yaml
                 {}
                 Commands:
-                {:?}
+                {}
                 ```",
                 prefix_msg,
                 ctx.commands
             )
         };
 
-        let res = ctx
-            .http
-            .create_message(data.channel_id.unwrap())
-            .content(&help_msg)?;
-
-        match data.message_id {
-            Some(message_id) => res.reply(message_id),
-            None => res,
-        }
-        .send()
-        .await?;
-
-        Ok(Response::Clear)
+        Ok(Response::CreateMessage(help_msg))
     }
 
     async fn classic(ctx: Context, req: ClassicRequest) -> CommandResult {
         Self::uber(ctx, Self {
+            args: req.args,
             guild_id: req.message.guild_id,
             channel_id: Some(req.message.channel_id),
             message_id: Some(req.message.id),
@@ -135,6 +121,7 @@ impl Command for Help {
 
     async fn slash(ctx: Context, req: SlashRequest) -> CommandResult {
         Self::uber(ctx, Self {
+            args: req.args,
             guild_id: req.interaction.guild_id,
             channel_id: req.interaction.channel_id,
             message_id: None,
