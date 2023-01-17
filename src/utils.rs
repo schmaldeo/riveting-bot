@@ -28,8 +28,9 @@ pub use crate::utils::prelude::*;
 
 /// Re-exports of useful things.
 pub mod prelude {
-    pub use anyhow::Result as AnyResult;
+    pub use anyhow::{Context as _, Result as AnyResult};
     pub use async_trait::async_trait;
+    pub use futures::prelude::*;
     pub use tracing::{debug, error, info, trace, warn};
 
     pub use super::{impl_debug_struct_fields, ExecModelExt};
