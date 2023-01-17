@@ -40,15 +40,9 @@ pub mod mock {
 pub type CallFuture = Pin<Box<dyn Future<Output = CommandResult> + Send>>;
 
 macro_rules! function_trait {
-    ( $( $( #[$trait_meta:meta] )* $v:vis trait $fn_trait:ident { $request:ty } => $var:path )* ) => {
+    ( $( $request:ty => $var:path )* ) => {
         $(
-            $( #[$trait_meta] )*
-            $v trait $fn_trait: Send + Sync {
-                fn call(&self, ctx: Context, req: $request) -> CallFuture;
-                fn into_shared(self) -> Arc<dyn $fn_trait>;
-            }
-
-            impl<F, Fut> $fn_trait for F
+            impl<F, Fut> Callable<$request> for F
             where
                 F: Fn(Context, $request) -> Fut + Send + Sync + 'static,
                 Fut: Future<Output = CommandResult> + Send + 'static,
@@ -57,24 +51,24 @@ macro_rules! function_trait {
                     Box::pin((self)(ctx, req))
                 }
 
-                fn into_shared(self) -> Arc<dyn $fn_trait> {
+                fn into_shared(self) -> Arc<dyn Callable<$request>> {
                     Arc::new(self)
                 }
             }
 
-            impl $fn_trait for Arc<dyn $fn_trait> {
+            impl Callable<$request> for Arc<dyn Callable<$request>> {
                 fn call(&self, ctx: Context, req: $request) -> CallFuture {
                     (**self).call(ctx, req)
                 }
 
-                fn into_shared(self) -> Arc<dyn $fn_trait> {
+                fn into_shared(self) -> Arc<dyn Callable<$request>> {
                     self
                 }
             }
 
             impl<T> IntoFunction<$request> for T
             where
-                T: $fn_trait,
+                T: Callable<$request>,
             {
                 fn into_function(self) -> Function {
                     $var(self.into_shared())
@@ -85,17 +79,25 @@ macro_rules! function_trait {
 }
 
 function_trait! {
-    #[doc = "Function that can handle basic text command."]
-    pub trait ClassicFunction { ClassicRequest } => Function::Classic
+    // Function that can handle basic text command.
+    ClassicRequest => Function::Classic
+    // Function that can handle interactive text command.
+    SlashRequest => Function::Slash
+    // Function that can handle GUI-based message command.
+    MessageRequest => Function::Message
+    // Function that can handle GUI-based user command.
+    UserRequest => Function::User
+}
 
-    #[doc = "Function that can handle interactive text command."]
-    pub trait SlashFunction { SlashRequest } => Function::Slash
+pub trait ClassicFunction = Callable<ClassicRequest>;
+pub trait SlashFunction = Callable<SlashRequest>;
+pub trait MessageFunction = Callable<MessageRequest>;
+pub trait UserFunction = Callable<UserRequest>;
 
-    #[doc = "Function that can handle GUI-based message command."]
-    pub trait MessageFunction { MessageRequest } => Function::Message
-
-    #[doc = "Function that can handle GUI-based user command."]
-    pub trait UserFunction { UserRequest } => Function::User
+/// Trait for functions that can be called with a generic request.
+pub trait Callable<R>: Send + Sync {
+    fn call(&self, ctx: Context, req: R) -> CallFuture;
+    fn into_shared(self) -> Arc<dyn Callable<R>>;
 }
 
 /// Trait for converting something callable into a specific supported type.
@@ -106,10 +108,10 @@ pub trait IntoFunction<R> {
 /// Supported function types.
 #[derive(Clone, Unwrap, IsVariant)]
 pub enum Function {
-    Classic(Arc<dyn ClassicFunction>),
-    Slash(Arc<dyn SlashFunction>),
-    Message(Arc<dyn MessageFunction>),
-    User(Arc<dyn UserFunction>),
+    Classic(Arc<dyn Callable<ClassicRequest>>),
+    Slash(Arc<dyn Callable<SlashRequest>>),
+    Message(Arc<dyn Callable<MessageRequest>>),
+    User(Arc<dyn Callable<UserRequest>>),
 }
 
 impl std::fmt::Debug for Function {
