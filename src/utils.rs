@@ -33,7 +33,7 @@ pub mod prelude {
     pub use futures::prelude::*;
     pub use tracing::{debug, error, info, trace, warn};
 
-    pub use super::{impl_debug_struct_fields, ErrorExt, ExecModelExt};
+    pub use super::{impl_debug_struct_fields, impl_variant_option, ErrorExt, ExecModelExt};
 }
 
 /// Universal constants.
@@ -102,6 +102,66 @@ pub macro impl_debug_struct_fields($t:ty { $($field:ident),* $(,)? }) {
             $(.field(stringify!($field), &self.$field))*
             .finish_non_exhaustive()
         }
+    }
+}
+
+/// Macro to create enum methods for optional variant.
+/// <br>`<vis> fn <name> ( &self: <variant> ( <inner> ) ) -> <type> { <expression> }`
+/// <br>`<vis> fn <name> ( &self: <variant> ( <inner> ) ) -> <type> ;`
+/// <br>`<vis> fn <name> ( &self: <variant> ) ;`
+/// # Examples:
+/// ```
+/// enum Enum {
+///     Variant(usize),
+///     Other(String),
+///     None,
+/// }
+///
+/// impl Enum {
+///     impl_variant_option!(
+///         pub fn variant(&self: Variant(n)) -> usize { *n }
+///         pub fn other(&self: Other(s)) -> &str;
+///         pub fn none(&self: None);
+///     );
+/// }
+/// ```
+pub macro impl_variant_option {
+    (@
+        $v:vis fn $func:ident ( &self: $var:ident $( ( $tok:tt ) )? ) -> $ret:ty { $out:expr }
+    ) => {
+        /// Returns `Some` if `self` matches variant, else `None`.
+        $v fn $func(&self) -> Option<$ret> {
+            match self {
+                Self::$var$(($tok))? => Some($out),
+                _ => None,
+            }
+        }
+    },
+    (@
+        $v:vis fn $func:ident ( &self: $var:ident ( $tok:tt ) ) -> $ret:ty
+    ) => {
+        impl_variant_option!(@
+            $v fn $func ( &self: $var ( $tok ) ) -> $ret { $tok }
+        );
+    },
+    (@
+        $v:vis fn $func:ident ( &self: $var:ident )
+    ) => {
+        impl_variant_option!(@
+            $v fn $func ( &self: $var ) -> () { () }
+        );
+    },
+    (
+        $(
+            $v:vis fn $func:ident ( &self: $var:ident $( ( $tok:tt ) )? )
+            $( -> $ret:ty $( { $out:expr } )? )? $( ; )?
+        )*
+    ) => {
+        $(
+            impl_variant_option!(@
+                $v fn $func ( &self: $var $( ( $tok ) )? ) $( -> $ret $( { $out } )? )?
+            );
+        )*
     }
 }
 
