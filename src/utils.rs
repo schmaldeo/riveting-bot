@@ -17,7 +17,8 @@ use twilight_http::request::guild::GetGuild;
 use twilight_http::request::user::{GetCurrentUser, GetCurrentUserGuildMember, GetUser};
 use twilight_http::request::GetUserApplicationInfo;
 use twilight_model::application::command::Command;
-use twilight_model::channel::{Channel, Message, ReactionType};
+use twilight_model::channel::message::ReactionType;
+use twilight_model::channel::{Channel, Message};
 use twilight_model::guild::{Emoji, Guild, Member, Role};
 use twilight_model::id::marker::EmojiMarker;
 use twilight_model::id::Id;
@@ -55,12 +56,12 @@ impl ErrorExt for anyhow::Error {
     }
 }
 
-/// A trait to simplify `.exec().await?.model.await` chain.
+/// A trait to simplify `.await?.model().await` chain.
 #[async_trait]
 pub trait ExecModelExt {
     type Value;
 
-    /// Send the command by calling `exec()` and `model()`.
+    /// Send the command by awaiting and calling `model()`.
     async fn send(self) -> AnyResult<Self::Value>;
 }
 
@@ -71,7 +72,7 @@ macro impl_exec_model_ext($req:ty, $val:ty) {
         type Value = $val;
 
         async fn send(self) -> AnyResult<Self::Value> {
-            self.exec().await?.model().await.map_err(Into::into)
+            self.await?.model().await.map_err(Into::into)
         }
     }
 }

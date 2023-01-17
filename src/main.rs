@@ -8,6 +8,7 @@
 #![feature(pattern)]
 #![feature(trait_alias)]
 #![feature(async_fn_in_trait)]
+//
 #![allow(dead_code)]
 #![allow(clippy::significant_drop_in_scrutinee)]
 
@@ -22,12 +23,12 @@ use twilight_gateway::{Cluster, Event};
 use twilight_http::client::InteractionClient;
 use twilight_http::Client;
 use twilight_model::application::interaction::{Interaction, InteractionData};
-use twilight_model::channel::{Message, Reaction};
+use twilight_model::channel::Message;
 use twilight_model::gateway::event::shard::Connected;
 use twilight_model::gateway::payload::incoming::{
     MessageDelete, MessageDeleteBulk, MessageUpdate, Ready,
 };
-use twilight_model::gateway::Intents;
+use twilight_model::gateway::{GatewayReaction, Intents};
 use twilight_model::guild::Guild;
 use twilight_model::http::interaction::{
     InteractionResponse, InteractionResponseData, InteractionResponseType,
@@ -226,7 +227,7 @@ async fn handle_event(ctx: Context, event: Event) -> AnyResult<()> {
     };
 
     if let Err(e) = result {
-        println!("Event error: {e:#?}");
+        println!("Event error: {e}");
         error!("Event error: {e}");
     }
 
@@ -276,7 +277,7 @@ async fn handle_guild_create(ctx: &Context, guild: Guild) -> AnyResult<()> {
     if let Some(whitelist) = whitelist {
         if !whitelist.contains(&guild.id) {
             info!("Leaving a non-whitelisted guild '{}'", guild.id);
-            ctx.http.leave_guild(guild.id).exec().await?;
+            ctx.http.leave_guild(guild.id).await?;
         } else {
             debug!("Whitelisted guild: '{}'", guild.id)
         }
@@ -310,13 +311,12 @@ async fn handle_interaction_create(ctx: &Context, mut inter: Interaction) -> Any
             // Acknowledge the interaction.
             interaction
                 .create_response(inter.id, &inter.token, &resp)
-                .exec()
                 .await?;
 
             // TODO WIP
 
             // Delete the response.
-            interaction.delete_response(&inter.token).exec().await?;
+            interaction.delete_response(&inter.token).await?;
 
             // Process the command.
             let inter = Arc::new(inter); // Might be needed later.
@@ -327,6 +327,10 @@ async fn handle_interaction_create(ctx: &Context, mut inter: Interaction) -> Any
             //
         },
         Some(InteractionData::ModalSubmit(d)) => {
+            println!("{d:#?}");
+            //
+        },
+        Some(d) => {
             println!("{d:#?}");
             //
         },
@@ -428,7 +432,7 @@ async fn handle_message_delete_bulk(ctx: &Context, mdb: MessageDeleteBulk) -> An
     Ok(())
 }
 
-async fn handle_reaction_add(ctx: &Context, reaction: Reaction) -> AnyResult<()> {
+async fn handle_reaction_add(ctx: &Context, reaction: GatewayReaction) -> AnyResult<()> {
     let Some(guild_id) = reaction.guild_id else {
         return Ok(());
     };
@@ -481,14 +485,13 @@ async fn handle_reaction_add(ctx: &Context, reaction: Reaction) -> AnyResult<()>
     for role_id in add_roles {
         ctx.http
             .add_guild_member_role(guild_id, reaction.user_id, role_id)
-            .exec()
             .await?;
     }
 
     Ok(())
 }
 
-async fn handle_reaction_remove(ctx: &Context, reaction: Reaction) -> AnyResult<()> {
+async fn handle_reaction_remove(ctx: &Context, reaction: GatewayReaction) -> AnyResult<()> {
     let Some(guild_id) = reaction.guild_id else {
         return Ok(());
     };
@@ -542,7 +545,6 @@ async fn handle_reaction_remove(ctx: &Context, reaction: Reaction) -> AnyResult<
     for role_id in remove_roles {
         ctx.http
             .remove_guild_member_role(guild_id, reaction.user_id, role_id)
-            .exec()
             .await?;
     }
 

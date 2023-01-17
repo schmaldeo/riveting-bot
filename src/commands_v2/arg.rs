@@ -84,7 +84,7 @@ impl TryFrom<CommandOptionValue> for ArgValue {
     fn try_from(value: CommandOptionValue) -> Result<Self, Self::Error> {
         match value {
             CommandOptionValue::Boolean(b) => Ok(Self::Bool(b)),
-            CommandOptionValue::Number(n) => Ok(Self::Number(n.0)),
+            CommandOptionValue::Number(n) => Ok(Self::Number(n)),
             CommandOptionValue::Integer(i) => Ok(Self::Integer(i)),
             CommandOptionValue::String(s) => Ok(Self::String(s)),
             CommandOptionValue::Channel(id) => Ok(Self::Channel(Ref::Id(id))),

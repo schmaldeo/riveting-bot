@@ -42,8 +42,8 @@ use crate::commands_v2::builder::twilight::{
 };
 use crate::commands_v2::function::{Function, IntoFunction};
 use crate::commands_v2::CommandResult;
+use crate::utils::prelude::*;
 use crate::Context;
-// use crate::utils::prelude::*;
 
 pub mod twilight;
 
@@ -427,16 +427,19 @@ impl BaseCommand {
             .iter()
             .filter_map(|f| match f {
                 Function::Classic(_) => None,
-                Function::Slash(_) => Some(SlashCommand::try_from(self).map(Into::into)),
-                Function::Message(_) => Some(UserCommand::try_from(self).map(Into::into)),
-                Function::User(_) => Some(MessageCommand::try_from(self).map(Into::into)),
+                Function::Slash(_) => Some(SlashCommand::try_from(self.clone()).map(Into::into)),
+                Function::Message(_) => {
+                    Some(MessageCommand::try_from(self.clone()).map(Into::into))
+                },
+                Function::User(_) => Some(UserCommand::try_from(self.clone()).map(Into::into)),
             })
             .try_collect()
     }
 
     /// Validate the command.
     pub fn validate(&self) -> Result<(), CommandValidationError> {
-        self.twilight_commands()?; // HACK Mostly waste of cpu cycles.
+        self.twilight_commands()
+            .context("Failed to validate command")?; // HACK: Mostly waste of cpu cycles.
         Ok(())
     }
 }

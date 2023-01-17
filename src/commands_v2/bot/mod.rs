@@ -150,6 +150,7 @@ pub fn create_commands() -> AnyResult<CommandsBuilder> {
             command("timeout", "Give someone a timeout.")
                 .attach(admin::silence::Timeout::classic)
                 .attach(admin::silence::Timeout::slash)
+                .attach(admin::silence::Timeout::message)
                 .attach(admin::silence::Timeout::user)
                 .permissions(Permissions::ADMINISTRATOR),
         );

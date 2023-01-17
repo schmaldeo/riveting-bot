@@ -85,23 +85,6 @@ pub trait Command {
 }
 
 #[derive(Debug, Error)]
-pub struct ClientError(#[from] twilight_http::Error);
-
-impl std::fmt::Display for ClientError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let err = &self.0;
-        match err.kind() {
-            twilight_http::error::ErrorType::Parsing { body }
-            | twilight_http::error::ErrorType::Response { body, .. } => {
-                write!(f, "{err}, body: {}", String::from_utf8_lossy(body))
-            },
-            _ => write!(f, "{err}"),
-        }
-    }
-}
-
-// REVIEW: Copied from old version.
-#[derive(Debug, Error)]
 pub enum CommandError {
     /// A command prefix is needed.
     #[error("Message did not start with a command prefix")]
@@ -143,10 +126,6 @@ pub enum CommandError {
     #[error("Permission requirements not met")]
     AccessDenied,
 
-    /// Twilight client errors, when obscure.
-    #[error(transparent)]
-    Client(#[from] ClientError),
-
     /// Other errors that are or can be converted to `anyhow::Error`.
     #[error(transparent)]
     Other(#[from] anyhow::Error), // Source and Display delegate to `anyhow::Error`
@@ -172,7 +151,7 @@ macro impl_into_command_error($out:ident; $t:ty) {
     }
 }
 
-impl_into_command_error!(Client; twilight_http::Error);
+impl_into_command_error!(Other; twilight_http::Error);
 impl_into_command_error!(Other; twilight_http::response::DeserializeBodyError);
 impl_into_command_error!(Other; twilight_validate::request::ValidationError);
 impl_into_command_error!(Other; twilight_validate::message::MessageValidationError);
@@ -202,13 +181,7 @@ impl CommandsBuilder {
     }
 
     pub fn bind(&mut self, cmd: impl Into<BaseCommand>) -> &mut Self {
-        let cmd: BaseCommand = cmd.into();
-
-        match cmd.validate() {
-            Ok(_) => self.list.push(cmd),
-            Err(e) => panic!("Could not bind command: {e}"),
-        }
-
+        self.list.push(cmd.into());
         self
     }
 
@@ -217,7 +190,8 @@ impl CommandsBuilder {
 
         for cmd in self.list.iter() {
             // Ensure command itself is valid.
-            cmd.validate()?;
+            cmd.validate()
+                .with_context(|| cmd.command.name.to_string())?;
 
             // Ensure it doesn't overlap with other commands.
             anyhow::ensure!(
@@ -230,7 +204,7 @@ impl CommandsBuilder {
         Ok(())
     }
 
-    pub fn build(self) -> BTreeMap<&'static str, BaseCommand> {
+    pub fn build(self) -> Commands {
         self.list.into_iter().map(|b| (b.command.name, b)).collect()
     }
 }

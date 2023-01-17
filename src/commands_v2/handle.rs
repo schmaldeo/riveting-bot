@@ -126,6 +126,7 @@ pub async fn interaction_command(
             todo!();
         },
         CommandType::Unknown(n) => panic!("Unknown command kind: {n}"),
+        other => panic!("Unhandled command kind: {other:?}"),
     }
 
     // Ok(Response::Clear)

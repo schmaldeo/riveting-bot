@@ -1,85 +1,30 @@
 use thiserror::Error;
-use twilight_model::application::command::{
-    ChannelCommandOptionData, ChoiceCommandOptionData, Command, CommandOption, CommandOptionChoice,
-    CommandOptionValue, CommandType, Number, NumberCommandOptionData, OptionsCommandOptionData,
-};
-use twilight_util::builder::command::{
-    AttachmentBuilder, BooleanBuilder, ChannelBuilder, CommandBuilder, IntegerBuilder,
-    MentionableBuilder, NumberBuilder, RoleBuilder, StringBuilder, UserBuilder,
-};
+use twilight_model::application::command::{Command, CommandOption, CommandType};
+use twilight_util::builder::command::*;
 
-pub use self::traits::*;
-use crate::commands_v2::builder::{BaseCommand, ChannelData, NumericalData, StringData};
+use crate::commands_v2::builder::BaseCommand;
 use crate::utils::prelude::*;
 
-pub mod traits {
-    use twilight_model::application::command::{Command, Number};
-
-    use crate::utils::prelude::*;
-
-    pub trait IntegerBuilderExt {
-        fn into_choices(
-            self,
-            choices: impl IntoIterator<Item = (impl ToString, impl Into<i64>)>,
-        ) -> Self;
-    }
-
-    pub trait NumberBuilderExt {
-        fn into_choices(
-            self,
-            choices: impl IntoIterator<Item = (impl ToString, impl Into<Number>)>,
-        ) -> Self;
-    }
-
-    pub trait StringBuilderExt {
-        fn into_choices(
-            self,
-            choices: impl IntoIterator<Item = (impl ToString, impl ToString)>,
-        ) -> Self;
-    }
-
-    pub trait CommandBuilderExt<Output = Command>: Sized {
-        fn build_checked(self) -> AnyResult<Output>;
-    }
-
-    pub trait CommandOptionExt {
-        fn name(&self) -> &str;
+/// Helper trait for twilight builders where the value may be optional.
+/// This trait lets you apply the optional value if it is present,
+/// otherwise preserve the builder default.
+trait Optional: Sized {
+    /// Apply a function only if `value` is `Some`.
+    fn optional<F, A>(mut self, value: Option<A>, func: F) -> Self
+    where
+        F: Fn(Self, A) -> Self,
+    {
+        if let Some(value) = value {
+            self = func(self, value);
+        }
+        self
     }
 }
 
-impl IntegerBuilderExt for IntegerBuilder {
-    fn into_choices(
-        self,
-        choices: impl IntoIterator<Item = (impl ToString, impl Into<i64>)>,
-    ) -> Self {
-        self.choices(choices.into_iter().map(|(a, b)| (a.to_string(), b.into())))
-    }
-}
+impl<T> Optional for T {}
 
-impl NumberBuilderExt for NumberBuilder {
-    fn into_choices(
-        self,
-        choices: impl IntoIterator<Item = (impl ToString, impl Into<Number>)>,
-    ) -> Self {
-        self.choices(
-            choices
-                .into_iter()
-                .map(|(a, b)| (a.to_string(), b.into().into())),
-        )
-    }
-}
-
-impl StringBuilderExt for StringBuilder {
-    fn into_choices(
-        self,
-        choices: impl IntoIterator<Item = (impl ToString, impl ToString)>,
-    ) -> Self {
-        self.choices(
-            choices
-                .into_iter()
-                .map(|(a, b)| (a.to_string(), b.to_string())),
-        )
-    }
+pub trait CommandBuilderExt<Output = Command>: Sized {
+    fn build_checked(self) -> AnyResult<Output>;
 }
 
 impl CommandBuilderExt for CommandBuilder {
@@ -87,24 +32,6 @@ impl CommandBuilderExt for CommandBuilder {
         let cmd = self.build();
         validate_command(&cmd)?;
         Ok(cmd)
-    }
-}
-
-impl CommandOptionExt for CommandOption {
-    fn name(&self) -> &str {
-        match self {
-            Self::SubCommand(data) => &data.name,
-            Self::SubCommandGroup(data) => &data.name,
-            Self::String(data) => &data.name,
-            Self::Integer(data) => &data.name,
-            Self::Boolean(data) => &data.name,
-            Self::User(data) => &data.name,
-            Self::Channel(data) => &data.name,
-            Self::Role(data) => &data.name,
-            Self::Mentionable(data) => &data.name,
-            Self::Number(data) => &data.name,
-            Self::Attachment(data) => &data.name,
-        }
     }
 }
 
@@ -128,38 +55,35 @@ short_fn!(pub fn string -> StringBuilder);
 
 /// Validates options in the command.
 pub fn validate_command(cmd: &Command) -> Result<(), CommandValidationError> {
-    use twilight_validate::command::option_name as validate_option_name;
+    use twilight_validate::command as validate;
 
-    /// Checks the validity of each option and for local multiples of same option names.
+    /// Checks for local multiples of same option names.
     fn validate_options(options: &[CommandOption]) -> Result<(), CommandValidationError> {
         options.iter().enumerate().try_for_each(|(idx, opt)| {
-            let name = opt.name();
-
             // Check for local ambiguity:
             // All the rest of the options must not have this name.
             if let Some(slice) = options.get(idx + 1..) {
-                if slice.iter().any(|c| c.name() == name) {
+                if slice.iter().any(|c| c.name == opt.name) {
                     return Err(CommandValidationError::AmbiguousName(format!(
-                        "Duplicate name '{name}' in option of kind '{}'",
-                        opt.kind().kind()
+                        "Duplicate name '{}' in option of kind '{}'",
+                        opt.name,
+                        opt.kind.kind()
                     )));
                 }
             }
 
-            // Check for valid name and any subcommands or groups.
-            match opt {
-                CommandOption::SubCommand(data) | CommandOption::SubCommandGroup(data) => {
-                    validate_option_name(name)?;
-                    validate_options(&data.options)
-                },
-                _ => Ok(validate_option_name(name)?),
+            // Recursively check suboptions.
+            if let Some(options) = &opt.options {
+                validate_options(options)?;
             }
+
+            Ok(())
         })
     }
 
     if matches!(cmd.kind, CommandType::User | CommandType::Message) {
         // Check with twilight's validations.
-        twilight_validate::command::name(&cmd.name)?;
+        validate::name(&cmd.name).context("GUI-command name error")?;
 
         // Other manual checks.
         if !cmd.options.is_empty() {
@@ -167,9 +91,12 @@ pub fn validate_command(cmd: &Command) -> Result<(), CommandValidationError> {
         }
     } else {
         // Check with twilight's validations.
-        validate_option_name(&cmd.name)?;
-        twilight_validate::command::command(cmd)?; // Does not check for options.
-        twilight_validate::command::options(&cmd.options)?; // Does not check subcommand/group names or multiple uses.
+        // Does not check for options.
+        validate::command(cmd).context("Base command error")?;
+
+        // This checks for order, limit, name and description validity (recursively).
+        // Does not check for ambiguity.
+        validate::options(&cmd.options).context("Command options error")?;
 
         // Other manual checks.
         validate_options(&cmd.options)?;
@@ -199,27 +126,33 @@ pub enum CommandValidationError {
 
 pub struct SlashCommand(Command);
 
-impl TryFrom<&BaseCommand> for SlashCommand {
+impl TryFrom<BaseCommand> for SlashCommand {
     type Error = CommandValidationError;
 
-    fn try_from(value: &BaseCommand) -> Result<Self, Self::Error> {
+    fn try_from(value: BaseCommand) -> Result<Self, Self::Error> {
         let mut cmd = CommandBuilder::new(
             value.command.name,
             value.command.description,
             CommandType::ChatInput,
         )
         .dm_permission(value.dm_enabled)
-        .default_member_permissions(value.member_permissions)
-        .build();
+        .default_member_permissions(value.member_permissions);
 
-        cmd.options = value
-            .command
-            .options
-            .iter()
-            .map(|o| o.try_into().map_err(anyhow::Error::from))
-            .try_collect()?;
+        for opt in value.command.options {
+            // Ignore special case of inferred message argument.
+            if let super::CommandOption::Arg(super::ArgDesc {
+                kind: super::ArgKind::Message(super::MessageData { infer: true }),
+                ..
+            }) = opt
+            {
+                continue;
+            }
+            cmd = cmd.option(CommandOption::from(opt));
+        }
 
-        validate_command(&cmd)?;
+        let cmd = cmd.build();
+
+        validate_command(&cmd).context("Failed to validate slash command")?;
 
         Ok(Self(cmd))
     }
@@ -231,41 +164,18 @@ impl From<SlashCommand> for Command {
     }
 }
 
-pub struct UserCommand(Command);
-
-impl TryFrom<&BaseCommand> for UserCommand {
-    type Error = CommandValidationError;
-
-    fn try_from(value: &BaseCommand) -> Result<Self, Self::Error> {
-        let cmd = CommandBuilder::new(value.command.name, "", CommandType::User)
-            .dm_permission(value.dm_enabled)
-            .default_member_permissions(value.member_permissions)
-            .build();
-
-        validate_command(&cmd)?;
-
-        Ok(Self(cmd))
-    }
-}
-
-impl From<UserCommand> for Command {
-    fn from(value: UserCommand) -> Self {
-        value.0
-    }
-}
-
 pub struct MessageCommand(Command);
 
-impl TryFrom<&BaseCommand> for MessageCommand {
+impl TryFrom<BaseCommand> for MessageCommand {
     type Error = CommandValidationError;
 
-    fn try_from(value: &BaseCommand) -> Result<Self, Self::Error> {
+    fn try_from(value: BaseCommand) -> Result<Self, Self::Error> {
         let cmd = CommandBuilder::new(value.command.name, "", CommandType::Message)
             .dm_permission(value.dm_enabled)
             .default_member_permissions(value.member_permissions)
             .build();
 
-        validate_command(&cmd)?;
+        validate_command(&cmd).context("Failed to validate message command")?;
 
         Ok(Self(cmd))
     }
@@ -277,8 +187,31 @@ impl From<MessageCommand> for Command {
     }
 }
 
-impl From<&super::CommandOption> for CommandOption {
-    fn from(value: &super::CommandOption) -> Self {
+pub struct UserCommand(Command);
+
+impl TryFrom<BaseCommand> for UserCommand {
+    type Error = CommandValidationError;
+
+    fn try_from(value: BaseCommand) -> Result<Self, Self::Error> {
+        let cmd = CommandBuilder::new(value.command.name, "", CommandType::User)
+            .dm_permission(value.dm_enabled)
+            .default_member_permissions(value.member_permissions)
+            .build();
+
+        validate_command(&cmd).context("Failed to validate user command")?;
+
+        Ok(Self(cmd))
+    }
+}
+
+impl From<UserCommand> for Command {
+    fn from(value: UserCommand) -> Self {
+        value.0
+    }
+}
+
+impl From<super::CommandOption> for CommandOption {
+    fn from(value: super::CommandOption) -> Self {
         match value {
             super::CommandOption::Arg(arg) => arg.into(),
             super::CommandOption::Sub(sub) => sub.into(),
@@ -287,137 +220,70 @@ impl From<&super::CommandOption> for CommandOption {
     }
 }
 
-impl From<&super::CommandFunction> for CommandOption {
-    fn from(value: &super::CommandFunction) -> Self {
-        Self::SubCommand(OptionsCommandOptionData {
-            description: value.description.to_string(),
-            name: value.name.to_string(),
-            options: value.options.iter().map(Into::into).collect(),
-            ..Default::default()
-        })
+impl From<super::CommandFunction> for CommandOption {
+    fn from(value: super::CommandFunction) -> Self {
+        let mut sub = SubCommandBuilder::new(value.name, value.description).build();
+        sub.options
+            .get_or_insert_default()
+            .extend(value.options.into_iter().map(Into::into));
+        sub
     }
 }
 
-impl From<&super::CommandGroup> for CommandOption {
-    fn from(value: &super::CommandGroup) -> Self {
-        Self::SubCommandGroup(OptionsCommandOptionData {
-            description: value.description.to_string(),
-            name: value.name.to_string(),
-            options: value.subs.iter().map(Into::into).collect(),
-            ..Default::default()
-        })
+impl From<super::CommandGroup> for CommandOption {
+    fn from(value: super::CommandGroup) -> Self {
+        let mut group = SubCommandGroupBuilder::new(value.name, value.description).build();
+        group
+            .options
+            .get_or_insert_default()
+            .extend(value.subs.into_iter().map(Into::into));
+        group
     }
 }
 
-impl From<&super::ArgDesc> for CommandOption {
-    fn from(value: &super::ArgDesc) -> Self {
-        match &value.kind {
-            // Boolean(BaseCommandOptionData),
-            super::ArgKind::Bool => boolean(value.name, value.description)
+impl From<super::ArgDesc> for CommandOption {
+    fn from(value: super::ArgDesc) -> Self {
+        match value.kind {
+            super::ArgKind::Bool => BooleanBuilder::new(value.name, value.description)
                 .required(value.required)
                 .build(),
-
-            // Number(NumberCommandOptionData),
-            super::ArgKind::Number(NumericalData { min, max, choices }) => {
-                Self::Number(NumberCommandOptionData {
-                    choices: choices
-                        .iter()
-                        .map(|(name, val)| CommandOptionChoice::Number {
-                            name: name.to_owned(),
-                            name_localizations: None,
-                            value: Number(*val),
-                        })
-                        .collect(),
-                    description: value.description.to_string(),
-                    max_value: max.map(Number).map(CommandOptionValue::Number),
-                    min_value: min.map(Number).map(CommandOptionValue::Number),
-                    name: value.name.to_string(),
-                    required: value.required,
-                    ..Default::default()
-                })
-            },
-
-            // Integer(NumberCommandOptionData),
-            super::ArgKind::Integer(NumericalData { min, max, choices }) => {
-                Self::Integer(NumberCommandOptionData {
-                    choices: choices
-                        .iter()
-                        .map(|(name, val)| CommandOptionChoice::Int {
-                            name: name.to_owned(),
-                            name_localizations: None,
-                            value: *val,
-                        })
-                        .collect(),
-                    description: value.description.to_string(),
-                    max_value: max.map(CommandOptionValue::Integer),
-                    min_value: min.map(CommandOptionValue::Integer),
-                    name: value.name.to_string(),
-                    required: value.required,
-                    ..Default::default()
-                })
-            },
-
-            // String(ChoiceCommandOptionData),
-            super::ArgKind::String(StringData {
-                min_length,
-                max_length,
-                choices,
-            }) => Self::String(ChoiceCommandOptionData {
-                choices: choices
-                    .iter()
-                    .map(|(name, val)| CommandOptionChoice::String {
-                        name: name.to_owned(),
-                        name_localizations: None,
-                        value: val.to_owned(),
-                    })
-                    .collect(),
-                description: value.description.to_string(),
-                max_length: max_length.to_owned(),
-                min_length: min_length.to_owned(),
-                name: value.name.to_string(),
-                required: value.required,
-                ..Default::default()
-            }),
-
-            // Channel(ChannelCommandOptionData),
-            super::ArgKind::Channel(ChannelData { channel_types }) => {
-                Self::Channel(ChannelCommandOptionData {
-                    channel_types: channel_types.to_owned(),
-                    description: value.description.to_string(),
-                    description_localizations: None,
-                    name: value.name.to_string(),
-                    name_localizations: None,
-                    required: value.required,
-                })
-            },
-
-            // NOTE: Instead of message reference, get the message id as string.
-            super::ArgKind::Message(_) => Self::String(ChoiceCommandOptionData {
-                description: value.description.to_string(),
-                max_length: Some(32),
-                min_length: Some(1),
-                name: value.name.to_string(),
-                required: value.required,
-                ..Default::default()
-            }),
-
-            // User(BaseCommandOptionData),
-            super::ArgKind::User => user(value.name, value.description)
+            super::ArgKind::Number(d) => NumberBuilder::new(value.name, value.description)
+                .required(value.required)
+                .choices(d.choices)
+                .optional(d.min, |b, v| b.min_value(v))
+                .optional(d.max, |b, v| b.max_value(v))
+                .build(),
+            super::ArgKind::Integer(d) => IntegerBuilder::new(value.name, value.description)
+                .required(value.required)
+                .choices(d.choices)
+                .optional(d.min, |b, v| b.min_value(v))
+                .optional(d.max, |b, v| b.max_value(v))
+                .build(),
+            super::ArgKind::String(d) => StringBuilder::new(value.name, value.description)
+                .required(value.required)
+                .choices(d.choices)
+                .optional(d.min_length, |b, v| b.min_length(v))
+                .optional(d.max_length, |b, v| b.max_length(v))
+                .build(),
+            super::ArgKind::Channel(d) => ChannelBuilder::new(value.name, value.description)
+                .required(value.required)
+                .channel_types(d.channel_types)
+                .build(),
+            super::ArgKind::Message(_) => StringBuilder::new(value.name, value.description)
+                .required(value.required)
+                .min_length(1)
+                .max_length(32)
+                .build(),
+            super::ArgKind::Attachment => AttachmentBuilder::new(value.name, value.description)
                 .required(value.required)
                 .build(),
-
-            // Attachment(BaseCommandOptionData),
-            super::ArgKind::Attachment => attachment(value.name, value.description)
+            super::ArgKind::User => UserBuilder::new(value.name, value.description)
                 .required(value.required)
                 .build(),
-
-            // Role(BaseCommandOptionData),
-            super::ArgKind::Role => role(value.name, value.description)
+            super::ArgKind::Role => RoleBuilder::new(value.name, value.description)
                 .required(value.required)
                 .build(),
-
-            // Mentionable(BaseCommandOptionData),
-            super::ArgKind::Mention => mention(value.name, value.description)
+            super::ArgKind::Mention => MentionableBuilder::new(value.name, value.description)
                 .required(value.required)
                 .build(),
         }

@@ -7,7 +7,7 @@ use std::mem;
 use std::path::Path;
 
 use serde::{Deserialize, Serialize};
-use twilight_model::channel::ReactionType;
+use twilight_model::channel::message::ReactionType;
 use twilight_model::id::marker::{
     ChannelMarker, GuildMarker, MessageMarker, RoleMarker, UserMarker,
 };

@@ -72,9 +72,9 @@ pub mod bulk {
             // Delete the messages.
             if msgs.len() > 1 {
                 // Bulk delete must have 2 to 100 messages.
-                ctx.http.delete_messages(channel_id, &msgs).exec().await?;
+                ctx.http.delete_messages(channel_id, &msgs).await?;
             } else if let Some(msg) = msgs.first() {
-                ctx.http.delete_message(channel_id, *msg).exec().await?;
+                ctx.http.delete_message(channel_id, *msg).await?;
             }
 
             Ok(Response::Clear)
