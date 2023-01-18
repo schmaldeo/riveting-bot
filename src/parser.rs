@@ -79,20 +79,16 @@ pub fn maybe_quoted_arg(input: &str) -> Result<(&str, Option<&str>), CommandErro
     // Check if the first byte is a delimiter character (assuming all delimiter characters are one byte wide utf-8).
     if consts::DELIMITERS.contains(&(initial as char)) {
         // Find the matching pair.
-        let idx = loop {
-            let (idx, _) = bytes.find(|(_, c)| &initial == c).ok_or_else(|| {
+        let idx = bytes
+            .filter(|(i, _)| input.is_char_boundary(*i))
+            .find_map(|(i, b)| (b == initial).then_some(i))
+            .ok_or_else(|| {
                 let input = utils::escape_discord_chars(input);
                 CommandError::ParseError(format!(
                     "Missing matching delimiter: '{input}', expected one of: {}.",
                     utils::nice_list(consts::DELIMITERS)
                 ))
             })?;
-
-            // Make sure the byte is not part of another character, else try again.
-            if input.is_char_boundary(idx) {
-                break idx;
-            }
-        };
 
         // Return everything between the two and then everything after, if any.
         Ok((&input[1..idx], input.get(idx + 1..)))
