@@ -33,13 +33,26 @@ pub mod prelude {
     pub use futures::prelude::*;
     pub use tracing::{debug, error, info, trace, warn};
 
-    pub use super::{impl_debug_struct_fields, ExecModelExt};
+    pub use super::{impl_debug_struct_fields, ErrorExt, ExecModelExt};
 }
 
 /// Universal constants.
 pub mod consts {
     pub const EVERYONE: &str = "@everyone";
     pub const DELIMITERS: &[char] = &['\'', '"', '`'];
+}
+
+pub trait ErrorExt {
+    fn oneliner(&self) -> String;
+}
+
+impl ErrorExt for anyhow::Error {
+    fn oneliner(&self) -> String {
+        self.chain()
+            .map(ToString::to_string)
+            .intersperse(": ".to_string())
+            .collect()
+    }
 }
 
 /// A trait to simplify `.exec().await?.model.await` chain.
