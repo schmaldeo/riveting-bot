@@ -10,7 +10,7 @@ RUN USER=root cargo new --bin app
 WORKDIR /app
 
 # Copy manifests.
-COPY ./.cargo ./.cargo
+# COPY ./.cargo ./.cargo
 COPY ./Cargo.lock ./Cargo.toml ./
 
 # Build only the dependencies to cache them.
