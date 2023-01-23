@@ -104,18 +104,49 @@ pub const fn mention(name: &'static str, description: &'static str) -> ArgDesc {
     ArgDesc::new(name, description, ArgKind::Mention)
 }
 
+/// Helper macro to implement common methods for data builder.
+/// This assumes `data` type implements `Default`.
+macro_rules! impl_data_builder {
+    (
+        $( #[$new_meta:meta] )*
+        $vis:vis fn new(..) -> Self( $variant:ident ( $data:ty ) )
+    ) => {
+        $( #[$new_meta] )*
+        $vis fn new(name: &'static str, description: &'static str) -> Self {
+            Self(ArgDesc::new(
+                name,
+                description,
+                ArgKind::$variant( <$data>::default() ) ,
+            ))
+        }
+
+        /// Set argument to be required. All required arguments must be before any optional ones.
+        $vis const fn required(mut self) -> Self {
+            self.0.required = true;
+            self
+        }
+
+        /// Finalize the argument.
+        $vis fn build(self) -> ArgDesc {
+            self.0
+        }
+
+        /// Get inner data struct.
+        fn inner_mut(&mut self) -> &mut $data {
+            let ArgKind::$variant(ref mut data) = self.0.kind else { unreachable!() };
+            data
+        }
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct NumberOptionBuilder(ArgDesc);
 
 impl NumberOptionBuilder {
-    /// Create new number option builder.
-    pub fn new(name: &'static str, description: &'static str) -> Self {
-        Self(ArgDesc::new(
-            name,
-            description,
-            ArgKind::Number(NumericalData::default()),
-        ))
-    }
+    impl_data_builder!(
+        /// Create new number option builder.
+        pub fn new(..) -> Self(Number(NumericalData<f64>))
+    );
 
     /// Set minimum value.
     pub fn min(mut self, min: f64) -> Self {
@@ -137,37 +168,16 @@ impl NumberOptionBuilder {
         self.inner_mut().choices = choices.into_iter().map(|(a, b)| (a.into(), b)).collect();
         self
     }
-
-    /// Set argument to be required. All required arguments must be before any optional ones.
-    pub const fn required(mut self) -> Self {
-        self.0.required = true;
-        self
-    }
-
-    /// Finalize the argument.
-    pub fn build(self) -> ArgDesc {
-        self.0
-    }
-
-    /// Get inner data struct.
-    fn inner_mut(&mut self) -> &mut NumericalData<f64> {
-        let ArgKind::Number(ref mut data) = self.0.kind else { unreachable!() };
-        data
-    }
 }
 
 #[derive(Debug, Clone)]
 pub struct IntegerOptionBuilder(ArgDesc);
 
 impl IntegerOptionBuilder {
-    /// Create new integer option builder.
-    pub fn new(name: &'static str, description: &'static str) -> Self {
-        Self(ArgDesc::new(
-            name,
-            description,
-            ArgKind::Integer(NumericalData::default()),
-        ))
-    }
+    impl_data_builder!(
+        /// Create new integer option builder.
+        pub fn new(..) -> Self(Integer(NumericalData<i64>))
+    );
 
     /// Set minimum value.
     pub fn min(mut self, min: i64) -> Self {
@@ -189,37 +199,16 @@ impl IntegerOptionBuilder {
         self.inner_mut().choices = choices.into_iter().map(|(a, b)| (a.into(), b)).collect();
         self
     }
-
-    /// Set argument to be required. All required arguments must be before any optional ones.
-    pub const fn required(mut self) -> Self {
-        self.0.required = true;
-        self
-    }
-
-    /// Finalize the argument.
-    pub fn build(self) -> ArgDesc {
-        self.0
-    }
-
-    /// Get inner data struct.
-    fn inner_mut(&mut self) -> &mut NumericalData<i64> {
-        let ArgKind::Integer(ref mut data) = self.0.kind else { unreachable!() };
-        data
-    }
 }
 
 #[derive(Debug, Clone)]
 pub struct StringOptionBuilder(ArgDesc);
 
 impl StringOptionBuilder {
-    /// Create new string option builder.
-    pub fn new(name: &'static str, description: &'static str) -> Self {
-        Self(ArgDesc::new(
-            name,
-            description,
-            ArgKind::String(StringData::default()),
-        ))
-    }
+    impl_data_builder!(
+        /// Create new string option builder.
+        pub fn new(..) -> Self(String(StringData))
+    );
 
     /// Maximum allowed length. Must be at least `1` and at most `6000`.
     pub fn max_length(mut self, max: u16) -> Self {
@@ -244,37 +233,16 @@ impl StringOptionBuilder {
             .collect();
         self
     }
-
-    /// Set argument to be required. All required arguments must be before any optional ones.
-    pub const fn required(mut self) -> Self {
-        self.0.required = true;
-        self
-    }
-
-    /// Finalize the argument.
-    pub fn build(self) -> ArgDesc {
-        self.0
-    }
-
-    /// Get inner data struct.
-    fn inner_mut(&mut self) -> &mut StringData {
-        let ArgKind::String(ref mut data) = self.0.kind else { unreachable!() };
-        data
-    }
 }
 
 #[derive(Debug, Clone)]
 pub struct ChannelOptionBuilder(ArgDesc);
 
 impl ChannelOptionBuilder {
-    /// Create new channel option builder.
-    pub fn new(name: &'static str, description: &'static str) -> Self {
-        Self(ArgDesc::new(
-            name,
-            description,
-            ArgKind::Channel(ChannelData::default()),
-        ))
-    }
+    impl_data_builder!(
+        /// Create new channel option builder.
+        pub fn new(..) -> Self(Channel(ChannelData))
+    );
 
     /// Set channel types for the option.
     ///
@@ -282,23 +250,6 @@ impl ChannelOptionBuilder {
     pub fn types(mut self, types: impl IntoIterator<Item = ChannelType>) -> Self {
         self.inner_mut().channel_types = types.into_iter().collect();
         self
-    }
-
-    /// Set argument to be required. All required arguments must be before any optional ones.
-    pub const fn required(mut self) -> Self {
-        self.0.required = true;
-        self
-    }
-
-    /// Finalize the argument.
-    pub fn build(self) -> ArgDesc {
-        self.0
-    }
-
-    /// Get inner data struct.
-    fn inner_mut(&mut self) -> &mut ChannelData {
-        let ArgKind::Channel(ref mut data) = self.0.kind else { unreachable!() };
-        data
     }
 }
 
