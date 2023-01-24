@@ -136,15 +136,16 @@ impl TryFrom<BaseCommand> for SlashCommand {
             value.command.name,
             value.command.description,
             CommandType::ChatInput,
-        )
-        .dm_permission(value.dm_enabled)
-        .default_member_permissions(value.member_permissions);
+        );
 
         for opt in value.command.options {
             cmd = cmd.option(CommandOption::from(opt));
         }
 
-        let cmd = cmd.build();
+        let mut cmd = cmd.build();
+
+        cmd.dm_permission = value.dm_enabled;
+        cmd.default_member_permissions = value.member_permissions;
 
         validate_command(&cmd).context("Failed to validate slash command")?;
 
@@ -164,10 +165,10 @@ impl TryFrom<BaseCommand> for MessageCommand {
     type Error = CommandValidationError;
 
     fn try_from(value: BaseCommand) -> Result<Self, Self::Error> {
-        let cmd = CommandBuilder::new(value.command.name, "", CommandType::Message)
-            .dm_permission(value.dm_enabled)
-            .default_member_permissions(value.member_permissions)
-            .build();
+        let mut cmd = CommandBuilder::new(value.command.name, "", CommandType::Message).build();
+
+        cmd.dm_permission = value.dm_enabled;
+        cmd.default_member_permissions = value.member_permissions;
 
         validate_command(&cmd).context("Failed to validate message command")?;
 
@@ -187,10 +188,10 @@ impl TryFrom<BaseCommand> for UserCommand {
     type Error = CommandValidationError;
 
     fn try_from(value: BaseCommand) -> Result<Self, Self::Error> {
-        let cmd = CommandBuilder::new(value.command.name, "", CommandType::User)
-            .dm_permission(value.dm_enabled)
-            .default_member_permissions(value.member_permissions)
-            .build();
+        let mut cmd = CommandBuilder::new(value.command.name, "", CommandType::User).build();
+
+        cmd.dm_permission = value.dm_enabled;
+        cmd.default_member_permissions = value.member_permissions;
 
         validate_command(&cmd).context("Failed to validate user command")?;
 
