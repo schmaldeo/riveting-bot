@@ -33,6 +33,7 @@
 
 use std::collections::{BTreeMap, HashSet};
 use std::mem;
+use std::sync::Arc;
 
 use derive_more::{Index, IntoIterator};
 use thiserror::Error;
@@ -185,11 +186,11 @@ pub type CommandResult = Result<Response, CommandError>;
 
 /// Newtype for commands collection.
 #[derive(Debug, Default, Clone, IntoIterator, Index)]
-pub struct Commands(BTreeMap<&'static str, BaseCommand>);
+pub struct Commands(BTreeMap<&'static str, Arc<BaseCommand>>);
 
 impl Commands {
     /// Get base command by name.
-    pub fn get(&self, id: &str) -> Option<&BaseCommand> {
+    pub fn get(&self, id: &str) -> Option<&Arc<BaseCommand>> {
         self.0.get(id)
     }
 
@@ -202,7 +203,7 @@ impl Commands {
     }
 
     /// Get reference to the inner list.
-    pub fn inner(&self) -> &BTreeMap<&'static str, BaseCommand> {
+    pub fn inner(&self) -> &BTreeMap<&'static str, Arc<BaseCommand>> {
         &self.0
     }
 }
@@ -253,6 +254,11 @@ impl CommandsBuilder {
 
     /// Finalize the list of commands.
     pub fn build(self) -> Commands {
-        Commands(self.list.into_iter().map(|b| (b.command.name, b)).collect())
+        Commands(
+            self.list
+                .into_iter()
+                .map(|b| (b.command.name, Arc::new(b)))
+                .collect(),
+        )
     }
 }

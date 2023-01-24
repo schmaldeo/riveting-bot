@@ -43,7 +43,7 @@ pub async fn application_command(
         return Err(CommandError::NotFound(format!("Command '{}' does not exist", data.name)))
     };
 
-    let base = Arc::new(base.to_owned()); // TODO: Should avoid this clone.
+    let base = Arc::clone(base);
     let inter = Arc::new(inter);
     let data = Arc::new(data);
 
