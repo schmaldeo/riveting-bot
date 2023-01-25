@@ -335,7 +335,7 @@ impl ArgDesc {
 #[derive(Debug, Clone)]
 pub struct BaseCommand {
     pub command: CommandFunction,
-    pub dm_enabled: Option<bool>,
+    pub dm_enabled: bool,
     pub member_permissions: Option<Permissions>,
 }
 
@@ -375,14 +375,14 @@ impl BaseCommandBuilder {
     pub fn new(name: &'static str, description: &'static str) -> Self {
         Self(BaseCommand {
             command: CommandFunctionBuilder::new(name, description).into(),
-            dm_enabled: None,
+            dm_enabled: false,
             member_permissions: None,
         })
     }
 
     /// Set command to be available in DMs.
     pub const fn dm(mut self) -> Self {
-        self.0.dm_enabled = Some(true);
+        self.0.dm_enabled = true;
         self
     }
 
