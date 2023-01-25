@@ -54,7 +54,6 @@ pub mod request;
 /// Prelude module for command things.
 pub mod prelude {
     pub use crate::commands_v2::arg::{ArgValueExt, Args};
-    pub use crate::commands_v2::function::Function;
     pub use crate::commands_v2::request::{
         ClassicRequest, MessageRequest, SlashRequest, UserRequest,
     };

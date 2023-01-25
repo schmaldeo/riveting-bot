@@ -15,7 +15,7 @@ use crate::commands_v2::arg::{Arg, ArgValue, Args, Ref};
 use crate::commands_v2::builder::{
     ArgKind, BaseCommand, CommandFunction, CommandGroup, CommandOption,
 };
-use crate::commands_v2::function::{Callable, ClassicFunction, SlashFunction};
+use crate::commands_v2::function::{Callable, ClassicFunction, Function, SlashFunction};
 use crate::commands_v2::prelude::*;
 use crate::utils::prelude::*;
 use crate::{parser, Context};

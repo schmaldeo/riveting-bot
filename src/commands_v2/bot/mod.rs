@@ -1,7 +1,3 @@
-use twilight_model::channel::ChannelType;
-// use twilight_model::channel::ChannelType;
-use twilight_model::guild::Permissions;
-
 use crate::commands_v2::{Command, CommandsBuilder};
 use crate::utils::prelude::*;
 

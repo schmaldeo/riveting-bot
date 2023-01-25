@@ -26,8 +26,8 @@
 
 use derive_more::{Display, IsVariant, Unwrap};
 use futures::Future;
-use twilight_model::channel::ChannelType;
-use twilight_model::guild::Permissions;
+pub use twilight_model::channel::ChannelType;
+pub use twilight_model::guild::Permissions;
 
 use crate::commands_v2::builder::twilight::{
     CommandValidationError, MessageCommand, SlashCommand, TwilightCommand, UserCommand,
