@@ -24,6 +24,8 @@
 //! ```
 //!
 
+use std::collections::HashSet;
+
 use derive_more::{Display, IsVariant, Unwrap};
 use futures::Future;
 pub use twilight_model::channel::ChannelType;
@@ -344,12 +346,19 @@ impl BaseCommand {
     pub fn twilight_commands(
         &self,
     ) -> impl Iterator<Item = Result<TwilightCommand, CommandValidationError>> + '_ {
-        self.command.functions.iter().filter_map(|f| match f {
-            Function::Classic(_) => None,
-            Function::Slash(_) => Some(SlashCommand::try_from(self.clone()).map(Into::into)),
-            Function::Message(_) => Some(MessageCommand::try_from(self.clone()).map(Into::into)),
-            Function::User(_) => Some(UserCommand::try_from(self.clone()).map(Into::into)),
-        })
+        let mut seen = HashSet::new();
+        self.command
+            .functions
+            .iter()
+            .filter(move |f| seen.insert(f.kind()))
+            .filter_map(|f| match f {
+                Function::Classic(_) => None,
+                Function::Slash(_) => Some(SlashCommand::try_from(self.clone()).map(Into::into)),
+                Function::Message(_) => {
+                    Some(MessageCommand::try_from(self.clone()).map(Into::into))
+                },
+                Function::User(_) => Some(UserCommand::try_from(self.clone()).map(Into::into)),
+            })
     }
 
     /// Validate the command.
@@ -357,7 +366,7 @@ impl BaseCommand {
         // HACK: Mostly waste of cpu cycles.
         self.twilight_commands()
             .try_for_each(|c| c.map(|_| ()))
-            .context("Failed to validate command")
+            .with_context(|| format!("Failed to validate command '{}'", self.command.name))
             .map_err(Into::into)
     }
 }

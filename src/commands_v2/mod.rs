@@ -237,8 +237,7 @@ impl CommandsBuilder {
 
         for cmd in self.list.iter() {
             // Ensure command itself is valid.
-            cmd.validate()
-                .with_context(|| cmd.command.name.to_string())?;
+            cmd.validate()?;
 
             // Ensure it doesn't overlap with other commands.
             anyhow::ensure!(

@@ -3,6 +3,7 @@ use std::sync::Arc;
 
 use derive_more::{IsVariant, Unwrap};
 use futures::Future;
+use twilight_model::application::command::CommandType;
 
 use crate::commands_v2::request::{ClassicRequest, MessageRequest, SlashRequest, UserRequest};
 use crate::commands_v2::CommandResult;
@@ -112,6 +113,16 @@ pub enum Function {
     Slash(Arc<dyn Callable<SlashRequest>>),
     Message(Arc<dyn Callable<MessageRequest>>),
     User(Arc<dyn Callable<UserRequest>>),
+}
+impl Function {
+    pub fn kind(&self) -> CommandType {
+        match self {
+            Function::Classic(_) => CommandType::Unknown(0),
+            Function::Slash(_) => CommandType::ChatInput,
+            Function::Message(_) => CommandType::Message,
+            Function::User(_) => CommandType::User,
+        }
+    }
 }
 
 impl std::fmt::Debug for Function {

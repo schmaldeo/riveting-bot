@@ -166,7 +166,7 @@ async fn main() -> AnyResult<()> {
     let standby = Arc::new(Standby::new());
 
     // Initialize chat commands.
-    let commands = Arc::new(commands_v2::bot::create_commands()?.build());
+    let commands = Arc::new(commands_v2::bot::create_commands()?);
 
     let ctx = Context {
         config,

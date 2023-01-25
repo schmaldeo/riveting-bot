@@ -85,7 +85,7 @@ pub fn validate_command(cmd: &Command) -> Result<(), CommandValidationError> {
 
     if matches!(cmd.kind, CommandType::User | CommandType::Message) {
         // Check with twilight's validations.
-        validate::name(&cmd.name).context("GUI-command name error")?;
+        validate::name(&cmd.name).context("Twilight GUI-command name error")?;
 
         // Other manual checks.
         if !cmd.options.is_empty() {
@@ -94,14 +94,14 @@ pub fn validate_command(cmd: &Command) -> Result<(), CommandValidationError> {
     } else {
         // Check with twilight's validations.
         // Does not check for options.
-        validate::command(cmd).context("Base command error")?;
+        validate::command(cmd).context("Twilight validation error")?;
 
         // This checks for order, limit, name and description validity (recursively).
         // Does not check for ambiguity.
-        validate::options(&cmd.options).context("Command options error")?;
+        validate::options(&cmd.options).context("Twilight options error")?;
 
         // Other manual checks.
-        validate_options(&cmd.options)?;
+        validate_options(&cmd.options).context("Custom validation error")?;
     }
 
     Ok(())

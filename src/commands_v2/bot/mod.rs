@@ -1,4 +1,4 @@
-use crate::commands_v2::{Command, CommandsBuilder};
+use crate::commands_v2::{Command, Commands, CommandsBuilder};
 use crate::utils::prelude::*;
 
 /// Generic commands.
@@ -15,7 +15,8 @@ pub mod admin;
 #[cfg(feature = "owner")]
 pub mod owner;
 
-pub fn create_commands() -> AnyResult<CommandsBuilder> {
+/// Create the list of bot commands.
+pub fn create_commands() -> AnyResult<Commands> {
     use crate::commands_v2::builder::*;
 
     let mut commands = CommandsBuilder::new();
@@ -193,7 +194,9 @@ pub fn create_commands() -> AnyResult<CommandsBuilder> {
             .dm(),
     );
 
-    commands.validate().unwrap();
+    commands
+        .validate()
+        .context("Failed to validate commands list")?;
 
-    Ok(commands)
+    Ok(commands.build())
 }
