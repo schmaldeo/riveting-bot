@@ -11,9 +11,9 @@ use twilight_model::http::interaction::{
     InteractionResponse, InteractionResponseData, InteractionResponseType,
 };
 
-use crate::commands_v2::arg::{Arg, ArgValue, Args, Ref};
+use crate::commands_v2::arg::{Arg, Args};
 use crate::commands_v2::builder::{
-    ArgKind, BaseCommand, CommandFunction, CommandGroup, CommandOption,
+    ArgDesc, BaseCommand, CommandFunction, CommandGroup, CommandOption,
 };
 use crate::commands_v2::function::{Callable, ClassicFunction, Function, SlashFunction};
 use crate::commands_v2::prelude::*;
@@ -159,7 +159,8 @@ async fn process_slash(
         }
     }
 
-    println!("ARGS: {args:?}");
+    // Reverse the args to the correct order for arbitary reasons.
+    args.reverse();
 
     let funcs = last
         .slash_functions()
@@ -306,63 +307,49 @@ pub async fn classic_command(ctx: &Context, msg: Arc<Message>) -> Result<(), Com
 }
 
 fn parse_classic_args(
-    c: &CommandFunction,
+    cmd_fn: &CommandFunction,
     msg: &Message,
     mut rest: Option<&str>,
 ) -> Result<Args, CommandError> {
-    let mut parsed = Vec::new();
-    let mut args = c.args();
+    fn parse(arg: &ArgDesc, msg: &Message, rest: &mut Option<&str>) -> AnyResult<Arg> {
+        // Normal arguments parsing.
+        let normal = || {
+            let unparsed = rest.ok_or(CommandError::MissingArgs)?;
+            let (value, next) = parser::maybe_quoted_arg(unparsed).with_context(|| {
+                format!("Failed to parse next argument from content '{unparsed}'")
+            })?;
+            *rest = next;
 
-    'parse: while let Some(arg) = args.next().filter(|a| a.required) {
+            Arg::from_desc(arg, value).with_context(|| {
+                format!("Expected an argument '{}' of type '{}'", arg.name, arg.kind)
+            })
+        };
+
         // Handle special arguments.
-        'special: {
-            let value = match arg.kind {
-                ArgKind::Message => {
-                    let Some(replied) = msg.referenced_message.as_ref() else {
-                        break 'special; // Try to get the message through passed id.
-                    };
+        Arg::from_desc_msg(arg, msg)
+            .map(|special| special.map_or_else(normal, Ok)) // If special returned `None`, try normal parsing.
+            .with_context(|| {
+                format!("Expected an argument '{}' of type '{}'", arg.name, arg.kind)
+            })?
+    }
 
-                    ArgValue::Message(Ref::from_obj(replied.as_ref().to_owned()))
-                },
-                ArgKind::Attachment => {
-                    let att = msg
-                        .attachments
-                        .first()
-                        .ok_or(CommandError::MissingArgs)
-                        .with_context(|| {
-                            format!(
-                                "Expected a required argument '{}' of type '{}' (upload)",
-                                arg.name, arg.kind
-                            )
-                        })?;
+    let mut parsed = Vec::new();
+    let args: Vec<_> = cmd_fn.args().collect();
+    let mut split = args.iter().position(|a| !a.required).unwrap_or(args.len());
 
-                    ArgValue::Attachment(Ref::from_obj(att.to_owned()))
-                },
-                _ => break 'special, // If not a special arg.
-            };
+    // Process all the required args.
+    for arg in &args[..split] {
+        let arg = parse(arg, msg, &mut rest).context("Required argument error")?;
+        parsed.push(arg);
+    }
 
-            parsed.push(Arg {
-                name: arg.name.to_string(),
-                value,
-            });
-
-            continue 'parse; // Go to next arg.
-        }
-
-        // Normal parsing.
-
-        let unparsed = rest.ok_or(CommandError::MissingArgs).with_context(|| {
-            format!(
-                "Expected a required argument '{}' of type '{}'",
-                arg.name, arg.kind
-            )
-        })?;
-
-        let (value, next) =
-            parser::maybe_quoted_arg(unparsed).context("Failed to parse next argument")?;
-        rest = next;
-
-        parsed.push(Arg::from_desc(arg, value)?);
+    // TODO: This still assumes lock-step arg ordering in input, when it should not.
+    // Process rest of the args, if any.
+    while rest.is_some() && split < args.len() {
+        let arg = args[split];
+        let arg = parse(arg, msg, &mut rest).context("Optional argument error")?;
+        parsed.push(arg);
+        split += 1;
     }
 
     Ok(Args::from(parsed))

@@ -2,6 +2,7 @@ use std::borrow::Borrow;
 use std::sync::Arc;
 
 use derive_more::{AsMut, AsRef, From, Index, IndexMut, IntoIterator, IsVariant, Unwrap};
+use twilight_mention::ParseMention;
 use twilight_model::application::interaction::application_command::CommandOptionValue;
 use twilight_model::channel::{Attachment, Channel, Message};
 use twilight_model::guild::Role;
@@ -12,6 +13,7 @@ use twilight_model::id::Id;
 use twilight_model::user::User;
 
 use crate::commands_v2::builder::{ArgDesc, ArgKind};
+use crate::commands_v2::CommandError;
 use crate::utils::prelude::*;
 
 /// Contained value that is either type `Ref::Id(Id<A>)` or `Ref::Obj(Box<B>)`.
@@ -64,42 +66,17 @@ pub struct Arg {
 
 impl Arg {
     pub fn from_desc(desc: &ArgDesc, text: &str) -> AnyResult<Self> {
-        // TODO: Ensure data parameters.
-        let value = match desc.kind {
-            ArgKind::Bool => ArgValue::Bool(
-                text.to_lowercase()
-                    .parse()
-                    .context("Bool arg parse error")?,
-            ),
-            ArgKind::Number(_) => ArgValue::Number(text.parse().context("Number arg parse error")?),
-            ArgKind::Integer(_) => {
-                ArgValue::Integer(text.parse().context("Integer arg parse error")?)
-            },
-            ArgKind::String(_) => ArgValue::String(text.to_string()),
-            ArgKind::Channel(_) => ArgValue::Channel(Ref::Id(
-                text.parse().context("Channel arg parse error")?, // FIXME: This might not be a bare id.
-            )),
-            ArgKind::Message => {
-                ArgValue::Message(Ref::Id(text.parse().context("Message arg parse error")?))
-            },
-            ArgKind::Attachment => {
-                ArgValue::Attachment(Ref::Id(text.parse().context("Attachment arg parse error")?))
-            },
-            ArgKind::User => ArgValue::User(Ref::Id(
-                text.parse().context("User arg parse error")?, // FIXME: This might not be a bare id.
-            )),
-            ArgKind::Role => ArgValue::Role(Ref::Id(
-                text.parse().context("Role arg parse error")?, // FIXME: This might not be a bare id.
-            )),
-            ArgKind::Mention => ArgValue::Mention(
-                text.parse().context("Mention arg parse error")?, // FIXME: This might not be a bare id.
-            ),
-        };
-
         Ok(Self {
             name: desc.name.to_string(),
-            value,
+            value: ArgValue::from_kind(&desc.kind, text)?,
         })
+    }
+
+    pub fn from_desc_msg(desc: &ArgDesc, msg: &Message) -> AnyResult<Option<Self>> {
+        Ok(ArgValue::from_kind_msg(&desc.kind, msg)?.map(|value| Self {
+            name: desc.name.to_string(),
+            value,
+        }))
     }
 }
 
@@ -131,6 +108,75 @@ impl ArgValue {
         pub fn role(&self: Role(val)) -> &Ref<RoleMarker, Role>;
         pub fn mention(&self: Mention(val)) -> Id<GenericMarker> { *val }
     );
+
+    pub fn from_kind(kind: &ArgKind, text: &str) -> AnyResult<Self> {
+        // TODO: Ensure data parameters.
+
+        fn parse_mention_or_id<F, A, B>(text: &str, variant: F) -> AnyResult<ArgValue>
+        where
+            F: Fn(Ref<A, B>) -> ArgValue,
+            Id<A>: ParseMention,
+        {
+            Ok(match Id::parse(text.trim()) {
+                Ok(id) => variant(Ref::Id(id)),
+                Err(mention_error) => match text.parse() {
+                    Ok(id) => variant(Ref::Id(id)),
+                    Err(id_parse_error) => {
+                        return Err(anyhow::anyhow!("(as id) {id_parse_error}"))
+                            .with_context(|| format!("(as mention) {mention_error}"));
+                    },
+                },
+            })
+        }
+
+        let val = match kind {
+            ArgKind::Bool => Self::Bool(
+                text.to_lowercase()
+                    .parse()
+                    .context("Bool arg parse error")?,
+            ),
+            ArgKind::Number(_) => Self::Number(text.parse().context("Number arg parse error")?),
+            ArgKind::Integer(_) => Self::Integer(text.parse().context("Integer arg parse error")?),
+            ArgKind::String(_) => Self::String(text.to_string()),
+            ArgKind::Channel(_) => {
+                parse_mention_or_id(text, Self::Channel).context("Channel arg parse error")?
+            },
+            ArgKind::Message => {
+                Self::Message(Ref::Id(text.parse().context("Message arg parse error")?))
+            },
+            ArgKind::Attachment => {
+                Self::Attachment(Ref::Id(text.parse().context("Attachment arg parse error")?))
+            },
+            ArgKind::User => {
+                parse_mention_or_id(text, Self::User).context("User arg parse error")?
+            },
+            ArgKind::Role => {
+                parse_mention_or_id(text, Self::Role).context("Role arg parse error")?
+            },
+            ArgKind::Mention => Self::Mention(
+                text.parse().context("Mention arg parse error")?, // TODO: Parse from text (if other than id number).
+            ),
+        };
+
+        Ok(val)
+    }
+
+    pub fn from_kind_msg(kind: &ArgKind, msg: &Message) -> AnyResult<Option<Self>> {
+        match kind {
+            ArgKind::Message => msg.referenced_message.as_ref().map_or(Ok(None), |replied| {
+                Ok(Some(Self::Message(Ref::from_obj(*replied.to_owned()))))
+            }),
+            ArgKind::Attachment => {
+                // This only supports one attachment per message.
+                msg.attachments
+                    .first()
+                    .ok_or(CommandError::MissingArgs)
+                    .context("Attachment arg parse error (upload)")
+                    .map(|a| Some(Self::Attachment(Ref::from_obj(a.to_owned()))))
+            },
+            _ => Ok(None), // If not a special arg.
+        }
+    }
 }
 
 impl TryFrom<CommandOptionValue> for ArgValue {
