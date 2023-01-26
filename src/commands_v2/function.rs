@@ -115,12 +115,12 @@ pub enum Function {
     User(Arc<dyn Callable<UserRequest>>),
 }
 impl Function {
-    pub fn kind(&self) -> CommandType {
+    pub const fn kind(&self) -> CommandType {
         match self {
-            Function::Classic(_) => CommandType::Unknown(0),
-            Function::Slash(_) => CommandType::ChatInput,
-            Function::Message(_) => CommandType::Message,
-            Function::User(_) => CommandType::User,
+            Self::Classic(_) => CommandType::Unknown(0),
+            Self::Slash(_) => CommandType::ChatInput,
+            Self::Message(_) => CommandType::Message,
+            Self::User(_) => CommandType::User,
         }
     }
 }
@@ -133,6 +133,6 @@ impl std::fmt::Debug for Function {
             Self::Message(_) => "Function::Message(_)",
             Self::User(_) => "Function::User(_)",
         };
-        writeln!(f, "{text}")
+        write!(f, "{text}")
     }
 }

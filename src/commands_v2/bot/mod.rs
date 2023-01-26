@@ -145,7 +145,8 @@ pub fn create_commands() -> AnyResult<Commands> {
                     sub("say", "Post a message by the bot.")
                         .attach(admin::bot::Say::classic)
                         .attach(admin::bot::Say::slash)
-                        .option(string("text", "What to say.").required()),
+                        .option(string("text", "What to say.").required())
+                        .option(channel("channel", "Where to send it.")),
                 )
                 .option(
                     sub("edit", "Edit an existing bot message.")

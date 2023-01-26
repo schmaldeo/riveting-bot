@@ -202,7 +202,7 @@ impl Commands {
     }
 
     /// Get reference to the inner list.
-    pub fn inner(&self) -> &BTreeMap<&'static str, Arc<BaseCommand>> {
+    pub const fn inner(&self) -> &BTreeMap<&'static str, Arc<BaseCommand>> {
         &self.0
     }
 }

@@ -82,7 +82,7 @@ pub fn channel(name: &'static str, description: &'static str) -> ChannelOptionBu
 }
 
 /// Create a new argument with kind `Message`.
-pub fn message(name: &'static str, description: &'static str) -> ArgDesc {
+pub const fn message(name: &'static str, description: &'static str) -> ArgDesc {
     ArgDesc::new(name, description, ArgKind::Message)
 }
 
