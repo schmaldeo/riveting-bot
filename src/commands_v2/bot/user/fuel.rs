@@ -42,7 +42,7 @@ impl Command for Fuel {
                 .inline(),
             )
             .field(embed::EmbedFieldBuilder::new("Laps: ", amount_of_laps.to_string()).inline())
-            .color(0x39FC32)
+            .color(0xDB3DBE)
             .build();
 
         ctx.http

@@ -10,6 +10,7 @@
 #![feature(async_fn_in_trait)]
 //
 #![allow(dead_code)]
+#![allow(incomplete_features)]
 #![allow(clippy::significant_drop_in_scrutinee)]
 
 use std::sync::{Arc, Mutex};
@@ -352,7 +353,19 @@ async fn handle_message_create(ctx: &Context, msg: Message) -> AnyResult<()> {
         _ => (),
     }
 
+    #[cfg(feature = "ban-at-everyone")]
+    check_if_at_everyone(ctx, &msg).await;
+
     Ok(())
+}
+#[cfg(feature = "ban-at-everyone")]
+async fn check_if_at_everyone(ctx: &Context, msg: &Message) {
+    if msg.mention_everyone {
+        ctx.http
+            .create_ban(msg.guild_id.unwrap(), msg.author.id)
+            .await
+            .unwrap();
+    }
 }
 
 async fn handle_message_update(_ctx: &Context, _mu: MessageUpdate) -> AnyResult<()> {
