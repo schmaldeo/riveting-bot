@@ -91,7 +91,8 @@ pub fn create_commands() -> AnyResult<Commands> {
                     ("programming", "programming"),
                     ("dad", "dad"),
                 ])),
-        );
+        )
+        .bind(command("coinflip", "Coin flip").attach(user::coinflip::Coinflip::slash));
 
     #[cfg(feature = "voice")]
     commands.bind(
