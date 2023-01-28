@@ -48,8 +48,32 @@ pub fn create_commands() -> AnyResult<Commands> {
     commands
         .bind(
             command("fuel", "Calculate race fuel required.")
-                .attach(user::fuel::Fuel::classic)
                 .attach(user::fuel::Fuel::slash)
+                .option(
+                    integer("length", "Lenght of the race in minutes")
+                        .required()
+                        .min(1),
+                )
+                .option(
+                    integer("minutes", "Minutes in the lap")
+                        .required()
+                        .min(0)
+                        .max(10),
+                )
+                .option(
+                    number(
+                        "seconds",
+                        "Seconds (and optionally milliseconds after a comma) in the lap",
+                    )
+                    .required()
+                    .min(0.0)
+                    .max(59.9999),
+                )
+                .option(
+                    number("fuel_consumption", "Fuel consumption in l/lap")
+                        .required()
+                        .min(0.1),
+                )
                 .dm(),
         )
         .bind(
