@@ -159,7 +159,7 @@ async fn process_slash(
         }
     }
 
-    // Reverse the args to the correct order for arbitary reasons.
+    // Reverse the args to the correct order for arbitrary reasons.
     args.reverse();
 
     let funcs = last
