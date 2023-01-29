@@ -29,7 +29,6 @@ impl Command for Joke {
         };
 
         let url = format!("https://official-joke-api.appspot.com/jokes/{joke_type}/random");
-        println!("{url}");
         let body = reqwest::get(url)
             .await
             .unwrap()
