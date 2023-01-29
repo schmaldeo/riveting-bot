@@ -27,11 +27,11 @@ use twilight_model::application::interaction::{Interaction, InteractionData};
 use twilight_model::channel::Message;
 use twilight_model::gateway::event::shard::Connected;
 use twilight_model::gateway::payload::incoming::{
-    MessageDelete, MessageDeleteBulk, MessageUpdate, Ready,
+    MessageDelete, MessageDeleteBulk, MessageUpdate, Ready, RoleUpdate,
 };
 use twilight_model::gateway::{GatewayReaction, Intents};
-use twilight_model::guild::Guild;
-use twilight_model::id::marker::GuildMarker;
+use twilight_model::guild::{Guild, Role};
+use twilight_model::id::marker::{GuildMarker, RoleMarker};
 use twilight_model::id::Id;
 use twilight_model::oauth::Application;
 use twilight_model::user::CurrentUser;
@@ -85,6 +85,43 @@ impl Context {
                     .map_or_else(|| lock.prefix.to_string(), |data| data.prefix.to_string())
             },
         )
+    }
+
+    /// Get role objects with `ids` from cache or fetch from client.
+    pub async fn roles_from(
+        &self,
+        guild_id: Id<GuildMarker>,
+        ids: &[Id<RoleMarker>],
+    ) -> AnyResult<Vec<Role>> {
+        // Try to get the roles from cache.
+        let cached_roles = ids
+            .iter()
+            .map(|id| self.cache.role(*id).map(|r| r.resource().to_owned()))
+            .try_collect();
+
+        // Use cached roles or otherwise fetch from client.
+        match cached_roles {
+            Some(r) => Ok(r),
+            None => self.fetch_roles_from(guild_id, ids).await,
+        }
+    }
+
+    /// Fetch role objects with `ids` from client without cache.
+    pub async fn fetch_roles_from(
+        &self,
+        guild_id: Id<GuildMarker>,
+        ids: &[Id<RoleMarker>],
+    ) -> AnyResult<Vec<Role>> {
+        let mut fetch = self.http.roles(guild_id).send().await?;
+
+        // Manually update the cache.
+        for role in fetch.iter().cloned() {
+            self.cache.update(&RoleUpdate { guild_id, role });
+        }
+
+        fetch.retain(|r| ids.contains(&r.id));
+
+        Ok(fetch)
     }
 }
 
