@@ -7,7 +7,7 @@ use serde::Serialize;
 use twilight_http::request::application::command::{SetGlobalCommands, SetGuildCommands};
 use twilight_http::request::application::interaction::{CreateFollowup, UpdateResponse};
 use twilight_http::request::channel::message::{
-    CreateMessage, GetChannelMessagesConfigured, GetMessage, UpdateMessage,
+    CreateMessage, GetChannelMessages, GetChannelMessagesConfigured, GetMessage, UpdateMessage,
 };
 use twilight_http::request::channel::GetChannel;
 use twilight_http::request::guild::emoji::GetEmojis;
@@ -80,6 +80,7 @@ macro impl_exec_model_ext($req:ty, $val:ty) {
 impl_exec_model_ext!(CreateFollowup<'_>, Message);
 impl_exec_model_ext!(CreateMessage<'_>, Message);
 impl_exec_model_ext!(GetChannel<'_>, Channel);
+impl_exec_model_ext!(GetChannelMessages<'_>, Vec<Message>);
 impl_exec_model_ext!(GetChannelMessagesConfigured<'_>, Vec<Message>);
 impl_exec_model_ext!(GetCurrentUser<'_>, CurrentUser);
 impl_exec_model_ext!(GetCurrentUserGuildMember<'_>, Member);
