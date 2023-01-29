@@ -92,7 +92,12 @@ pub fn create_commands() -> AnyResult<Commands> {
                     ("dad", "dad"),
                 ])),
         )
-        .bind(command("coinflip", "Coin flip").attach(user::coinflip::Coinflip::slash));
+        .bind(command("coinflip", "Coin flip").attach(user::coinflip::Coinflip::slash))
+        .bind(
+            command("userinfo", "Get information about a user")
+                .attach(user::user_info::UserInfo::slash)
+                .option(user("user", "Mention a user")),
+        );
 
     #[cfg(feature = "voice")]
     commands.bind(
