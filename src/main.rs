@@ -252,11 +252,20 @@ async fn handle_event(ctx: Context, event: Event) -> AnyResult<()> {
         Event::ReactionRemove(r) => handle_reaction_remove(&ctx, r.0).await,
         Event::VoiceStateUpdate(v) => handle_voice_state(&ctx, v.0).await,
 
+        // Gateway events.
+        Event::GatewayHeartbeat(_)
+        | Event::GatewayHeartbeatAck
+        | Event::GatewayHello(_)
+        | Event::GatewayInvalidateSession(_)
+        | Event::GatewayReconnect => {
+            debug!("Gateway event: {:?}", event.kind());
+            Ok(())
+        },
+
         // Other events here...
         event => {
             println!("Event: {:?}", event.kind());
             debug!("Event: {:?}", event.kind());
-
             Ok(())
         },
     };
