@@ -20,7 +20,7 @@ impl Command for UserInfo {
     async fn slash(ctx: Context, req: SlashRequest) -> CommandResult {
         // If no args provided, check own props
         let user_id = match req.args.get("user").user() {
-            Some(Ref::Id(user_to_get)) => *user_to_get,
+            Some(Ref::Id(user_to_get)) => user_to_get,
             _ => req.interaction.author_id().unwrap(),
         };
 
