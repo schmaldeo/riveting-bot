@@ -274,6 +274,16 @@ async fn handle_event(ctx: Context, event: Event) -> AnyResult<()> {
         let chain = e.oneliner();
         eprintln!("Event error: {e:?}");
         error!("Event error: {chain}");
+
+        if let Ok(id) = env::var("DISCORD_BOTDEV_CHANNEL") {
+            // Send error as message on bot dev channel.
+            let bot_dev = Id::new(id.parse()?);
+            ctx.http
+                .create_message(bot_dev)
+                .content(&format!("{e:?}"))?
+                .send()
+                .await?;
+        }
     }
 
     Ok(())
@@ -370,11 +380,11 @@ async fn handle_message_create(ctx: &Context, msg: Message) -> AnyResult<()> {
 
     let msg = Arc::new(msg);
 
-    match crate::commands_v2::handle::classic_command(ctx, Arc::clone(&msg))
-        .await
-        .context("Failed to handle classic command")
-    {
-        Err(e) if e.downcast_ref() == Some(&CommandError::NotPrefixed) => {
+    #[cfg(feature = "ban-at-everyone")]
+    check_if_at_everyone(ctx, &msg).await;
+
+    match crate::commands_v2::handle::classic_command(ctx, Arc::clone(&msg)).await {
+        Err(CommandError::NotPrefixed) => {
             // Message was not a command.
 
             if msg.mentions.iter().any(|mention| mention.id == ctx.user.id) {
@@ -390,35 +400,11 @@ async fn handle_message_create(ctx: &Context, msg: Message) -> AnyResult<()> {
                     .content(&about_msg)?
                     .await?;
             }
+
+            Ok(())
         },
-        Err(e) => {
-            let chain = e.oneliner();
-
-            // Log processing errors.
-            eprintln!("Error processing command: {e:?}\n");
-            error!("Error processing command: {chain}");
-
-            if let Ok(id) = env::var("DISCORD_BOTDEV_CHANNEL") {
-                // On a bot dev channel, reply with error message.
-                let bot_dev = Id::new(id.parse()?);
-
-                if msg.channel_id == bot_dev {
-                    ctx.http
-                        .create_message(bot_dev)
-                        .reply(msg.id)
-                        .content(&format!("{e:?}"))?
-                        .send()
-                        .await?;
-                }
-            }
-        },
-        _ => (),
+        res => res.context("Failed to handle classic command"),
     }
-
-    #[cfg(feature = "ban-at-everyone")]
-    check_if_at_everyone(ctx, &msg).await;
-
-    Ok(())
 }
 #[cfg(feature = "ban-at-everyone")]
 async fn check_if_at_everyone(ctx: &Context, msg: &Message) {

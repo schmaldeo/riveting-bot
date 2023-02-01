@@ -47,21 +47,16 @@ pub async fn application_command(
     let inter = Arc::new(inter);
     let data = Arc::new(data);
 
+    // Process the command by kind.
     let result = {
-        let ctx = ctx.clone();
         let inter = Arc::clone(&inter);
-        // Spawn a task so that we can handle panics later.
-        tokio::spawn(async move {
-            // Process the command by kind.
-            match data.kind {
-                CommandType::ChatInput => process_slash(&ctx, base, inter, data).await,
-                CommandType::Message => process_message(&ctx, base, inter, data).await,
-                CommandType::User => process_user(&ctx, base, inter, data).await,
-                CommandType::Unknown(n) => panic!("Unknown command kind: {n}"),
-                other => panic!("Unhandled command kind: {other:?}"),
-            }
-        })
-        .await
+        match data.kind {
+            CommandType::ChatInput => process_slash(ctx, base, inter, data).await,
+            CommandType::Message => process_message(ctx, base, inter, data).await,
+            CommandType::User => process_user(ctx, base, inter, data).await,
+            CommandType::Unknown(n) => panic!("Unknown command kind: {n}"),
+            other => panic!("Unhandled command kind: {other:?}"),
+        }
     };
 
     let clear = || async {
@@ -74,14 +69,11 @@ pub async fn application_command(
 
     // Handle execution result.
     // Catch erroneous execution and clear dangling response.
-    match result
-        .context("Execution task error")
-        .map(|k| k.map_err(|e| e.into())) // If task is ok, but result is not.
-    {
-        Ok(Ok(Response::None | Response::Clear)) => {
+    match result {
+        Ok(Response::None | Response::Clear) => {
             clear().await?;
         },
-        Ok(Ok(Response::CreateMessage(text))) => {
+        Ok(Response::CreateMessage(text)) => {
             interaction
                 .update_response(&inter.token)
                 .content(Some(&text))
@@ -89,9 +81,9 @@ pub async fn application_command(
                 .await
                 .context("Failed to send response message")?;
         },
-        Ok(Err(e)) | Err(e) => {
+        Err(e) => {
             clear().await?;
-            return Err(e.into());
+            return Err(e);
         },
     }
 
@@ -431,26 +423,17 @@ where
 
     // Wait for completion.
     while let Some(task) = set.join_next().await {
-        let task = match task {
-            Ok(k) => k,
-            Err(e) => {
-                eprintln!("Execution task join error: {e}");
-                error!("Execution task join error: {e}");
-                continue;
-            },
-        };
-
-        results.push(task);
+        results.push(task.context("Execution task join error"));
     }
 
     // This should not fail.
     let last = results.pop().expect("No results from command handlers");
 
     for r in results {
-        // TODO: Collect all errors.
+        // TODO: Collect all errors and responses.
         // Prioritize returning errors immediately, for now.
-        r?;
+        r?.ok();
     }
 
-    last
+    last?
 }
