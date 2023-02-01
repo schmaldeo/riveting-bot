@@ -16,14 +16,14 @@ use crate::commands_v2::builder::{ArgDesc, ArgKind};
 use crate::commands_v2::CommandError;
 use crate::utils::prelude::*;
 
-/// Contained value that is either type `Ref::Id(Id<A>)` or `Ref::Obj(Box<B>)`.
+/// Contained value that is either type `Ref::Id(Id<M>)` or `Ref::Obj(Arc<D>)`.
 #[derive(Debug, From, Unwrap, IsVariant)]
-pub enum Ref<A, B> {
-    Id(Id<A>),
-    Obj(Arc<B>),
+pub enum Ref<M, D> {
+    Id(Id<M>),
+    Obj(Arc<D>),
 }
 
-impl<A, B> Clone for Ref<A, B> {
+impl<M, D> Clone for Ref<M, D> {
     fn clone(&self) -> Self {
         match self {
             Self::Id(arg0) => Self::Id(*arg0),
@@ -32,10 +32,22 @@ impl<A, B> Clone for Ref<A, B> {
     }
 }
 
-impl<A, B> Ref<A, B> {
-    /// Box an object and return the object variant.
-    pub fn from_obj(obj: B) -> Self {
+impl<M, D> Ref<M, D> {
+    /// Wrap data to an Arc and return the object variant.
+    pub fn from_obj(obj: D) -> Self {
         Self::Obj(Arc::new(obj))
+    }
+}
+
+impl<M, D> IdExt<M> for Ref<M, D>
+where
+    D: IdExt<M>,
+{
+    fn id(&self) -> Id<M> {
+        match self {
+            Ref::Id(id) => *id,
+            Ref::Obj(obj) => obj.id(),
+        }
     }
 }
 

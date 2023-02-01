@@ -12,8 +12,7 @@ pub mod bulk {
     use twilight_model::id::Id;
 
     use crate::commands_v2::prelude::*;
-    use crate::utils::ExecModelExt;
-    // use crate::utils::prelude::*;
+    use crate::utils::prelude::*;
 
     const MAX_DELETE: i64 = 100;
 
@@ -50,8 +49,21 @@ pub mod bulk {
                 return Err(CommandError::MissingArgs);
             };
 
-            let Some(message_id) = data.message_id else {
-                return Err(CommandError::MissingArgs); // FIXME: Slash command has no message id.
+            let message_id = match data.message_id {
+                Some(id) => id,
+                None => {
+                    match ctx
+                        .http
+                        .channel_messages(channel_id)
+                        .limit(1)?
+                        .send()
+                        .await?
+                        .pop()
+                    {
+                        Some(m) => m.id,
+                        None => return Err(CommandError::MissingArgs),
+                    }
+                },
             };
 
             // Fetch and filter messages that are not older than two weeks.

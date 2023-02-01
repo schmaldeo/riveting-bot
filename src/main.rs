@@ -252,11 +252,20 @@ async fn handle_event(ctx: Context, event: Event) -> AnyResult<()> {
         Event::ReactionRemove(r) => handle_reaction_remove(&ctx, r.0).await,
         Event::VoiceStateUpdate(v) => handle_voice_state(&ctx, v.0).await,
 
+        // Gateway events.
+        Event::GatewayHeartbeat(_)
+        | Event::GatewayHeartbeatAck
+        | Event::GatewayHello(_)
+        | Event::GatewayInvalidateSession(_)
+        | Event::GatewayReconnect => {
+            debug!("Gateway event: {:?}", event.kind());
+            Ok(())
+        },
+
         // Other events here...
         event => {
             println!("Event: {:?}", event.kind());
             debug!("Event: {:?}", event.kind());
-
             Ok(())
         },
     };
@@ -365,7 +374,23 @@ async fn handle_message_create(ctx: &Context, msg: Message) -> AnyResult<()> {
         .await
         .context("Failed to handle classic command")
     {
-        Err(e) if e.downcast_ref() == Some(&CommandError::NotPrefixed) => (), // Message was not a command.
+        Err(e) if e.downcast_ref() == Some(&CommandError::NotPrefixed) => {
+            // Message was not a command.
+
+            if msg.mentions.iter().any(|mention| mention.id == ctx.user.id) {
+                // Send bot help message.
+                let about_msg = format!(
+                    "Try `/about` or `{prefix}about` for general info, or `/help` or \
+                     `{prefix}help` for commands.",
+                    prefix = ctx.classic_prefix(msg.guild_id),
+                );
+
+                ctx.http
+                    .create_message(msg.channel_id)
+                    .content(&about_msg)?
+                    .await?;
+            }
+        },
         Err(e) => {
             let chain = e.oneliner();
 

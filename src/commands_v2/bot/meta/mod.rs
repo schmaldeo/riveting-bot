@@ -80,29 +80,14 @@ impl Command for Help {
         }
 
         let help_msg = {
-            let lock = ctx.config.lock().unwrap();
-            let global_prefix = &lock.prefix;
-            let mut prefix_msg = format!("Prefix: '{global_prefix}'");
-            if let Some(guild_id) = data.guild_id {
-                if let Some(data) = lock.guild(guild_id) {
-                    prefix_msg = formatdoc!(
-                        "
-                        Default prefix: '{}'
-                        Guild prefix: '{}'
-                        ",
-                        global_prefix,
-                        data.prefix
-                    );
-                }
-            }
             formatdoc!(
                 "```yaml
-                {}
+                Prefix: '/' or '{prefix}'
                 Commands:
-                {}
+                {commands}
                 ```",
-                prefix_msg,
-                ctx.commands
+                prefix = ctx.classic_prefix(data.guild_id),
+                commands = ctx.commands
             )
         };
 

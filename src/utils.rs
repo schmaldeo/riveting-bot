@@ -7,7 +7,7 @@ use serde::Serialize;
 use twilight_http::request::application::command::{SetGlobalCommands, SetGuildCommands};
 use twilight_http::request::application::interaction::{CreateFollowup, UpdateResponse};
 use twilight_http::request::channel::message::{
-    CreateMessage, GetChannelMessagesConfigured, GetMessage, UpdateMessage,
+    CreateMessage, GetChannelMessages, GetChannelMessagesConfigured, GetMessage, UpdateMessage,
 };
 use twilight_http::request::channel::GetChannel;
 use twilight_http::request::guild::emoji::GetEmojis;
@@ -18,9 +18,11 @@ use twilight_http::request::user::{GetCurrentUser, GetCurrentUserGuildMember, Ge
 use twilight_http::request::GetUserApplicationInfo;
 use twilight_model::application::command::Command;
 use twilight_model::channel::message::ReactionType;
-use twilight_model::channel::{Channel, Message};
+use twilight_model::channel::{Attachment, Channel, Message};
 use twilight_model::guild::{Emoji, Guild, Member, Role};
-use twilight_model::id::marker::EmojiMarker;
+use twilight_model::id::marker::{
+    AttachmentMarker, ChannelMarker, EmojiMarker, MessageMarker, RoleMarker, UserMarker,
+};
 use twilight_model::id::Id;
 use twilight_model::oauth::Application;
 use twilight_model::user::{CurrentUser, User};
@@ -34,7 +36,7 @@ pub mod prelude {
     pub use futures::prelude::*;
     pub use tracing::{debug, error, info, trace, warn};
 
-    pub use super::{impl_debug_struct_fields, impl_variant_option, ErrorExt, ExecModelExt};
+    pub use super::{impl_debug_struct_fields, impl_variant_option, ErrorExt, ExecModelExt, IdExt};
 }
 
 /// Universal constants.
@@ -80,6 +82,7 @@ macro impl_exec_model_ext($req:ty, $val:ty) {
 impl_exec_model_ext!(CreateFollowup<'_>, Message);
 impl_exec_model_ext!(CreateMessage<'_>, Message);
 impl_exec_model_ext!(GetChannel<'_>, Channel);
+impl_exec_model_ext!(GetChannelMessages<'_>, Vec<Message>);
 impl_exec_model_ext!(GetChannelMessagesConfigured<'_>, Vec<Message>);
 impl_exec_model_ext!(GetCurrentUser<'_>, CurrentUser);
 impl_exec_model_ext!(GetCurrentUserGuildMember<'_>, Member);
@@ -105,6 +108,26 @@ pub macro impl_debug_struct_fields($t:ty { $($field:ident),* $(,)? }) {
         }
     }
 }
+
+pub trait IdExt<M> {
+    fn id(&self) -> Id<M>;
+}
+
+macro_rules! impl_id_ext {
+    ($type:ident, $marker:ty) => {
+        impl IdExt<$marker> for $type {
+            fn id(&self) -> Id<$marker> {
+                self.id
+            }
+        }
+    };
+}
+
+impl_id_ext!(Attachment, AttachmentMarker);
+impl_id_ext!(Channel, ChannelMarker);
+impl_id_ext!(Message, MessageMarker);
+impl_id_ext!(Role, RoleMarker);
+impl_id_ext!(User, UserMarker);
 
 /// Macro to create enum methods for optional variant.
 /// <br>`<vis> fn <name> ( &self: <variant> ( <inner> ) ) -> <type> { <expression> }`
