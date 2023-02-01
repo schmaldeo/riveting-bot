@@ -6,6 +6,7 @@ use twilight_model::application::interaction::application_command::{
     CommandData, CommandOptionValue,
 };
 use twilight_model::application::interaction::Interaction;
+use twilight_model::channel::message::MessageFlags;
 use twilight_model::channel::Message;
 use twilight_model::http::interaction::{
     InteractionResponse, InteractionResponseData, InteractionResponseType,
@@ -19,6 +20,8 @@ use crate::commands_v2::function::{Callable, ClassicFunction, Function, SlashFun
 use crate::commands_v2::prelude::*;
 use crate::utils::prelude::*;
 use crate::{parser, Context};
+
+const ERROR_MESSAGE: &str = "The bot has encountered an error executing the command! :confused:";
 
 /// Handle interaction and execute command functions.
 pub async fn application_command(
@@ -82,7 +85,12 @@ pub async fn application_command(
                 .context("Failed to send response message")?;
         },
         Err(e) => {
-            clear().await?;
+            interaction
+                .create_followup(&inter.token)
+                .flags(MessageFlags::EPHEMERAL)
+                .content(ERROR_MESSAGE)?
+                .await?;
+
             return Err(e);
         },
     }
@@ -160,10 +168,7 @@ async fn process_slash(
 
     let req = SlashRequest::new(base, Arc::clone(&inter), data, Args::from(args));
 
-    execute(ctx, funcs, req)
-        .await
-        .context("Execution result")
-        .map_err(Into::into)
+    execute(ctx, funcs, req).await
 }
 
 // TODO: To be implemented.
@@ -271,20 +276,20 @@ pub async fn classic_command(ctx: &Context, msg: Arc<Message>) -> Result<(), Com
 
     debug!("Executing '{name}' by user '{}'", msg.author.id);
 
-    let response = execute(ctx, funcs, req).await.context("Execution result")?;
+    let response = execute(ctx, funcs, req).await;
 
     trace!("Completing '{name}' by user '{}'", msg.author.id);
 
     // Handle execution result.
     match response {
-        Response::None => (),
-        Response::Clear => {
+        Ok(Response::None) => (),
+        Ok(Response::Clear) => {
             ctx.http
                 .delete_message(msg.channel_id, msg.id)
                 .await
                 .context("Failed to clear command message")?;
         },
-        Response::CreateMessage(text) => {
+        Ok(Response::CreateMessage(text)) => {
             ctx.http
                 .create_message(msg.channel_id)
                 .reply(msg.id)
@@ -292,6 +297,15 @@ pub async fn classic_command(ctx: &Context, msg: Arc<Message>) -> Result<(), Com
                 .context("Response message error")?
                 .await
                 .context("Failed to send response message")?;
+        },
+        Err(e) => {
+            ctx.http
+                .create_message(msg.channel_id)
+                .reply(msg.id)
+                .content(ERROR_MESSAGE)?
+                .await?;
+
+            return Err(e);
         },
     }
 
@@ -435,5 +449,5 @@ where
         r?.ok();
     }
 
-    last?
+    last?.context("Execution result").map_err(Into::into)
 }
