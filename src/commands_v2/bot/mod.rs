@@ -193,15 +193,9 @@ pub fn create_commands() -> AnyResult<Commands> {
                 .attach(admin::silence::Mute::classic)
                 .attach(admin::silence::Mute::slash)
                 .attach(admin::silence::Mute::user)
-                .permissions(Permissions::ADMINISTRATOR),
-        )
-        .bind(
-            command("timeout", "Give someone a timeout.")
-                .attach(admin::silence::Timeout::classic)
-                .attach(admin::silence::Timeout::slash)
-                .attach(admin::silence::Timeout::message)
-                .attach(admin::silence::Timeout::user)
-                .permissions(Permissions::ADMINISTRATOR),
+                .permissions(Permissions::ADMINISTRATOR)
+                .option(user("user", "Who to mute.").required())
+                .option(integer("seconds", "Duration of the mute.").min(0)),
         );
 
     // Extra utility.
