@@ -7,10 +7,8 @@
 #![feature(option_get_or_insert_default)]
 #![feature(pattern)]
 #![feature(trait_alias)]
-#![feature(async_fn_in_trait)]
 //
 #![allow(dead_code)]
-#![allow(incomplete_features)]
 #![allow(clippy::significant_drop_in_scrutinee)]
 
 use std::sync::{Arc, Mutex};

@@ -5,11 +5,13 @@ use crate::commands_v2::prelude::*;
 #[derive(Default)]
 pub struct Quote;
 
-impl Command for Quote {
-    type Data = Self;
+impl Quote {
+    pub async fn classic(_ctx: Context, _req: ClassicRequest) -> CommandResult {
+        todo!();
+    }
 
-    async fn uber(_ctx: Context, _data: Self::Data) -> CommandResult {
-        todo!()
+    pub async fn slash(_ctx: Context, _req: SlashRequest) -> CommandResult {
+        todo!();
     }
 }
 
@@ -17,11 +19,13 @@ impl Command for Quote {
 #[derive(Default)]
 pub struct Add;
 
-impl Command for Add {
-    type Data = Self;
+impl Add {
+    pub async fn classic(_ctx: Context, _req: ClassicRequest) -> CommandResult {
+        todo!();
+    }
 
-    async fn uber(_ctx: Context, _data: Self::Data) -> CommandResult {
-        todo!()
+    pub async fn slash(_ctx: Context, _req: SlashRequest) -> CommandResult {
+        todo!();
     }
 }
 
@@ -29,11 +33,13 @@ impl Command for Add {
 #[derive(Default)]
 pub struct Remove;
 
-impl Command for Remove {
-    type Data = Self;
+impl Remove {
+    pub async fn classic(_ctx: Context, _req: ClassicRequest) -> CommandResult {
+        todo!();
+    }
 
-    async fn uber(_ctx: Context, _data: Self::Data) -> CommandResult {
-        todo!()
+    pub async fn slash(_ctx: Context, _req: SlashRequest) -> CommandResult {
+        todo!();
     }
 }
 

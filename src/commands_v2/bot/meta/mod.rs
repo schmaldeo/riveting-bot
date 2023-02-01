@@ -10,8 +10,12 @@ use crate::Context;
 #[derive(Default)]
 pub struct Ping;
 
-impl Command for Ping {
-    async fn uber(_ctx: Context, _data: Self::Data) -> CommandResult {
+impl Ping {
+    pub async fn classic(_ctx: Context, _req: ClassicRequest) -> CommandResult {
+        Ok(Response::CreateMessage("Pong!".to_string()))
+    }
+
+    pub async fn slash(_ctx: Context, _req: SlashRequest) -> CommandResult {
         Ok(Response::CreateMessage("Pong!".to_string()))
     }
 }
@@ -24,17 +28,15 @@ pub struct About {
     message_id: Option<Id<MessageMarker>>,
 }
 
-impl Command for About {
-    type Data = Self;
-
-    async fn uber(ctx: Context, data: Self::Data) -> CommandResult {
+impl About {
+    pub async fn uber(self, ctx: Context) -> CommandResult {
         let about_msg = formatdoc!(
             "I am a RivetingBot!
             You can list my commands with `/help` or `{prefix}help` command.
             My current version *(allegedly)* is `{version}`.
             My source is available at <{link}>
             ",
-            prefix = ctx.classic_prefix(data.guild_id),
+            prefix = ctx.classic_prefix(self.guild_id),
             version = env!("CARGO_PKG_VERSION"),
             link = env!("CARGO_PKG_REPOSITORY"),
         );
@@ -42,21 +44,23 @@ impl Command for About {
         Ok(Response::CreateMessage(about_msg))
     }
 
-    async fn classic(ctx: Context, req: ClassicRequest) -> CommandResult {
-        Self::uber(ctx, Self {
+    pub async fn classic(ctx: Context, req: ClassicRequest) -> CommandResult {
+        Self {
             guild_id: req.message.guild_id,
             channel_id: Some(req.message.channel_id),
             message_id: Some(req.message.id),
-        })
+        }
+        .uber(ctx)
         .await
     }
 
-    async fn slash(ctx: Context, req: SlashRequest) -> CommandResult {
-        Self::uber(ctx, Self {
+    pub async fn slash(ctx: Context, req: SlashRequest) -> CommandResult {
+        Self {
             guild_id: req.interaction.guild_id,
             channel_id: req.interaction.channel_id,
             message_id: None,
-        })
+        }
+        .uber(ctx)
         .await
     }
 }
@@ -70,11 +74,9 @@ pub struct Help {
     message_id: Option<Id<MessageMarker>>,
 }
 
-impl Command for Help {
-    type Data = Self;
-
-    async fn uber(ctx: Context, data: Self::Data) -> CommandResult {
-        if let Some(_value) = data.args.get("command").string() {
+impl Help {
+    pub async fn uber(self, ctx: Context) -> CommandResult {
+        if let Some(_value) = self.args.get("command").string() {
             // TODO: If "command" argument exists, show help on that command instead.
             todo!("get rekt");
         }
@@ -86,7 +88,7 @@ impl Command for Help {
                 Commands:
                 {commands}
                 ```",
-                prefix = ctx.classic_prefix(data.guild_id),
+                prefix = ctx.classic_prefix(self.guild_id),
                 commands = ctx.commands
             )
         };
@@ -94,23 +96,25 @@ impl Command for Help {
         Ok(Response::CreateMessage(help_msg))
     }
 
-    async fn classic(ctx: Context, req: ClassicRequest) -> CommandResult {
-        Self::uber(ctx, Self {
+    pub async fn classic(ctx: Context, req: ClassicRequest) -> CommandResult {
+        Self {
             args: req.args,
             guild_id: req.message.guild_id,
             channel_id: Some(req.message.channel_id),
             message_id: Some(req.message.id),
-        })
+        }
+        .uber(ctx)
         .await
     }
 
-    async fn slash(ctx: Context, req: SlashRequest) -> CommandResult {
-        Self::uber(ctx, Self {
+    pub async fn slash(ctx: Context, req: SlashRequest) -> CommandResult {
+        Self {
             args: req.args,
             guild_id: req.interaction.guild_id,
             channel_id: req.interaction.channel_id,
             message_id: None,
-        })
+        }
+        .uber(ctx)
         .await
     }
 }

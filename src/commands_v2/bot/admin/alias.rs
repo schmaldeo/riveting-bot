@@ -5,15 +5,13 @@ use crate::commands_v2::prelude::*;
 #[derive(Default)]
 pub struct Alias;
 
-impl Command for Alias {
-    type Data = Self;
-
-    async fn uber(_ctx: Context, _data: Self::Data) -> CommandResult {
-        todo!()
+impl Alias {
+    pub async fn classic(_ctx: Context, _req: ClassicRequest) -> CommandResult {
+        todo!();
     }
 
-    async fn classic(ctx: Context, _req: ClassicRequest) -> CommandResult {
-        Self::uber(ctx, Default::default()).await
+    pub async fn slash(_ctx: Context, _req: SlashRequest) -> CommandResult {
+        todo!();
     }
 }
 
@@ -21,15 +19,13 @@ impl Command for Alias {
 #[derive(Default)]
 pub struct List;
 
-impl Command for List {
-    type Data = Self;
-
-    async fn uber(_ctx: Context, _data: Self::Data) -> CommandResult {
-        todo!()
+impl List {
+    pub async fn classic(_ctx: Context, _req: ClassicRequest) -> CommandResult {
+        todo!();
     }
 
-    async fn classic(ctx: Context, _req: ClassicRequest) -> CommandResult {
-        Self::uber(ctx, Default::default()).await
+    pub async fn slash(_ctx: Context, _req: SlashRequest) -> CommandResult {
+        todo!();
     }
 }
 
@@ -37,15 +33,13 @@ impl Command for List {
 #[derive(Default)]
 pub struct Get;
 
-impl Command for Get {
-    type Data = Self;
-
-    async fn uber(_ctx: Context, _data: Self::Data) -> CommandResult {
-        todo!()
+impl Get {
+    pub async fn classic(_ctx: Context, _req: ClassicRequest) -> CommandResult {
+        todo!();
     }
 
-    async fn classic(ctx: Context, _req: ClassicRequest) -> CommandResult {
-        Self::uber(ctx, Default::default()).await
+    pub async fn slash(_ctx: Context, _req: SlashRequest) -> CommandResult {
+        todo!();
     }
 }
 
@@ -53,15 +47,13 @@ impl Command for Get {
 #[derive(Default)]
 pub struct Set;
 
-impl Command for Set {
-    type Data = Self;
-
-    async fn uber(_ctx: Context, _data: Self::Data) -> CommandResult {
-        todo!()
+impl Set {
+    pub async fn classic(_ctx: Context, _req: ClassicRequest) -> CommandResult {
+        todo!();
     }
 
-    async fn classic(ctx: Context, _req: ClassicRequest) -> CommandResult {
-        Self::uber(ctx, Default::default()).await
+    pub async fn slash(_ctx: Context, _req: SlashRequest) -> CommandResult {
+        todo!();
     }
 }
 
@@ -69,14 +61,12 @@ impl Command for Set {
 #[derive(Default)]
 pub struct Remove;
 
-impl Command for Remove {
-    type Data = Self;
-
-    async fn uber(_ctx: Context, _data: Self::Data) -> CommandResult {
-        todo!()
+impl Remove {
+    pub async fn classic(_ctx: Context, _req: ClassicRequest) -> CommandResult {
+        todo!();
     }
 
-    async fn classic(ctx: Context, _req: ClassicRequest) -> CommandResult {
-        Self::uber(ctx, Default::default()).await
+    pub async fn slash(_ctx: Context, _req: SlashRequest) -> CommandResult {
+        todo!();
     }
 }

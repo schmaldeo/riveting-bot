@@ -10,14 +10,12 @@ pub struct UserInfo {
     args: Args,
 }
 
-impl Command for UserInfo {
-    type Data = Self;
-
-    async fn uber(_ctx: Context, _data: Self::Data) -> CommandResult {
-        Ok(Response::Clear)
+impl UserInfo {
+    pub async fn classic(_ctx: Context, _req: ClassicRequest) -> CommandResult {
+        todo!();
     }
 
-    async fn slash(ctx: Context, req: SlashRequest) -> CommandResult {
+    pub async fn slash(ctx: Context, req: SlashRequest) -> CommandResult {
         // If no args provided, check own props
         let user_id = match req.args.get("user").user() {
             Some(Ref::Id(user_to_get)) => user_to_get,

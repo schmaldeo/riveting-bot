@@ -5,19 +5,13 @@ use crate::commands_v2::prelude::*;
 #[derive(Default)]
 pub struct Bot;
 
-impl Command for Bot {
-    type Data = Self;
-
-    async fn uber(_ctx: Context, _data: Self::Data) -> CommandResult {
-        Ok(Response::Clear)
+impl Bot {
+    pub async fn classic(_ctx: Context, _req: ClassicRequest) -> CommandResult {
+        todo!();
     }
 
-    async fn classic(ctx: Context, _req: ClassicRequest) -> CommandResult {
-        Self::uber(ctx, Default::default()).await
-    }
-
-    async fn slash(ctx: Context, _req: SlashRequest) -> CommandResult {
-        Self::uber(ctx, Default::default()).await
+    pub async fn slash(_ctx: Context, _req: SlashRequest) -> CommandResult {
+        todo!();
     }
 }
 
@@ -25,19 +19,13 @@ impl Command for Bot {
 #[derive(Default)]
 pub struct Say;
 
-impl Command for Say {
-    type Data = Self;
-
-    async fn uber(_ctx: Context, _data: Self::Data) -> CommandResult {
-        Ok(Response::Clear)
+impl Say {
+    pub async fn classic(_ctx: Context, _req: ClassicRequest) -> CommandResult {
+        todo!();
     }
 
-    async fn classic(ctx: Context, _req: ClassicRequest) -> CommandResult {
-        Self::uber(ctx, Default::default()).await
-    }
-
-    async fn slash(ctx: Context, _req: SlashRequest) -> CommandResult {
-        Self::uber(ctx, Default::default()).await
+    pub async fn slash(_ctx: Context, _req: SlashRequest) -> CommandResult {
+        todo!();
     }
 }
 
@@ -45,18 +33,12 @@ impl Command for Say {
 #[derive(Default)]
 pub struct Edit;
 
-impl Command for Edit {
-    type Data = Self;
-
-    async fn uber(_ctx: Context, _data: Self::Data) -> CommandResult {
-        Ok(Response::Clear)
+impl Edit {
+    pub async fn classic(_ctx: Context, _req: ClassicRequest) -> CommandResult {
+        todo!();
     }
 
-    async fn classic(ctx: Context, _req: ClassicRequest) -> CommandResult {
-        Self::uber(ctx, Default::default()).await
-    }
-
-    async fn slash(ctx: Context, _req: SlashRequest) -> CommandResult {
-        Self::uber(ctx, Default::default()).await
+    pub async fn slash(_ctx: Context, _req: SlashRequest) -> CommandResult {
+        todo!();
     }
 }

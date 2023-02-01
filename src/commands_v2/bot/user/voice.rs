@@ -5,19 +5,13 @@ use crate::commands_v2::prelude::*;
 #[derive(Default)]
 pub struct Voice;
 
-impl Command for Voice {
-    type Data = Self;
-
-    async fn uber(_ctx: Context, _data: Self::Data) -> CommandResult {
-        Ok(Response::Clear)
+impl Voice {
+    pub async fn classic(_ctx: Context, _req: ClassicRequest) -> CommandResult {
+        todo!();
     }
 
-    async fn classic(ctx: Context, _req: ClassicRequest) -> CommandResult {
-        Self::uber(ctx, Default::default()).await
-    }
-
-    async fn slash(ctx: Context, _req: SlashRequest) -> CommandResult {
-        Self::uber(ctx, Default::default()).await
+    pub async fn slash(_ctx: Context, _req: SlashRequest) -> CommandResult {
+        todo!();
     }
 }
 
@@ -25,11 +19,13 @@ impl Command for Voice {
 #[derive(Default)]
 pub struct Join;
 
-impl Command for Join {
-    type Data = Self;
+impl Join {
+    pub async fn classic(_ctx: Context, _req: ClassicRequest) -> CommandResult {
+        todo!();
+    }
 
-    async fn uber(_ctx: Context, _data: Self::Data) -> CommandResult {
-        todo!()
+    pub async fn slash(_ctx: Context, _req: SlashRequest) -> CommandResult {
+        todo!();
     }
 }
 
@@ -37,10 +33,12 @@ impl Command for Join {
 #[derive(Default)]
 pub struct Leave;
 
-impl Command for Leave {
-    type Data = Self;
+impl Leave {
+    pub async fn classic(_ctx: Context, _req: ClassicRequest) -> CommandResult {
+        todo!();
+    }
 
-    async fn uber(_ctx: Context, _data: Self::Data) -> CommandResult {
-        todo!()
+    pub async fn slash(_ctx: Context, _req: SlashRequest) -> CommandResult {
+        todo!();
     }
 }

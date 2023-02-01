@@ -17,14 +17,12 @@ enum JokeResponse {
     TwoPart { setup: String, delivery: String },
 }
 
-impl Command for Joke {
-    type Data = Self;
-
-    async fn uber(_ctx: Context, _data: Self::Data) -> CommandResult {
-        Ok(Response::Clear)
+impl Joke {
+    pub async fn classic(_ctx: Context, _req: ClassicRequest) -> CommandResult {
+        todo!();
     }
 
-    async fn slash(_ctx: Context, _req: SlashRequest) -> CommandResult {
+    pub async fn slash(_ctx: Context, _req: SlashRequest) -> CommandResult {
         let body = reqwest::get("https://v2.jokeapi.dev/joke/Any")
             .await
             .unwrap()

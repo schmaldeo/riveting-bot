@@ -13,19 +13,17 @@ pub struct Mute {
     duration: Option<u64>,
 }
 
-impl Command for Mute {
-    type Data = Self;
-
-    async fn uber(ctx: Context, data: Self::Data) -> CommandResult {
-        let Some(guild_id) = data.guild_id else {
+impl Mute {
+    pub async fn uber(self, ctx: Context) -> CommandResult {
+        let Some(guild_id) = self.guild_id else {
             return Err(CommandError::Disabled)
         };
 
-        let Some(user_id) = data.user_id else {
+        let Some(user_id) = self.user_id else {
             return Err(CommandError::MissingArgs)
         };
 
-        let timeout = data.duration.unwrap_or(DEFAULT_MUTE);
+        let timeout = self.duration.unwrap_or(DEFAULT_MUTE);
 
         ctx.http
             .update_guild_member(guild_id, user_id)
@@ -43,26 +41,28 @@ impl Command for Mute {
         Ok(Response::Clear)
     }
 
-    async fn classic(ctx: Context, req: ClassicRequest) -> CommandResult {
-        Self::uber(ctx, Self {
+    pub async fn classic(ctx: Context, req: ClassicRequest) -> CommandResult {
+        Self {
             guild_id: req.message.guild_id,
             user_id: req.args.get("user").user().map(|r| r.id()),
             duration: req.args.get("duration").integer().map(|i| i as u64),
-        })
+        }
+        .uber(ctx)
         .await
     }
 
-    async fn slash(ctx: Context, req: SlashRequest) -> CommandResult {
-        Self::uber(ctx, Self {
+    pub async fn slash(ctx: Context, req: SlashRequest) -> CommandResult {
+        Self {
             guild_id: req.interaction.guild_id,
             user_id: req.args.get("user").user().map(|r| r.id()),
             duration: req.args.get("duration").integer().map(|i| i as u64),
-        })
+        }
+        .uber(ctx)
         .await
     }
 
-    async fn user(ctx: Context, req: UserRequest) -> CommandResult {
-        Self::uber(ctx, Self {
+    pub async fn user(ctx: Context, req: UserRequest) -> CommandResult {
+        Self {
             guild_id: req.interaction.guild_id,
             user_id: req.data.resolved.as_ref().and_then(|d| {
                 d.users
@@ -73,7 +73,8 @@ impl Command for Mute {
                     .cloned()
             }),
             duration: None, // TODO: Create modal for duration input.
-        })
+        }
+        .uber(ctx)
         .await
     }
 }

@@ -27,19 +27,17 @@ pub struct Time {
     message_id: Option<Id<MessageMarker>>,
 }
 
-impl Command for Time {
-    type Data = Self;
-
-    async fn uber(ctx: Context, data: Self::Data) -> CommandResult {
-        let Some(expr) = data.args.get("expression").string() else {
+impl Time {
+    pub async fn uber(self, ctx: Context) -> CommandResult {
+        let Some(expr) = self.args.get("expression").string() else {
             return Err(CommandError::MissingArgs);
         };
 
-        let Some(channel_id) = data.channel_id else {
+        let Some(channel_id) = self.channel_id else {
             return Err(CommandError::MissingArgs);
         };
 
-        let Some(message_id) = data.message_id else {
+        let Some(message_id) = self.message_id else {
             return Err(CommandError::MissingArgs); // FIXME: Slash command has no message id.
         };
 
@@ -66,21 +64,23 @@ impl Command for Time {
         Ok(Response::Clear)
     }
 
-    async fn classic(ctx: Context, req: ClassicRequest) -> CommandResult {
-        Self::uber(ctx, Self {
+    pub async fn classic(ctx: Context, req: ClassicRequest) -> CommandResult {
+        Self {
             args: req.args,
             channel_id: Some(req.message.channel_id),
             message_id: Some(req.message.id),
-        })
+        }
+        .uber(ctx)
         .await
     }
 
-    async fn slash(ctx: Context, req: SlashRequest) -> CommandResult {
-        Self::uber(ctx, Self {
+    pub async fn slash(ctx: Context, req: SlashRequest) -> CommandResult {
+        Self {
             args: req.args,
             channel_id: req.interaction.channel_id,
             message_id: None,
-        })
+        }
+        .uber(ctx)
         .await
     }
 }

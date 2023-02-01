@@ -9,14 +9,12 @@ pub struct Fuel {
     args: Args,
 }
 
-impl Command for Fuel {
-    type Data = Self;
-
-    async fn uber(_ctx: Context, _data: Self::Data) -> CommandResult {
-        Ok(Response::Clear)
+impl Fuel {
+    pub async fn classic(_ctx: Context, _req: ClassicRequest) -> CommandResult {
+        todo!();
     }
 
-    async fn slash(ctx: Context, req: SlashRequest) -> CommandResult {
+    pub async fn slash(ctx: Context, req: SlashRequest) -> CommandResult {
         let length = req.args.get("length").integer().unwrap();
         let minutes = req.args.get("minutes").integer().unwrap();
         let seconds = req.args.get("seconds").number().unwrap();

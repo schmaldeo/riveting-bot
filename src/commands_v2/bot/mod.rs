@@ -1,4 +1,4 @@
-use crate::commands_v2::{Command, Commands, CommandsBuilder};
+use crate::commands_v2::{Commands, CommandsBuilder};
 use crate::utils::prelude::*;
 
 /// Generic commands.

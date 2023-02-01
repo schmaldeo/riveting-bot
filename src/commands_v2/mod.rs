@@ -40,9 +40,7 @@ use thiserror::Error;
 
 use crate::commands_v2::builder::twilight::{CommandValidationError, TwilightCommand};
 use crate::commands_v2::builder::BaseCommand;
-use crate::commands_v2::request::{ClassicRequest, MessageRequest, SlashRequest, UserRequest};
 use crate::utils::prelude::*;
-use crate::Context;
 
 pub mod arg;
 pub mod bot;
@@ -58,46 +56,8 @@ pub mod prelude {
     pub use crate::commands_v2::request::{
         ClassicRequest, MessageRequest, SlashRequest, UserRequest,
     };
-    pub use crate::commands_v2::{Command, CommandError, CommandResult, Response};
+    pub use crate::commands_v2::{CommandError, CommandResult, Response};
     pub use crate::Context;
-}
-
-/// A trait for defining functions for command executions and types.
-/// This trait is purely used as a convenience "template" and so is not a must.
-#[allow(unused_variables)]
-pub trait Command {
-    /// Type that is used to pass additional data to `Command::uber`.
-    type Data: Default = ();
-
-    // NOTE: At the time of writing, there is unusual behaviour with `feature(async_fn_in_trait)`
-    // when calling default async impls of the trait. Therefore, implementors and users should not
-    // trust functions that are not specifically implemented. When this problem is fixed,
-    // `uber` should have a default implementation.
-    // REVIEW: https://github.com/rust-lang/rust/issues/107002
-
-    /// Handle general command event. Called by default implementations.
-    /// Additional data may be passed from original event.
-    async fn uber(ctx: Context, data: Self::Data) -> CommandResult;
-
-    /// Called on classic command event. Default impl redirects to `Command::uber` with default data.
-    async fn classic(ctx: Context, req: ClassicRequest) -> CommandResult {
-        Self::uber(ctx, Default::default()).await
-    }
-
-    /// Called on slash command event. Default impl redirects to `Command::uber` with default data.
-    async fn slash(ctx: Context, req: SlashRequest) -> CommandResult {
-        Self::uber(ctx, Default::default()).await
-    }
-
-    /// Called on message command event. Default impl redirects to `Command::uber` with default data.
-    async fn message(ctx: Context, req: MessageRequest) -> CommandResult {
-        Self::uber(ctx, Default::default()).await
-    }
-
-    /// Called on user command event. Default impl redirects to `Command::uber` with default data.
-    async fn user(ctx: Context, req: UserRequest) -> CommandResult {
-        Self::uber(ctx, Default::default()).await
-    }
 }
 
 #[derive(Debug, Error)]

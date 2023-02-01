@@ -25,15 +25,13 @@ pub mod bulk {
         message_id: Option<Id<MessageMarker>>,
     }
 
-    impl Command for BulkDelete {
-        type Data = Self;
-
-        async fn uber(ctx: Context, data: Self::Data) -> CommandResult {
+    impl BulkDelete {
+        pub async fn uber(self, ctx: Context) -> CommandResult {
             const TWO_WEEKS_SECS: i64 = 60 * 60 * 24 * 7 * 2;
 
-            let two_weeks_ago = data.timestamp - TWO_WEEKS_SECS;
+            let two_weeks_ago = self.timestamp - TWO_WEEKS_SECS;
 
-            let Some(count) = data.args.get("amount").integer() else {
+            let Some(count) = self.args.get("amount").integer() else {
                 return Err(CommandError::MissingArgs);
             };
 
@@ -45,11 +43,11 @@ pub mod bulk {
                 return Ok(Response::Clear);
             }
 
-            let Some(channel_id) = data.channel_id else {
+            let Some(channel_id) = self.channel_id else {
                 return Err(CommandError::MissingArgs);
             };
 
-            let message_id = match data.message_id {
+            let message_id = match self.message_id {
                 Some(id) => id,
                 None => {
                     match ctx
@@ -90,23 +88,25 @@ pub mod bulk {
             Ok(Response::Clear)
         }
 
-        async fn classic(ctx: Context, req: ClassicRequest) -> CommandResult {
-            Self::uber(ctx, Self {
+        pub async fn classic(ctx: Context, req: ClassicRequest) -> CommandResult {
+            Self {
                 args: req.args,
                 timestamp: req.message.timestamp.as_secs(),
                 channel_id: Some(req.message.channel_id),
                 message_id: Some(req.message.id),
-            })
+            }
+            .uber(ctx)
             .await
         }
 
-        async fn slash(ctx: Context, req: SlashRequest) -> CommandResult {
-            Self::uber(ctx, Self {
+        pub async fn slash(ctx: Context, req: SlashRequest) -> CommandResult {
+            Self {
                 args: req.args,
                 timestamp: chrono::Utc::now().timestamp(),
                 channel_id: req.interaction.channel_id,
                 message_id: None,
-            })
+            }
+            .uber(ctx)
             .await
         }
     }

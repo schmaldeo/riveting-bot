@@ -4,18 +4,12 @@ use crate::commands_v2::prelude::*;
 #[derive(Default)]
 pub struct Roles;
 
-impl Command for Roles {
-    type Data = Self;
-
-    async fn uber(_ctx: Context, _data: Self::Data) -> CommandResult {
-        Ok(Response::Clear)
+impl Roles {
+    pub async fn classic(_ctx: Context, _req: ClassicRequest) -> CommandResult {
+        todo!();
     }
 
-    async fn classic(ctx: Context, _req: ClassicRequest) -> CommandResult {
-        Self::uber(ctx, Default::default()).await
-    }
-
-    async fn slash(ctx: Context, _req: SlashRequest) -> CommandResult {
-        Self::uber(ctx, Default::default()).await
+    pub async fn slash(_ctx: Context, _req: SlashRequest) -> CommandResult {
+        todo!();
     }
 }

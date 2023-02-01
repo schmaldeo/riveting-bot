@@ -8,14 +8,12 @@ pub struct Coinflip {
     args: Args,
 }
 
-impl Command for Coinflip {
-    type Data = Self;
-
-    async fn uber(_ctx: Context, _data: Self::Data) -> CommandResult {
-        Ok(Response::Clear)
+impl Coinflip {
+    pub async fn classic(_ctx: Context, _req: ClassicRequest) -> CommandResult {
+        todo!();
     }
 
-    async fn slash(_ctx: Context, _req: SlashRequest) -> CommandResult {
+    pub async fn slash(_ctx: Context, _req: SlashRequest) -> CommandResult {
         let flip = random::<bool>();
         if flip {
             Ok(Response::CreateMessage("Heads".to_string()))

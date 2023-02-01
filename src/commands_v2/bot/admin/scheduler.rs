@@ -3,8 +3,12 @@ use crate::commands_v2::prelude::*;
 
 pub struct Scheduler;
 
-impl Command for Scheduler {
-    async fn uber(_ctx: Context, _data: Self::Data) -> CommandResult {
-        todo!()
+impl Scheduler {
+    pub async fn classic(_ctx: Context, _req: ClassicRequest) -> CommandResult {
+        todo!();
+    }
+
+    pub async fn slash(_ctx: Context, _req: SlashRequest) -> CommandResult {
+        todo!();
     }
 }
