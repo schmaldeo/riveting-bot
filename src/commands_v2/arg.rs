@@ -4,17 +4,37 @@ use std::sync::Arc;
 use derive_more::{AsMut, AsRef, From, Index, IndexMut, IntoIterator, IsVariant, Unwrap};
 use twilight_mention::ParseMention;
 use twilight_model::application::interaction::application_command::CommandOptionValue;
-use twilight_model::channel::{Attachment, Channel, Message};
-use twilight_model::guild::Role;
-use twilight_model::id::marker::{
-    AttachmentMarker, ChannelMarker, GenericMarker, MessageMarker, RoleMarker, UserMarker,
-};
+use twilight_model::channel::Message;
 use twilight_model::id::Id;
-use twilight_model::user::User;
 
 use crate::commands_v2::builder::{ArgDesc, ArgKind};
 use crate::commands_v2::CommandError;
 use crate::utils::prelude::*;
+
+pub mod types {
+    use twilight_model::channel::{
+        Attachment as TwilightAttachment, Channel as TwilightChannel, Message as TwilightMessage,
+    };
+    use twilight_model::guild::Role as TwilightRole;
+    use twilight_model::id::marker::{
+        AttachmentMarker, ChannelMarker, GenericMarker, MessageMarker, RoleMarker, UserMarker,
+    };
+    use twilight_model::id::Id;
+    use twilight_model::user::User as TwilightUser;
+
+    use crate::commands_v2::arg::Ref;
+
+    pub type ArgBool = bool;
+    pub type ArgNumber = f64;
+    pub type ArgInteger = i64;
+    pub type ArgString = Box<str>;
+    pub type ArgChannel = Ref<ChannelMarker, TwilightChannel>;
+    pub type ArgMessage = Ref<MessageMarker, TwilightMessage>;
+    pub type ArgAttachment = Ref<AttachmentMarker, TwilightAttachment>;
+    pub type ArgUser = Ref<UserMarker, TwilightUser>;
+    pub type ArgRole = Ref<RoleMarker, TwilightRole>;
+    pub type ArgMention = Id<GenericMarker>;
+}
 
 /// Contained value that is either type `Ref::Id(Id<M>)` or `Ref::Obj(Arc<D>)`.
 #[derive(Debug, From, Unwrap, IsVariant)]
@@ -45,8 +65,8 @@ where
 {
     fn id(&self) -> Id<M> {
         match self {
-            Ref::Id(id) => *id,
-            Ref::Obj(obj) => obj.id(),
+            Self::Id(id) => *id,
+            Self::Obj(obj) => obj.id(),
         }
     }
 }
@@ -62,6 +82,16 @@ impl Args {
             .iter()
             .find(|a| a.name == name)
             .map(|a| &a.value)
+    }
+
+    /// Finds argument by name and returns the value as type `T`.
+    pub fn value<T>(&self, name: &str) -> Result<T, CommandError>
+    where
+        ArgValue: GetExt<T>,
+    {
+        self.get(name)
+            .and_then(|a| a.get())
+            .ok_or(CommandError::MissingArgs)
     }
 
     pub fn inner(self) -> Vec<Arg> {
@@ -95,30 +125,30 @@ impl Arg {
 /// Argument value type with data.
 #[derive(Debug, Clone, Unwrap, IsVariant)]
 pub enum ArgValue {
-    Bool(bool),
-    Number(f64),
-    Integer(i64),
-    String(String),
-    Channel(Ref<ChannelMarker, Channel>),
-    Message(Ref<MessageMarker, Message>),
-    Attachment(Ref<AttachmentMarker, Attachment>),
-    User(Ref<UserMarker, User>),
-    Role(Ref<RoleMarker, Role>),
-    Mention(Id<GenericMarker>),
+    Bool(types::ArgBool),
+    Number(types::ArgNumber),
+    Integer(types::ArgInteger),
+    String(types::ArgString),
+    Channel(types::ArgChannel),
+    Message(types::ArgMessage),
+    Attachment(types::ArgAttachment),
+    User(types::ArgUser),
+    Role(types::ArgRole),
+    Mention(types::ArgMention),
 }
 
 impl ArgValue {
     impl_variant_option!(
-        pub fn bool(&self: Bool(val)) -> bool { *val }
-        pub fn number(&self: Number(val)) -> f64 { *val }
-        pub fn integer(&self: Integer(val)) -> i64 { *val }
-        pub fn string(&self: String(val)) -> &String;
-        pub fn channel(&self: Channel(val)) -> &Ref<ChannelMarker, Channel>;
-        pub fn message(&self: Message(val)) -> &Ref<MessageMarker, Message>;
-        pub fn attachment(&self: Attachment(val)) -> &Ref<AttachmentMarker, Attachment>;
-        pub fn user(&self: User(val)) -> &Ref<UserMarker, User>;
-        pub fn role(&self: Role(val)) -> &Ref<RoleMarker, Role>;
-        pub fn mention(&self: Mention(val)) -> Id<GenericMarker> { *val }
+        pub fn bool(&self: Bool(val)) -> types::ArgBool { *val }
+        pub fn number(&self: Number(val)) -> types::ArgNumber { *val }
+        pub fn integer(&self: Integer(val)) -> types::ArgInteger { *val }
+        pub fn string(&self: String(val)) -> types::ArgString { val.to_owned() }
+        pub fn channel(&self: Channel(val)) -> types::ArgChannel { val.to_owned() }
+        pub fn message(&self: Message(val)) -> types::ArgMessage { val.to_owned() }
+        pub fn attachment(&self: Attachment(val)) -> types::ArgAttachment { val.to_owned() }
+        pub fn user(&self: User(val)) -> types::ArgUser { val.to_owned() }
+        pub fn role(&self: Role(val)) -> types::ArgRole { val.to_owned() }
+        pub fn mention(&self: Mention(val)) -> types::ArgMention { *val }
     );
 
     pub fn from_kind(kind: &ArgKind, text: &str) -> AnyResult<Self> {
@@ -149,7 +179,7 @@ impl ArgValue {
             ),
             ArgKind::Number(_) => Self::Number(text.parse().context("Number arg parse error")?),
             ArgKind::Integer(_) => Self::Integer(text.parse().context("Integer arg parse error")?),
-            ArgKind::String(_) => Self::String(text.to_string()),
+            ArgKind::String(_) => Self::String(text.to_string().into_boxed_str()),
             ArgKind::Channel(_) => {
                 parse_mention_or_id(text, Self::Channel).context("Channel arg parse error")?
             },
@@ -199,7 +229,7 @@ impl TryFrom<CommandOptionValue> for ArgValue {
             CommandOptionValue::Boolean(b) => Ok(Self::Bool(b)),
             CommandOptionValue::Number(n) => Ok(Self::Number(n)),
             CommandOptionValue::Integer(i) => Ok(Self::Integer(i)),
-            CommandOptionValue::String(s) => Ok(Self::String(s)),
+            CommandOptionValue::String(s) => Ok(Self::String(s.into_boxed_str())),
             CommandOptionValue::Channel(id) => Ok(Self::Channel(Ref::Id(id))),
             CommandOptionValue::Mentionable(id) => Ok(Self::Mention(id)),
             CommandOptionValue::Attachment(id) => Ok(Self::Attachment(Ref::Id(id))),
@@ -215,59 +245,90 @@ impl TryFrom<CommandOptionValue> for ArgValue {
 
 /// Extension for `Option<ArgValue>` to get an option of matching variant.
 pub trait ArgValueExt {
-    fn bool(&self) -> Option<bool>;
-    fn number(&self) -> Option<f64>;
-    fn integer(&self) -> Option<i64>;
-    fn string(&self) -> Option<&String>;
-    fn channel(&self) -> Option<&Ref<ChannelMarker, Channel>>;
-    fn message(&self) -> Option<&Ref<MessageMarker, Message>>;
-    fn attachment(&self) -> Option<&Ref<AttachmentMarker, Attachment>>;
-    fn user(&self) -> Option<&Ref<UserMarker, User>>;
-    fn role(&self) -> Option<&Ref<RoleMarker, Role>>;
-    fn mention(&self) -> Option<Id<GenericMarker>>;
+    fn bool(&self) -> Option<types::ArgBool>;
+    fn number(&self) -> Option<types::ArgNumber>;
+    fn integer(&self) -> Option<types::ArgInteger>;
+    fn string(&self) -> Option<types::ArgString>;
+    fn channel(&self) -> Option<types::ArgChannel>;
+    fn message(&self) -> Option<types::ArgMessage>;
+    fn attachment(&self) -> Option<types::ArgAttachment>;
+    fn user(&self) -> Option<types::ArgUser>;
+    fn role(&self) -> Option<types::ArgRole>;
+    fn mention(&self) -> Option<types::ArgMention>;
 }
 
 impl<T> ArgValueExt for Option<T>
 where
     T: Borrow<ArgValue>,
 {
-    fn bool(&self) -> Option<bool> {
+    fn bool(&self) -> Option<types::ArgBool> {
         self.as_ref().and_then(|v| v.borrow().bool())
     }
 
-    fn number(&self) -> Option<f64> {
+    fn number(&self) -> Option<types::ArgNumber> {
         self.as_ref().and_then(|v| v.borrow().number())
     }
 
-    fn integer(&self) -> Option<i64> {
+    fn integer(&self) -> Option<types::ArgInteger> {
         self.as_ref().and_then(|v| v.borrow().integer())
     }
 
-    fn string(&self) -> Option<&String> {
+    fn string(&self) -> Option<types::ArgString> {
         self.as_ref().and_then(|v| v.borrow().string())
     }
 
-    fn channel(&self) -> Option<&Ref<ChannelMarker, Channel>> {
+    fn channel(&self) -> Option<types::ArgChannel> {
         self.as_ref().and_then(|v| v.borrow().channel())
     }
 
-    fn message(&self) -> Option<&Ref<MessageMarker, Message>> {
+    fn message(&self) -> Option<types::ArgMessage> {
         self.as_ref().and_then(|v| v.borrow().message())
     }
 
-    fn attachment(&self) -> Option<&Ref<AttachmentMarker, Attachment>> {
+    fn attachment(&self) -> Option<types::ArgAttachment> {
         self.as_ref().and_then(|v| v.borrow().attachment())
     }
 
-    fn user(&self) -> Option<&Ref<UserMarker, User>> {
+    fn user(&self) -> Option<types::ArgUser> {
         self.as_ref().and_then(|v| v.borrow().user())
     }
 
-    fn role(&self) -> Option<&Ref<RoleMarker, Role>> {
+    fn role(&self) -> Option<types::ArgRole> {
         self.as_ref().and_then(|v| v.borrow().role())
     }
 
-    fn mention(&self) -> Option<Id<GenericMarker>> {
+    fn mention(&self) -> Option<types::ArgMention> {
         self.as_ref().and_then(|v| v.borrow().mention())
     }
 }
+
+pub trait GetExt<T> {
+    fn get(&self) -> Option<T>;
+}
+
+macro_rules! impl_get_ext {
+    ($type:ty; $method:ident -> $value:ty) => {
+        impl GetExt<$value> for $type {
+            fn get(&self) -> Option<$value> {
+                self.$method()
+            }
+        }
+
+        impl GetExt<$value> for Option<$type> {
+            fn get(&self) -> Option<$value> {
+                self.as_ref().and_then(|a| a.$method())
+            }
+        }
+    };
+}
+
+impl_get_ext!(ArgValue; bool -> types::ArgBool);
+impl_get_ext!(ArgValue; number -> types::ArgNumber);
+impl_get_ext!(ArgValue; integer -> types::ArgInteger);
+impl_get_ext!(ArgValue; string -> types::ArgString);
+impl_get_ext!(ArgValue; channel -> types::ArgChannel);
+impl_get_ext!(ArgValue; message -> types::ArgMessage);
+impl_get_ext!(ArgValue; attachment -> types::ArgAttachment);
+impl_get_ext!(ArgValue; user -> types::ArgUser);
+impl_get_ext!(ArgValue; role -> types::ArgRole);
+impl_get_ext!(ArgValue; mention -> types::ArgMention);

@@ -74,7 +74,7 @@ impl Command for Help {
     type Data = Self;
 
     async fn uber(ctx: Context, data: Self::Data) -> CommandResult {
-        if let Some(_value) = data.args.get("command").string().cloned() {
+        if let Some(_value) = data.args.get("command").string() {
             // TODO: If "command" argument exists, show help on that command instead.
             todo!("get rekt");
         }

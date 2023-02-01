@@ -31,7 +31,7 @@ impl Command for Time {
     type Data = Self;
 
     async fn uber(ctx: Context, data: Self::Data) -> CommandResult {
-        let Some(expr) = data.args.get("expression").string().cloned() else {
+        let Some(expr) = data.args.get("expression").string() else {
             return Err(CommandError::MissingArgs);
         };
 
