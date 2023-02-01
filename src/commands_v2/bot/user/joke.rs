@@ -8,10 +8,13 @@ pub struct Joke {
     args: Args,
 }
 
-#[derive(serde::Deserialize, Debug)]
-struct JokeResponse {
-    setup: String,
-    punchline: String,
+#[derive(serde::Deserialize)]
+#[serde(tag = "type")]
+enum JokeResponse {
+    #[serde(rename = "single")]
+    Single { joke: String },
+    #[serde(rename = "twopart")]
+    TwoPart { setup: String, delivery: String },
 }
 
 impl Command for Joke {
@@ -21,21 +24,19 @@ impl Command for Joke {
         Ok(Response::Clear)
     }
 
-    async fn slash(_ctx: Context, req: SlashRequest) -> CommandResult {
-        let joke_type = if let Some(req_type) = req.args.get("type").string() {
-            req_type.to_string()
-        } else {
-            "general".to_string()
-        };
-
-        let url = format!("https://official-joke-api.appspot.com/jokes/{joke_type}/random");
-        let body = reqwest::get(url)
+    async fn slash(_ctx: Context, _req: SlashRequest) -> CommandResult {
+        let body = reqwest::get("https://v2.jokeapi.dev/joke/Any")
             .await
             .unwrap()
-            .json::<Vec<JokeResponse>>()
+            .json::<JokeResponse>()
             .await
             .unwrap();
-        let joke = format!("> {}\n> {}", body[0].setup, body[0].punchline);
+
+        let joke = match body {
+            JokeResponse::Single { joke } => joke,
+            JokeResponse::TwoPart { setup, delivery } => format!("> {setup}\n> {delivery}"),
+        };
+
         Ok(Response::CreateMessage(joke))
     }
 }

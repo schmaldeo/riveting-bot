@@ -83,15 +83,7 @@ pub fn create_commands() -> AnyResult<Commands> {
                 .option(string("expression", "Time expression to evaluate."))
                 .dm(),
         )
-        .bind(
-            command("joke", "Send a bad joke.")
-                .attach(user::joke::Joke::slash)
-                .option(string("type", "Category of a joke").choices([
-                    ("general", "general"),
-                    ("programming", "programming"),
-                    ("dad", "dad"),
-                ])),
-        )
+        .bind(command("joke", "Send a bad joke.").attach(user::joke::Joke::slash))
         .bind(command("coinflip", "Coin flip").attach(user::coinflip::Coinflip::slash))
         .bind(
             command("userinfo", "Get information about a user")
