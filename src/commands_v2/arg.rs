@@ -12,15 +12,13 @@ use crate::commands_v2::CommandError;
 use crate::utils::prelude::*;
 
 pub mod types {
-    use twilight_model::channel::{
-        Attachment as TwilightAttachment, Channel as TwilightChannel, Message as TwilightMessage,
-    };
-    use twilight_model::guild::Role as TwilightRole;
+    use twilight_model::channel::{Attachment, Channel, Message};
+    use twilight_model::guild::Role;
     use twilight_model::id::marker::{
         AttachmentMarker, ChannelMarker, GenericMarker, MessageMarker, RoleMarker, UserMarker,
     };
     use twilight_model::id::Id;
-    use twilight_model::user::User as TwilightUser;
+    use twilight_model::user::User;
 
     use crate::commands_v2::arg::Ref;
 
@@ -28,11 +26,11 @@ pub mod types {
     pub type ArgNumber = f64;
     pub type ArgInteger = i64;
     pub type ArgString = Box<str>;
-    pub type ArgChannel = Ref<ChannelMarker, TwilightChannel>;
-    pub type ArgMessage = Ref<MessageMarker, TwilightMessage>;
-    pub type ArgAttachment = Ref<AttachmentMarker, TwilightAttachment>;
-    pub type ArgUser = Ref<UserMarker, TwilightUser>;
-    pub type ArgRole = Ref<RoleMarker, TwilightRole>;
+    pub type ArgChannel = Ref<ChannelMarker, Channel>;
+    pub type ArgMessage = Ref<MessageMarker, Message>;
+    pub type ArgAttachment = Ref<AttachmentMarker, Attachment>;
+    pub type ArgUser = Ref<UserMarker, User>;
+    pub type ArgRole = Ref<RoleMarker, Role>;
     pub type ArgMention = Id<GenericMarker>;
 }
 
