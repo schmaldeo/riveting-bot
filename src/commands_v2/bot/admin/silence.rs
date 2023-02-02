@@ -43,7 +43,7 @@ impl Mute {
 
         tokio::time::sleep(std::time::Duration::from_secs(timeout)).await;
 
-        // TODO: This might fail if the target user is not connected to a voice channel.
+        // FIXME: This fails if the target user is not connected to a voice channel leaving them server muted.
         ctx.http
             .update_guild_member(guild_id, user_id)
             .mute(false)
@@ -75,14 +75,7 @@ impl Mute {
     pub async fn user(ctx: Context, req: UserRequest) -> CommandResult {
         Self {
             guild_id: req.interaction.guild_id,
-            user_id: req.data.resolved.as_ref().and_then(|d| {
-                d.users
-                    .iter()
-                    .filter(|(id, _)| **id != req.interaction.author_id().unwrap())
-                    .map(|(id, _)| id)
-                    .next()
-                    .cloned()
-            }),
+            user_id: Some(req.target_id),
             duration: None, // TODO: Create modal for duration input.
         }
         .uber(ctx)
