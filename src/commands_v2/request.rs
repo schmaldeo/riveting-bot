@@ -3,6 +3,8 @@ use std::sync::Arc;
 use twilight_model::application::interaction::application_command::CommandData;
 use twilight_model::application::interaction::Interaction;
 use twilight_model::channel::Message;
+use twilight_model::id::marker::{MessageMarker, UserMarker};
+use twilight_model::id::Id;
 
 use crate::commands_v2::arg::Args;
 use crate::commands_v2::builder::BaseCommand;
@@ -56,6 +58,7 @@ pub struct MessageRequest {
     pub command: Arc<BaseCommand>,
     pub interaction: Arc<Interaction>,
     pub data: Arc<CommandData>,
+    pub target_id: Id<MessageMarker>,
 }
 
 impl MessageRequest {
@@ -63,11 +66,13 @@ impl MessageRequest {
         command: Arc<BaseCommand>,
         interaction: Arc<Interaction>,
         data: Arc<CommandData>,
+        target_id: Id<MessageMarker>,
     ) -> Self {
         Self {
             command,
             interaction,
             data,
+            target_id,
         }
     }
 }
@@ -78,6 +83,7 @@ pub struct UserRequest {
     pub command: Arc<BaseCommand>,
     pub interaction: Arc<Interaction>,
     pub data: Arc<CommandData>,
+    pub target_id: Id<UserMarker>,
 }
 
 impl UserRequest {
@@ -85,11 +91,13 @@ impl UserRequest {
         command: Arc<BaseCommand>,
         interaction: Arc<Interaction>,
         data: Arc<CommandData>,
+        target_id: Id<UserMarker>,
     ) -> Self {
         Self {
             command,
             interaction,
             data,
+            target_id,
         }
     }
 }

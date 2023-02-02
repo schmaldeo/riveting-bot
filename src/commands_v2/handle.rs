@@ -16,7 +16,7 @@ use crate::commands_v2::arg::{Arg, Args};
 use crate::commands_v2::builder::{
     ArgDesc, BaseCommand, CommandFunction, CommandGroup, CommandOption,
 };
-use crate::commands_v2::function::{Callable, ClassicFunction, Function, SlashFunction};
+use crate::commands_v2::function::{Callable, ClassicFunction, SlashFunction};
 use crate::commands_v2::prelude::*;
 use crate::utils::prelude::*;
 use crate::{parser, Context};
@@ -163,7 +163,12 @@ async fn process_slash(
         .slash_functions()
         .context("Failed to get slash functions")?;
 
-    let req = SlashRequest::new(base, Arc::clone(&inter), data, Args::from(args));
+    let req = SlashRequest::new(
+        Arc::clone(&base),
+        Arc::clone(&inter),
+        data,
+        Args::from(args),
+    );
 
     execute(ctx, funcs, req).await
 }
@@ -379,16 +384,9 @@ impl<'a> Lookup<'a> {
         }
     }
 
-    fn classic_functions(&self) -> AnyResult<Vec<ClassicFunction>> {
+    fn classic_functions(&self) -> AnyResult<impl Iterator<Item = ClassicFunction> + '_> {
         match self {
-            Lookup::Command(c) if c.has_classic() => Ok(c
-                .functions
-                .iter()
-                .filter_map(|f| match f {
-                    Function::Classic(f) => Some(Arc::clone(f)),
-                    _ => None,
-                })
-                .collect()),
+            Lookup::Command(c) if c.has_classic() => Ok(c.classic()),
             Lookup::Command(c) => {
                 anyhow::bail!("No classic commands found for command call: '{}'", c.name)
             },
@@ -399,16 +397,9 @@ impl<'a> Lookup<'a> {
         }
     }
 
-    fn slash_functions(&self) -> AnyResult<Vec<SlashFunction>> {
+    fn slash_functions(&self) -> AnyResult<impl Iterator<Item = SlashFunction> + '_> {
         match self {
-            Lookup::Command(c) if c.has_slash() => Ok(c
-                .functions
-                .iter()
-                .filter_map(|f| match f {
-                    Function::Slash(f) => Some(Arc::clone(f)),
-                    _ => None,
-                })
-                .collect()),
+            Lookup::Command(c) if c.has_slash() => Ok(c.slash()),
             Lookup::Command(c) => {
                 anyhow::bail!("No slash commands found for command call: '{}'", c.name)
             },
@@ -420,13 +411,13 @@ impl<'a> Lookup<'a> {
 }
 
 /// Execute tasks.
-async fn execute<F, R>(ctx: &Context, funcs: Vec<F>, req: R) -> CommandResult
+async fn execute<F, R>(ctx: &Context, funcs: impl Iterator<Item = F>, req: R) -> CommandResult
 where
     F: Callable<R>,
     R: Clone,
 {
     let mut set = JoinSet::new();
-    let mut results = Vec::with_capacity(funcs.len());
+    let mut results = Vec::new();
 
     for func in funcs {
         set.spawn(func.call(ctx.to_owned(), req.clone()));

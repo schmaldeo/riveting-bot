@@ -25,6 +25,7 @@
 //!
 
 use std::collections::HashSet;
+use std::sync::Arc;
 
 use derive_more::{Display, IsVariant, Unwrap};
 use futures::Future;
@@ -34,7 +35,9 @@ pub use twilight_model::guild::Permissions;
 use crate::commands_v2::builder::twilight::{
     CommandValidationError, MessageCommand, SlashCommand, TwilightCommand, UserCommand,
 };
-use crate::commands_v2::function::{Function, IntoFunction};
+use crate::commands_v2::function::{
+    ClassicFunction, Function, IntoFunction, MessageFunction, SlashFunction, UserFunction,
+};
 use crate::commands_v2::CommandResult;
 use crate::utils::prelude::*;
 use crate::Context;
@@ -442,22 +445,59 @@ pub struct CommandFunction {
 }
 
 impl CommandFunction {
+    /// Returns true if the command has classic functions.
     pub fn has_classic(&self) -> bool {
         self.functions.iter().any(Function::is_classic)
     }
 
+    /// Returns true if the command has slash functions.
     pub fn has_slash(&self) -> bool {
         self.functions.iter().any(Function::is_slash)
     }
 
+    /// Returns true if the command has message functions.
     pub fn has_message(&self) -> bool {
         self.functions.iter().any(Function::is_message)
     }
 
+    /// Returns true if the command has user functions.
     pub fn has_user(&self) -> bool {
         self.functions.iter().any(Function::is_user)
     }
 
+    /// Returns an iterator of attached classic functions.
+    pub fn classic(&self) -> impl Iterator<Item = ClassicFunction> + '_ {
+        self.functions.iter().filter_map(|f| match f {
+            Function::Classic(f) => Some(Arc::clone(f)),
+            _ => None,
+        })
+    }
+
+    /// Returns an iterator of attached slash functions.
+    pub fn slash(&self) -> impl Iterator<Item = SlashFunction> + '_ {
+        self.functions.iter().filter_map(|f| match f {
+            Function::Slash(f) => Some(Arc::clone(f)),
+            _ => None,
+        })
+    }
+
+    /// Returns an iterator of attached message functions.
+    pub fn message(&self) -> impl Iterator<Item = MessageFunction> + '_ {
+        self.functions.iter().filter_map(|f| match f {
+            Function::Message(f) => Some(Arc::clone(f)),
+            _ => None,
+        })
+    }
+
+    /// Returns an iterator of attached user functions.
+    pub fn user(&self) -> impl Iterator<Item = UserFunction> + '_ {
+        self.functions.iter().filter_map(|f| match f {
+            Function::User(f) => Some(Arc::clone(f)),
+            _ => None,
+        })
+    }
+
+    /// Returns an iterator of command arguments.
     pub fn args(&self) -> impl Iterator<Item = &ArgDesc> {
         self.options.iter().filter_map(|o| o.arg())
     }
