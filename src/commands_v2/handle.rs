@@ -176,42 +176,36 @@ async fn process_slash(
 // TODO: To be implemented.
 // TODO: See if any twilight resolved data can be used as objects instead of ids.
 async fn process_message(
-    _ctx: &Context,
-    _base: Arc<BaseCommand>,
-    _inter: Arc<Interaction>,
+    ctx: &Context,
+    base: Arc<BaseCommand>,
+    inter: Arc<Interaction>,
     data: Arc<CommandData>,
 ) -> CommandResult {
     // Message GUI commands.
-    let data = data.resolved.as_ref().expect("Empty resolve error");
-    println!("{data:#?}");
+    // let data = data.resolved.as_ref().expect("Empty resolve error");
+    // for _message in &data.messages {} // Globally.
 
-    // Globally.
-    for _message in &data.messages {}
-
-    // TODO: Should this create a modal to get missing args?
-    todo!();
+    let target = data.target_id.ok_or(CommandError::MissingArgs)?.cast();
+    let req = MessageRequest::new(Arc::clone(&base), inter, data, target);
+    execute(ctx, base.command.message(), req).await
 }
 
 // TODO: To be implemented.
 // TODO: See if any twilight resolved data can be used as objects instead of ids.
 async fn process_user(
-    _ctx: &Context,
-    _base: Arc<BaseCommand>,
-    _inter: Arc<Interaction>,
+    ctx: &Context,
+    base: Arc<BaseCommand>,
+    inter: Arc<Interaction>,
     data: Arc<CommandData>,
 ) -> CommandResult {
     // User GUI commands.
-    let data = data.resolved.as_ref().expect("Empty resolve error");
-    println!("{data:#?}");
+    // let data = data.resolved.as_ref().expect("Empty resolve error");
+    // for _user in &data.users {} // Globally.
+    // for _member in &data.members {} // Guilds only.
 
-    // Globally.
-    for _user in &data.users {}
-
-    // Guilds only.
-    for _member in &data.members {}
-
-    // TODO: Should this create a modal to get missing args?
-    todo!();
+    let target = data.target_id.ok_or(CommandError::MissingArgs)?.cast();
+    let req = UserRequest::new(Arc::clone(&base), inter, data, target);
+    execute(ctx, base.command.user(), req).await
 }
 
 /// Parse message and execute command functions.
