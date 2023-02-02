@@ -173,7 +173,6 @@ async fn process_slash(
     execute(ctx, funcs, req).await
 }
 
-// TODO: To be implemented.
 // TODO: See if any twilight resolved data can be used as objects instead of ids.
 async fn process_message(
     ctx: &Context,
@@ -190,7 +189,6 @@ async fn process_message(
     execute(ctx, base.command.message(), req).await
 }
 
-// TODO: To be implemented.
 // TODO: See if any twilight resolved data can be used as objects instead of ids.
 async fn process_user(
     ctx: &Context,
