@@ -62,19 +62,15 @@ pub async fn application_command(
         }
     };
 
-    let clear = || async {
-        // Clear deferred message response.
-        interaction
-            .delete_response(&inter.token)
-            .await
-            .context("Failed to clear interaction")
-    };
-
     // Handle execution result.
     // Catch erroneous execution and clear dangling response.
     match result {
         Ok(Response::None | Response::Clear) => {
-            clear().await?;
+            // Clear deferred message response.
+            interaction
+                .delete_response(&inter.token)
+                .await
+                .context("Failed to clear interaction")?;
         },
         Ok(Response::CreateMessage(text)) => {
             interaction
@@ -89,7 +85,8 @@ pub async fn application_command(
                 .create_followup(&inter.token)
                 .flags(MessageFlags::EPHEMERAL)
                 .content(ERROR_MESSAGE)?
-                .await?;
+                .await
+                .context("Failed to send error message")?;
 
             return Err(e);
         },
@@ -382,7 +379,7 @@ impl<'a> Lookup<'a> {
         }
     }
 
-    fn classic_functions(&self) -> AnyResult<Vec<Arc<dyn ClassicFunction>>> {
+    fn classic_functions(&self) -> AnyResult<Vec<ClassicFunction>> {
         match self {
             Lookup::Command(c) if c.has_classic() => Ok(c
                 .functions
@@ -402,7 +399,7 @@ impl<'a> Lookup<'a> {
         }
     }
 
-    fn slash_functions(&self) -> AnyResult<Vec<Arc<dyn SlashFunction>>> {
+    fn slash_functions(&self) -> AnyResult<Vec<SlashFunction>> {
         match self {
             Lookup::Command(c) if c.has_slash() => Ok(c
                 .functions

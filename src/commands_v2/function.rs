@@ -90,10 +90,10 @@ function_trait! {
     UserRequest => Function::User
 }
 
-pub trait ClassicFunction = Callable<ClassicRequest>;
-pub trait SlashFunction = Callable<SlashRequest>;
-pub trait MessageFunction = Callable<MessageRequest>;
-pub trait UserFunction = Callable<UserRequest>;
+pub type ClassicFunction = Arc<dyn Callable<ClassicRequest>>;
+pub type SlashFunction = Arc<dyn Callable<SlashRequest>>;
+pub type MessageFunction = Arc<dyn Callable<MessageRequest>>;
+pub type UserFunction = Arc<dyn Callable<UserRequest>>;
 
 /// Trait for functions that can be called with a generic request.
 pub trait Callable<R>: Send + Sync {
@@ -109,10 +109,10 @@ pub trait IntoFunction<R> {
 /// Supported function types.
 #[derive(Clone, Unwrap, IsVariant)]
 pub enum Function {
-    Classic(Arc<dyn Callable<ClassicRequest>>),
-    Slash(Arc<dyn Callable<SlashRequest>>),
-    Message(Arc<dyn Callable<MessageRequest>>),
-    User(Arc<dyn Callable<UserRequest>>),
+    Classic(ClassicFunction),
+    Slash(SlashFunction),
+    Message(MessageFunction),
+    User(UserFunction),
 }
 impl Function {
     pub const fn kind(&self) -> CommandType {
