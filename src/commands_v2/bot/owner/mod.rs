@@ -5,6 +5,15 @@ use crate::utils::prelude::*;
 pub struct Shutdown;
 
 impl Shutdown {
+    pub fn command() -> impl Into<BaseCommand> {
+        use crate::commands_v2::builder::*;
+
+        command("shutdown", "Shutdown the bot.")
+            .attach(Self::classic)
+            .permissions(Permissions::MANAGE_GUILD)
+            .dm()
+    }
+
     pub async fn classic(ctx: Context, req: ClassicRequest) -> CommandResult {
         info!("Shutting down by chat command");
 

@@ -2,10 +2,31 @@ use crate::commands_v2::prelude::*;
 // use crate::utils::prelude::*;
 
 /// Command: Create or edit bot messages.
-#[derive(Default)]
 pub struct Bot;
 
 impl Bot {
+    pub fn command() -> impl Into<BaseCommand> {
+        use crate::commands_v2::builder::*;
+
+        command("bot", "Create or edit bot messages.")
+            .attach(Self::classic)
+            .attach(Self::slash)
+            .permissions(Permissions::ADMINISTRATOR)
+            .option(
+                sub("say", "Post a message by the bot.")
+                    .attach(Say::classic)
+                    .attach(Say::slash)
+                    .option(string("text", "What to say.").required())
+                    .option(channel("channel", "Where to send it.")),
+            )
+            .option(
+                sub("edit", "Edit an existing bot message.")
+                    .attach(Edit::classic)
+                    .attach(Edit::slash)
+                    .option(message("message", "Message to edit.").required()),
+            )
+    }
+
     pub async fn classic(_ctx: Context, _req: ClassicRequest) -> CommandResult {
         todo!();
     }
@@ -16,7 +37,6 @@ impl Bot {
 }
 
 /// Command: Post a message as the bot.
-#[derive(Default)]
 pub struct Say;
 
 impl Say {
@@ -30,7 +50,6 @@ impl Say {
 }
 
 /// Command: Edit a message created by the bot (can be anything).
-#[derive(Default)]
 pub struct Edit;
 
 impl Edit {

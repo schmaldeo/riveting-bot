@@ -6,7 +6,6 @@ use crate::utils::prelude::*;
 
 const DEFAULT_MUTE: u64 = 60;
 
-#[derive(Default)]
 pub struct Mute {
     guild_id: Option<Id<GuildMarker>>,
     user_id: Option<Id<UserMarker>>,
@@ -14,6 +13,18 @@ pub struct Mute {
 }
 
 impl Mute {
+    pub fn command() -> impl Into<BaseCommand> {
+        use crate::commands_v2::builder::*;
+
+        command("mute", "Silence someone in voice channel.")
+            .attach(Self::classic)
+            .attach(Self::slash)
+            .attach(Self::user)
+            .permissions(Permissions::ADMINISTRATOR)
+            .option(user("user", "Who to mute.").required())
+            .option(integer("seconds", "Duration of the mute.").min(0))
+    }
+
     pub async fn uber(self, ctx: Context) -> CommandResult {
         let Some(guild_id) = self.guild_id else {
             return Err(CommandError::Disabled)

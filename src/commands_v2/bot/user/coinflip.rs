@@ -3,12 +3,17 @@ use rand::random;
 use crate::commands_v2::prelude::*;
 
 /// Command: Coinflip.
-#[derive(Default)]
 pub struct Coinflip {
     args: Args,
 }
 
 impl Coinflip {
+    pub fn command() -> impl Into<BaseCommand> {
+        use crate::commands_v2::builder::*;
+
+        command("coinflip", "Coin flip").attach(Self::slash)
+    }
+
     pub async fn classic(_ctx: Context, _req: ClassicRequest) -> CommandResult {
         todo!();
     }

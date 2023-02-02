@@ -53,6 +53,7 @@ pub mod request;
 pub mod prelude {
     pub use crate::commands_v2::arg::types::*;
     pub use crate::commands_v2::arg::{ArgValueExt, Args, GetExt};
+    pub use crate::commands_v2::builder::BaseCommand;
     pub use crate::commands_v2::request::{
         ClassicRequest, MessageRequest, SlashRequest, UserRequest,
     };

@@ -20,7 +20,6 @@ HTP examples:
 */
 
 /// Command: Display a discord timestamp.
-#[derive(Default)]
 pub struct Time {
     args: Args,
     channel_id: Option<Id<ChannelMarker>>,
@@ -28,6 +27,16 @@ pub struct Time {
 }
 
 impl Time {
+    pub fn command() -> impl Into<BaseCommand> {
+        use crate::commands_v2::builder::*;
+
+        command("time", "Display a discord timestamp.")
+            .attach(Self::classic)
+            .attach(Self::slash)
+            .option(string("expression", "Time expression to evaluate."))
+            .dm()
+    }
+
     pub async fn uber(self, ctx: Context) -> CommandResult {
         let Some(expr) = self.args.get("expression").string() else {
             return Err(CommandError::MissingArgs);

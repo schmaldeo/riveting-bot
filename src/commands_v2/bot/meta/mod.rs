@@ -7,10 +7,18 @@ use crate::commands_v2::prelude::*;
 use crate::Context;
 
 /// Command: Ping Pong!
-#[derive(Default)]
 pub struct Ping;
 
 impl Ping {
+    pub fn command() -> impl Into<BaseCommand> {
+        use crate::commands_v2::builder::*;
+
+        command("ping", "Ping the bot.")
+            .attach(Self::classic)
+            .attach(Self::slash)
+            .dm()
+    }
+
     pub async fn classic(_ctx: Context, _req: ClassicRequest) -> CommandResult {
         Ok(Response::CreateMessage("Pong!".to_string()))
     }
@@ -21,7 +29,6 @@ impl Ping {
 }
 
 /// Command: Info about the bot.
-#[derive(Default)]
 pub struct About {
     guild_id: Option<Id<GuildMarker>>,
     channel_id: Option<Id<ChannelMarker>>,
@@ -29,6 +36,15 @@ pub struct About {
 }
 
 impl About {
+    pub fn command() -> impl Into<BaseCommand> {
+        use crate::commands_v2::builder::*;
+
+        command("about", "Display info about the bot.")
+            .attach(Self::classic)
+            .attach(Self::slash)
+            .dm()
+    }
+
     pub async fn uber(self, ctx: Context) -> CommandResult {
         let about_msg = formatdoc!(
             "I am a RivetingBot!
@@ -66,7 +82,6 @@ impl About {
 }
 
 /// Command: Help for using the bot, commands and usage.
-#[derive(Default)]
 pub struct Help {
     args: Args,
     guild_id: Option<Id<GuildMarker>>,
@@ -75,6 +90,16 @@ pub struct Help {
 }
 
 impl Help {
+    pub fn command() -> impl Into<BaseCommand> {
+        use crate::commands_v2::builder::*;
+
+        command("help", "List bot commands.")
+            .attach(Self::classic)
+            .attach(Self::slash)
+            .option(string("command", "Get help on a command."))
+            .dm()
+    }
+
     pub async fn uber(self, ctx: Context) -> CommandResult {
         if let Some(_value) = self.args.get("command").string() {
             // TODO: If "command" argument exists, show help on that command instead.

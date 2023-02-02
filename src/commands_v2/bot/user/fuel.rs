@@ -4,12 +4,44 @@ use crate::commands_v2::prelude::*;
 use crate::utils::prelude::*;
 
 /// Command: Calculate fuel required.
-#[derive(Default)]
 pub struct Fuel {
     args: Args,
 }
 
 impl Fuel {
+    pub fn command() -> impl Into<BaseCommand> {
+        use crate::commands_v2::builder::*;
+
+        command("fuel", "Calculate race fuel required.")
+            .attach(Self::slash)
+            .option(
+                integer("length", "Lenght of the race in minutes")
+                    .required()
+                    .min(1),
+            )
+            .option(
+                integer("minutes", "Minutes in the lap")
+                    .required()
+                    .min(0)
+                    .max(10),
+            )
+            .option(
+                number(
+                    "seconds",
+                    "Seconds (and optionally milliseconds after a comma) in the lap",
+                )
+                .required()
+                .min(0.0)
+                .max(59.9999),
+            )
+            .option(
+                number("fuel_consumption", "Fuel consumption in l/lap")
+                    .required()
+                    .min(0.1),
+            )
+            .dm()
+    }
+
     pub async fn classic(_ctx: Context, _req: ClassicRequest) -> CommandResult {
         todo!();
     }

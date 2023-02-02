@@ -17,7 +17,6 @@ pub mod bulk {
     const MAX_DELETE: i64 = 100;
 
     /// Command: Delete a bunch of messages at once.
-    #[derive(Default)]
     pub struct BulkDelete {
         args: Args,
         timestamp: i64,
@@ -26,6 +25,21 @@ pub mod bulk {
     }
 
     impl BulkDelete {
+        pub fn command() -> impl Into<BaseCommand> {
+            use crate::commands_v2::builder::*;
+
+            command("bulk-delete", "Delete many of messages.")
+                .attach(Self::classic)
+                .attach(Self::slash)
+                .permissions(Permissions::ADMINISTRATOR)
+                .option(
+                    integer("amount", "Number of messages to delete.")
+                        .required()
+                        .min(0)
+                        .max(100),
+                )
+        }
+
         pub async fn uber(self, ctx: Context) -> CommandResult {
             const TWO_WEEKS_SECS: i64 = 60 * 60 * 24 * 7 * 2;
 

@@ -3,7 +3,6 @@ use reqwest;
 use crate::commands_v2::prelude::*;
 
 /// Command: Send a dad joke.
-#[derive(Default)]
 pub struct Joke {
     args: Args,
 }
@@ -18,6 +17,12 @@ enum JokeResponse {
 }
 
 impl Joke {
+    pub fn command() -> impl Into<BaseCommand> {
+        use crate::commands_v2::builder::*;
+
+        command("joke", "Send a bad joke.").attach(Self::slash)
+    }
+
     pub async fn classic(_ctx: Context, _req: ClassicRequest) -> CommandResult {
         todo!();
     }

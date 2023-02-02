@@ -2,10 +2,28 @@ use crate::commands_v2::prelude::*;
 // use crate::utils::prelude::*;
 
 /// Command: Quote a random person or manage quotes.
-#[derive(Default)]
 pub struct Quote;
 
 impl Quote {
+    pub fn command() -> impl Into<BaseCommand> {
+        use crate::commands_v2::builder::*;
+
+        command("quote", "Get a random quote.")
+            .attach(Self::classic)
+            .attach(Self::slash)
+            .attach(Self::message)
+            .option(
+                sub("add", "Create a quote.")
+                    .attach(Add::classic)
+                    .attach(Add::slash),
+            )
+            .option(
+                sub("remove", "Delete a quote.")
+                    .attach(Remove::classic)
+                    .attach(Remove::slash),
+            )
+    }
+
     pub async fn classic(_ctx: Context, _req: ClassicRequest) -> CommandResult {
         todo!();
     }
@@ -13,10 +31,13 @@ impl Quote {
     pub async fn slash(_ctx: Context, _req: SlashRequest) -> CommandResult {
         todo!();
     }
+
+    pub async fn message(_ctx: Context, _req: MessageRequest) -> CommandResult {
+        todo!();
+    }
 }
 
 /// Command: Add a quote.
-#[derive(Default)]
 pub struct Add;
 
 impl Add {
@@ -27,10 +48,13 @@ impl Add {
     pub async fn slash(_ctx: Context, _req: SlashRequest) -> CommandResult {
         todo!();
     }
+
+    pub async fn message(_ctx: Context, _req: MessageRequest) -> CommandResult {
+        todo!();
+    }
 }
 
 /// Command: Remove a quote.
-#[derive(Default)]
 pub struct Remove;
 
 impl Remove {
@@ -39,6 +63,10 @@ impl Remove {
     }
 
     pub async fn slash(_ctx: Context, _req: SlashRequest) -> CommandResult {
+        todo!();
+    }
+
+    pub async fn message(_ctx: Context, _req: MessageRequest) -> CommandResult {
         todo!();
     }
 }

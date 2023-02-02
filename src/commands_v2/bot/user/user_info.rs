@@ -5,12 +5,19 @@ use crate::commands_v2::prelude::*;
 use crate::utils::prelude::*;
 
 /// Command: Get information about user.
-#[derive(Default)]
 pub struct UserInfo {
     args: Args,
 }
 
 impl UserInfo {
+    pub fn command() -> impl Into<BaseCommand> {
+        use crate::commands_v2::builder::*;
+
+        command("userinfo", "Get information about a user")
+            .attach(Self::slash)
+            .option(user("user", "Mention a user"))
+    }
+
     pub async fn classic(_ctx: Context, _req: ClassicRequest) -> CommandResult {
         todo!();
     }
