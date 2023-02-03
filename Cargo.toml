@@ -61,15 +61,16 @@ version = "0.3"
 
 [features]
 # Default features
-default = ["admin", "owner"]
+default = ["user", "admin", "owner"]
 # Debugging features
 debug = ["all-intents", "bulk-delete"]
 # Full set of features
-full = ["admin", "owner", "debug", "voice", "ban-at-everyone"]
+full = ["user", "admin", "owner", "debug", "voice", "ban-at-everyone"]
 #
 admin = []
 all-intents = []
 ban-at-everyone = []
 bulk-delete = ["admin"]
 owner = []
-voice = ["dep:songbird"]
+user = []
+voice = ["dep:songbird", "user"]

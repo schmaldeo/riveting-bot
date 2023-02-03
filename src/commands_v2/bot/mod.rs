@@ -39,6 +39,7 @@ use crate::utils::prelude::*;
 pub mod meta;
 
 /// Normal user commands.
+#[cfg(feature = "user")]
 pub mod user;
 
 /// Administrator comands.
@@ -59,6 +60,7 @@ pub fn create_commands() -> AnyResult<Commands> {
         .bind(meta::About::command())
         .bind(meta::Help::command());
 
+    #[cfg(feature = "user")]
     commands
         .bind(user::fuel::Fuel::command())
         .bind(user::time::Time::command())
