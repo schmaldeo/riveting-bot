@@ -73,7 +73,35 @@ where
 #[derive(Debug, Default, Clone, AsMut, AsRef, From, Index, IndexMut, IntoIterator)]
 pub struct Args(Vec<Arg>);
 
+// TODO: These methods could return a different error, if the arg was found, but not the correct type.
+macro_rules! impl_variant_get {
+    ($( $vis:vis fn $method:ident -> $value:ty );* $(;)?) => {
+        $(
+            /// Finds argument by name and returns the value if it matches the variant,
+            /// otherwise returns `CommandError::MissingArgs`.
+            $vis fn $method(&self, name: &str) -> Result<$value, CommandError> {
+                self.get(name)
+                    .and_then(|a| a.$method())
+                    .ok_or(CommandError::MissingArgs)
+            }
+        )*
+    };
+}
+
 impl Args {
+    impl_variant_get!(
+        pub fn bool -> types::ArgBool;
+        pub fn number -> types::ArgNumber;
+        pub fn integer -> types::ArgInteger;
+        pub fn string -> types::ArgString;
+        pub fn channel -> types::ArgChannel;
+        pub fn message -> types::ArgMessage;
+        pub fn attachment -> types::ArgAttachment;
+        pub fn user -> types::ArgUser;
+        pub fn role -> types::ArgRole;
+        pub fn mention -> types::ArgMention;
+    );
+
     /// Finds argument value by argument name.
     pub fn get(&self, name: &str) -> Option<&ArgValue> {
         self.as_ref()
@@ -82,16 +110,7 @@ impl Args {
             .map(|a| &a.value)
     }
 
-    /// Finds argument by name and returns the value as type `T`.
-    pub fn value<T>(&self, name: &str) -> Result<T, CommandError>
-    where
-        ArgValue: GetExt<T>,
-    {
-        self.get(name)
-            .and_then(|a| a.get())
-            .ok_or(CommandError::MissingArgs)
-    }
-
+    /// Returns the inner arg vector.
     pub fn inner(self) -> Vec<Arg> {
         self.0
     }
@@ -299,34 +318,3 @@ where
         self.as_ref().and_then(|v| v.borrow().mention())
     }
 }
-
-pub trait GetExt<T> {
-    fn get(&self) -> Option<T>;
-}
-
-macro_rules! impl_get_ext {
-    ($type:ty; $method:ident -> $value:ty) => {
-        impl GetExt<$value> for $type {
-            fn get(&self) -> Option<$value> {
-                self.$method()
-            }
-        }
-
-        impl GetExt<$value> for Option<$type> {
-            fn get(&self) -> Option<$value> {
-                self.as_ref().and_then(|a| a.$method())
-            }
-        }
-    };
-}
-
-impl_get_ext!(ArgValue; bool -> types::ArgBool);
-impl_get_ext!(ArgValue; number -> types::ArgNumber);
-impl_get_ext!(ArgValue; integer -> types::ArgInteger);
-impl_get_ext!(ArgValue; string -> types::ArgString);
-impl_get_ext!(ArgValue; channel -> types::ArgChannel);
-impl_get_ext!(ArgValue; message -> types::ArgMessage);
-impl_get_ext!(ArgValue; attachment -> types::ArgAttachment);
-impl_get_ext!(ArgValue; user -> types::ArgUser);
-impl_get_ext!(ArgValue; role -> types::ArgRole);
-impl_get_ext!(ArgValue; mention -> types::ArgMention);
