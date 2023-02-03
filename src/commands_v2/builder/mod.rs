@@ -227,10 +227,11 @@ impl StringOptionBuilder {
         self
     }
 
-    /// Set string option choices.
-    pub fn choices<T>(mut self, choices: impl IntoIterator<Item = (T, T)>) -> Self
+    /// Set string option choices as `(name, value)` pairs.
+    pub fn choices<N, V>(mut self, choices: impl IntoIterator<Item = (N, V)>) -> Self
     where
-        T: Into<String>,
+        N: Into<String>,
+        V: Into<String>,
     {
         self.inner_mut().choices = choices
             .into_iter()
@@ -745,7 +746,7 @@ mod tests {
                 .option(
                     string("dc", "description")
                         .required()
-                        .choices([("dca", "barcb")]),
+                        .choices([("dca", 1234.to_string())]),
                 )
                 .option(
                     channel("dd", "description")
