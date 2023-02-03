@@ -127,13 +127,15 @@ macro impl_into_command_error($out:ident; $t:ty) {
     }
 }
 
+impl_into_command_error!(Other; std::fmt::Error);
+impl_into_command_error!(Other; reqwest::Error);
+impl_into_command_error!(Other; serde_json::Error);
 impl_into_command_error!(Other; twilight_http::Error);
 impl_into_command_error!(Other; twilight_http::response::DeserializeBodyError);
-impl_into_command_error!(Other; twilight_validate::request::ValidationError);
-impl_into_command_error!(Other; twilight_validate::message::MessageValidationError);
 impl_into_command_error!(Other; twilight_standby::future::Canceled);
-impl_into_command_error!(Other; serde_json::Error);
-impl_into_command_error!(Other; std::fmt::Error);
+impl_into_command_error!(Other; twilight_util::builder::embed::image_source::ImageSourceUrlError);
+impl_into_command_error!(Other; twilight_validate::message::MessageValidationError);
+impl_into_command_error!(Other; twilight_validate::request::ValidationError);
 
 #[derive(Debug, Clone)]
 pub enum Response {

@@ -55,7 +55,7 @@ impl UserInfo {
             _ => "https://cdn.discordapp.com/embed/avatars/0.png".to_string(),
         };
 
-        let image_source = ImageSource::url(url).unwrap();
+        let image_source = ImageSource::url(url)?;
         let embed = embed.image(image_source).build();
 
         ctx.http

@@ -29,11 +29,9 @@ impl Joke {
 
     pub async fn slash(_ctx: Context, _req: SlashRequest) -> CommandResult {
         let body = reqwest::get("https://v2.jokeapi.dev/joke/Any")
-            .await
-            .unwrap()
+            .await?
             .json::<JokeResponse>()
-            .await
-            .unwrap();
+            .await?;
 
         let joke = match body {
             JokeResponse::Single { joke } => joke,
