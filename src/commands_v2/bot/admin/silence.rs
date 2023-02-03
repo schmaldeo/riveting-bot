@@ -8,7 +8,7 @@ const DEFAULT_MUTE: u64 = 60;
 
 pub struct Mute {
     guild_id: Option<Id<GuildMarker>>,
-    user_id: Option<Id<UserMarker>>,
+    user_id: Id<UserMarker>,
     duration: Option<u64>,
 }
 
@@ -30,14 +30,10 @@ impl Mute {
             return Err(CommandError::Disabled)
         };
 
-        let Some(user_id) = self.user_id else {
-            return Err(CommandError::MissingArgs)
-        };
-
         let timeout = self.duration.unwrap_or(DEFAULT_MUTE);
 
         ctx.http
-            .update_guild_member(guild_id, user_id)
+            .update_guild_member(guild_id, self.user_id)
             .mute(true)
             .await?;
 
@@ -45,7 +41,7 @@ impl Mute {
 
         // FIXME: This fails if the target user is not connected to a voice channel leaving them server muted.
         ctx.http
-            .update_guild_member(guild_id, user_id)
+            .update_guild_member(guild_id, self.user_id)
             .mute(false)
             .await?;
 
@@ -55,8 +51,8 @@ impl Mute {
     pub async fn classic(ctx: Context, req: ClassicRequest) -> CommandResult {
         Self {
             guild_id: req.message.guild_id,
-            user_id: req.args.get("user").user().map(|r| r.id()),
-            duration: req.args.get("duration").integer().map(|i| i as u64),
+            user_id: req.args.user("user").map(|r| r.id())?,
+            duration: req.args.integer("duration").map(|i| i as u64).ok(),
         }
         .uber(ctx)
         .await
@@ -65,8 +61,8 @@ impl Mute {
     pub async fn slash(ctx: Context, req: SlashRequest) -> CommandResult {
         Self {
             guild_id: req.interaction.guild_id,
-            user_id: req.args.get("user").user().map(|r| r.id()),
-            duration: req.args.get("duration").integer().map(|i| i as u64),
+            user_id: req.args.user("user").map(|r| r.id())?,
+            duration: req.args.integer("duration").map(|i| i as u64).ok(),
         }
         .uber(ctx)
         .await
@@ -75,7 +71,7 @@ impl Mute {
     pub async fn user(ctx: Context, req: UserRequest) -> CommandResult {
         Self {
             guild_id: req.interaction.guild_id,
-            user_id: Some(req.target_id),
+            user_id: req.target_id,
             duration: None, // TODO: Create modal for duration input.
         }
         .uber(ctx)

@@ -101,7 +101,7 @@ impl Help {
     }
 
     pub async fn uber(self, ctx: Context) -> CommandResult {
-        if let Some(_value) = self.args.get("command").string() {
+        if let Ok(_value) = self.args.string("command") {
             // TODO: If "command" argument exists, show help on that command instead.
             todo!("get rekt");
         }

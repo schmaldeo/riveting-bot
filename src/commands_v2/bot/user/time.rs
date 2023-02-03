@@ -38,9 +38,7 @@ impl Time {
     }
 
     pub async fn uber(self, ctx: Context) -> CommandResult {
-        let Some(expr) = self.args.get("expression").string() else {
-            return Err(CommandError::MissingArgs);
-        };
+        let expr = self.args.string("expression")?;
 
         let Some(channel_id) = self.channel_id else {
             return Err(CommandError::MissingArgs);

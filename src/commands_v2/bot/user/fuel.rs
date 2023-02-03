@@ -47,10 +47,10 @@ impl Fuel {
     }
 
     pub async fn slash(ctx: Context, req: SlashRequest) -> CommandResult {
-        let length = req.args.get("length").integer().unwrap();
-        let minutes = req.args.get("minutes").integer().unwrap();
-        let seconds = req.args.get("seconds").number().unwrap();
-        let fuel_consumption = req.args.get("fuel_consumption").number().unwrap();
+        let length = req.args.integer("length")?;
+        let minutes = req.args.integer("minutes")?;
+        let seconds = req.args.number("seconds")?;
+        let fuel_consumption = req.args.number("fuel_consumption")?;
 
         let length_in_seconds = (length * 60) as f64;
         let laptime_in_seconds = (minutes * 60) as f64 + seconds;

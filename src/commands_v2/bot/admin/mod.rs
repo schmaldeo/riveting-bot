@@ -45,9 +45,7 @@ pub mod bulk {
 
             let two_weeks_ago = self.timestamp - TWO_WEEKS_SECS;
 
-            let Some(count) = self.args.get("amount").integer() else {
-                return Err(CommandError::MissingArgs);
-            };
+            let count = self.args.integer("amount")?;
 
             let Ok(delete_count) = count.min(MAX_DELETE).try_into() else {
                 return Err(CommandError::UnexpectedArgs(format!("Could not parse delete count: '{count}'")))
