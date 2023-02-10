@@ -10,11 +10,24 @@ impl Shutdown {
 
         command("shutdown", "Shutdown the bot.")
             .attach(Self::classic)
-            .permissions(Permissions::MANAGE_GUILD)
             .dm()
     }
 
     pub async fn classic(ctx: Context, req: ClassicRequest) -> CommandResult {
+        // Owner check (not done by command handling).
+        let sender_id = req.message.author.id;
+        let ok = if let Some(owner) = &ctx.application.owner {
+            owner.id == sender_id
+        } else if let Some(team) = &ctx.application.team {
+            team.members.iter().any(|m| m.user.id == sender_id)
+        } else {
+            false
+        };
+
+        if !ok {
+            return Ok(Response::None);
+        }
+
         info!("Shutting down by chat command");
 
         ctx.http
