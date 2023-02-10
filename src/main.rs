@@ -49,14 +49,23 @@ mod utils;
 
 #[derive(Debug, Clone)]
 pub struct Context {
+    /// Bot configuration.
     config: Arc<Mutex<Config>>,
+    /// Application http client.
     http: Arc<Client>,
+    /// Application shard manager.
     cluster: Arc<Cluster>,
+    /// Application information.
     application: Arc<Application>,
+    /// Application bot user.
     user: Arc<CurrentUser>,
+    /// Caching of events.
     cache: Arc<InMemoryCache>,
+    /// Standby event system.
     standby: Arc<Standby>,
+    /// Bot commands list.
     commands: Arc<Commands>,
+    /// Shard id associated with the event.
     shard: Option<u64>,
 }
 
