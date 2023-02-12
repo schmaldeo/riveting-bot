@@ -140,7 +140,9 @@ impl TryFrom<BaseCommand> for SlashCommand {
         .dm_permission(value.dm_enabled);
 
         for opt in value.command.options {
-            cmd = cmd.option(CommandOption::from(opt));
+            if let Ok(opt) = CommandOption::try_from(opt) {
+                cmd = cmd.option(opt);
+            }
         }
 
         let mut cmd = cmd.build();
@@ -207,33 +209,40 @@ impl From<UserCommand> for Command {
     }
 }
 
-impl From<super::CommandOption> for CommandOption {
-    fn from(value: super::CommandOption) -> Self {
+impl TryFrom<super::CommandOption> for CommandOption {
+    type Error = &'static str;
+
+    fn try_from(value: super::CommandOption) -> Result<Self, Self::Error> {
         match value {
-            super::CommandOption::Arg(arg) => arg.into(),
-            super::CommandOption::Sub(sub) => sub.into(),
-            super::CommandOption::Group(group) => group.into(),
+            super::CommandOption::Arg(arg) => Ok(arg.into()),
+            super::CommandOption::Sub(sub) => sub.try_into(),
+            super::CommandOption::Group(group) => Ok(group.into()),
         }
     }
 }
 
-impl From<super::CommandFunction> for CommandOption {
-    fn from(value: super::CommandFunction) -> Self {
-        let mut sub = SubCommandBuilder::new(value.name, value.description).build();
-        sub.options
-            .get_or_insert_default()
-            .extend(value.options.into_iter().map(Into::into));
-        sub
+impl TryFrom<super::CommandFunction> for CommandOption {
+    type Error = &'static str;
+
+    fn try_from(value: super::CommandFunction) -> Result<Self, Self::Error> {
+        if value.has_slash() || value.has_message() || value.has_user() {
+            let mut sub = SubCommandBuilder::new(value.name, value.description).build();
+            // Flatmap to ignore other than application command functions.
+            let iter = value.options.into_iter().flat_map(TryInto::try_into);
+            sub.options.get_or_insert_default().extend(iter);
+            Ok(sub)
+        } else {
+            Err("Not application command function")
+        }
     }
 }
 
 impl From<super::CommandGroup> for CommandOption {
     fn from(value: super::CommandGroup) -> Self {
         let mut group = SubCommandGroupBuilder::new(value.name, value.description).build();
-        group
-            .options
-            .get_or_insert_default()
-            .extend(value.subs.into_iter().map(Into::into));
+        // Flatmap to ignore other than application command functions.
+        let iter = value.subs.into_iter().flat_map(TryInto::try_into);
+        group.options.get_or_insert_default().extend(iter);
         group
     }
 }
