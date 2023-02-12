@@ -1,5 +1,8 @@
+use twilight_model::id::marker::{ChannelMarker, GuildMarker};
+use twilight_model::id::Id;
+
 use crate::commands_v2::prelude::*;
-// use crate::utils::prelude::*;
+use crate::utils::prelude::*;
 
 /// Command: Create or edit bot messages.
 pub struct Bot;
@@ -16,48 +19,111 @@ impl Bot {
                 sub("say", "Post a message by the bot.")
                     .attach(Say::classic)
                     .attach(Say::slash)
-                    .option(string("text", "What to say.").required())
-                    .option(channel("channel", "Where to send it.")),
+                    .option(string("text", "What to say.").required()),
             )
             .option(
                 sub("edit", "Edit an existing bot message.")
                     .attach(Edit::classic)
-                    .attach(Edit::slash)
-                    .option(message("message", "Message to edit.").required()),
+                    .option(message("message", "Message to edit.").required())
+                    .option(string("text", "New content.").required()),
             )
     }
 
-    pub async fn classic(_ctx: Context, _req: ClassicRequest) -> CommandResult {
+    async fn classic(_ctx: Context, _req: ClassicRequest) -> CommandResult {
         todo!();
     }
 
-    pub async fn slash(_ctx: Context, _req: SlashRequest) -> CommandResult {
+    async fn slash(_ctx: Context, _req: SlashRequest) -> CommandResult {
         todo!();
     }
 }
 
 /// Command: Post a message as the bot.
-pub struct Say;
+struct Say {
+    guild_id: Option<Id<GuildMarker>>,
+    channel_id: Id<ChannelMarker>,
+    args: Args,
+}
 
 impl Say {
-    pub async fn classic(_ctx: Context, _req: ClassicRequest) -> CommandResult {
-        todo!();
+    async fn uber(self, ctx: Context) -> CommandResult {
+        if self.guild_id.is_none() {
+            return Err(CommandError::Disabled);
+        }
+
+        let text = self.args.string("text")?;
+        let empty = text.trim().is_empty();
+        let content = if empty { "no u" } else { &text };
+
+        let msg = ctx
+            .http
+            .create_message(self.channel_id)
+            .content(content)?
+            .send()
+            .await?;
+
+        info!("Bot message created with id '{}'", msg.id);
+
+        Ok(Response::Clear)
     }
 
-    pub async fn slash(_ctx: Context, _req: SlashRequest) -> CommandResult {
-        todo!();
+    async fn classic(ctx: Context, req: ClassicRequest) -> CommandResult {
+        Self {
+            guild_id: req.message.guild_id,
+            channel_id: req.message.channel_id,
+            args: req.args,
+        }
+        .uber(ctx)
+        .await
+    }
+
+    async fn slash(ctx: Context, req: SlashRequest) -> CommandResult {
+        let Some(channel_id) = req.interaction.channel_id else {
+            return Err(CommandError::MissingArgs);
+        };
+
+        Self {
+            guild_id: req.interaction.guild_id,
+            channel_id,
+            args: req.args,
+        }
+        .uber(ctx)
+        .await
     }
 }
 
 /// Command: Edit a message created by the bot (can be anything).
-pub struct Edit;
+struct Edit;
 
 impl Edit {
-    pub async fn classic(_ctx: Context, _req: ClassicRequest) -> CommandResult {
-        todo!();
-    }
+    async fn classic(ctx: Context, req: ClassicRequest) -> CommandResult {
+        if req.message.guild_id.is_none() {
+            return Err(CommandError::Disabled);
+        }
 
-    pub async fn slash(_ctx: Context, _req: SlashRequest) -> CommandResult {
-        todo!();
+        let Some(replied) = &req.message.referenced_message else {
+            return Err(CommandError::MissingReply);
+        };
+
+        // Ignore if replied message is not from this bot.
+        if replied.author.id != ctx.user.id {
+            return Err(CommandError::UnexpectedArgs(
+                "Replied message is not from this bot".to_string(),
+            ));
+        }
+
+        // let msg = req.args.message("message")?;
+        let text = req.args.string("text")?;
+        let empty = text.trim().is_empty();
+        let content = if empty { "no u" } else { &text };
+
+        ctx.http
+            .update_message(replied.channel_id, replied.id)
+            .content(Some(content))?
+            .await?;
+
+        info!("Bot message edited with id '{}'", replied.id);
+
+        Ok(Response::Clear)
     }
 }
