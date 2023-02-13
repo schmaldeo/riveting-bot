@@ -51,10 +51,6 @@ macro_rules! function_trait {
                 fn call(&self, ctx: Context, req: $request) -> CallFuture {
                     Box::pin((self)(ctx, req))
                 }
-
-                fn into_shared(self) -> Arc<dyn Callable<$request>> {
-                    Arc::new(self)
-                }
             }
 
             impl Callable<$request> for Arc<dyn Callable<$request>> {
@@ -69,7 +65,7 @@ macro_rules! function_trait {
 
             impl<T> IntoFunction<$request> for T
             where
-                T: Callable<$request>,
+                T: Callable<$request> + 'static,
             {
                 fn into_function(self) -> Function {
                     $var(self.into_shared())
@@ -96,9 +92,14 @@ pub type MessageFunction = Arc<dyn Callable<MessageRequest>>;
 pub type UserFunction = Arc<dyn Callable<UserRequest>>;
 
 /// Trait for functions that can be called with a generic request.
-pub trait Callable<R>: Send + Sync {
-    fn call(&self, ctx: Context, req: R) -> CallFuture;
-    fn into_shared(self) -> Arc<dyn Callable<R>>;
+pub trait Callable<R, O = CallFuture>: Send + Sync {
+    fn call(&self, ctx: Context, req: R) -> O;
+    fn into_shared(self) -> Arc<dyn Callable<R, O>>
+    where
+        Self: Sized + 'static,
+    {
+        Arc::new(self)
+    }
 }
 
 /// Trait for converting something callable into a specific supported type.
