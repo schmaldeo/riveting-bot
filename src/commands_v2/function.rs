@@ -3,7 +3,6 @@ use std::sync::Arc;
 
 use derive_more::{IsVariant, Unwrap};
 use futures::Future;
-use twilight_model::application::command::CommandType;
 
 use crate::commands_v2::request::{ClassicRequest, MessageRequest, SlashRequest, UserRequest};
 use crate::commands_v2::CommandResult;
@@ -115,13 +114,14 @@ pub enum Function {
     Message(MessageFunction),
     User(UserFunction),
 }
+
 impl Function {
-    pub const fn kind(&self) -> CommandType {
+    pub const fn kind(&self) -> FunctionKind {
         match self {
-            Self::Classic(_) => CommandType::Unknown(0),
-            Self::Slash(_) => CommandType::ChatInput,
-            Self::Message(_) => CommandType::Message,
-            Self::User(_) => CommandType::User,
+            Self::Classic(_) => FunctionKind::Classic,
+            Self::Slash(_) => FunctionKind::Slash,
+            Self::Message(_) => FunctionKind::Message,
+            Self::User(_) => FunctionKind::User,
         }
     }
 }
@@ -136,4 +136,12 @@ impl std::fmt::Debug for Function {
         };
         write!(f, "{text}")
     }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum FunctionKind {
+    Classic,
+    Slash,
+    Message,
+    User,
 }

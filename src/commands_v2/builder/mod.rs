@@ -36,7 +36,8 @@ use crate::commands_v2::builder::twilight::{
     CommandValidationError, MessageCommand, SlashCommand, TwilightCommand, UserCommand,
 };
 use crate::commands_v2::function::{
-    ClassicFunction, Function, IntoFunction, MessageFunction, SlashFunction, UserFunction,
+    ClassicFunction, Function, FunctionKind, IntoFunction, MessageFunction, SlashFunction,
+    UserFunction,
 };
 use crate::commands_v2::CommandResult;
 use crate::utils::prelude::*;
@@ -367,11 +368,45 @@ impl BaseCommand {
 
     /// Validate the command.
     pub fn validate(&self) -> Result<(), CommandValidationError> {
+        self.check_missing_functions();
+
         // HACK: Mostly waste of cpu cycles.
         self.twilight_commands()
             .try_for_each(|c| c.map(|_| ()))
             .with_context(|| format!("Failed to validate command '{}'", self.command.name))
             .map_err(Into::into)
+    }
+
+    /// Checks that the base command contains all function types that are present in subcommands.
+    /// This only emits warnings if a faulty structure is found.
+    fn check_missing_functions(&self) {
+        fn check_sub(base_name: &str, base: &[FunctionKind], sub: &CommandFunction) {
+            for kind in sub.functions.iter().map(|f| f.kind()) {
+                if !base.contains(&kind) {
+                    // Emit warning.
+                    let msg = format!(
+                        "Base command '{base_name}' does not map to a function of a kind \
+                         '{kind:?}', but the subcommand '{sub_name}' does",
+                        sub_name = sub.name
+                    );
+                    eprintln!("Warning: {msg}");
+                    warn!("{msg}");
+                }
+            }
+        }
+
+        let base_funcs: Vec<_> = self.command.functions.iter().map(|f| f.kind()).collect();
+
+        for opt in self.command.options.iter() {
+            match opt {
+                CommandOption::Arg(_) => break,
+                CommandOption::Sub(s) => check_sub(self.command.name, &base_funcs, s),
+                CommandOption::Group(g) => g
+                    .subs
+                    .iter()
+                    .for_each(|s| check_sub(self.command.name, &base_funcs, s)),
+            }
+        }
     }
 }
 
