@@ -29,18 +29,6 @@ pub async fn application_command(
     inter: Interaction,
     data: CommandData,
 ) -> Result<(), CommandError> {
-    let interaction = ctx.interaction();
-
-    let resp = InteractionResponse {
-        kind: InteractionResponseType::DeferredChannelMessageWithSource,
-        data: Some(InteractionResponseData::default()),
-    };
-
-    // Acknowledge the interaction.
-    interaction
-        .create_response(inter.id, &inter.token, &resp)
-        .await?;
-
     // Lookup command from context.
     let Some(base) = ctx.commands.get(data.name.as_str()) else {
         return Err(CommandError::NotFound(format!("Command '{}' does not exist", data.name)))
@@ -61,6 +49,8 @@ pub async fn application_command(
             other => panic!("Unhandled command kind: {other:?}"),
         }
     };
+
+    let interaction = ctx.interaction();
 
     // Handle execution result.
     // Catch erroneous execution and clear dangling response.
@@ -95,12 +85,16 @@ pub async fn application_command(
     Ok(())
 }
 
+/// Slash interaction commands.
 async fn process_slash(
     ctx: &Context,
     base: Arc<BaseCommand>,
     inter: Arc<Interaction>,
     data: Arc<CommandData>,
 ) -> CommandResult {
+    // Acknowledge the interaction.
+    normal_acknowledge(ctx, &inter).await?;
+
     let mut args = Vec::new();
     let mut last = Lookup::Command(&base.command);
     let mut data_opts = data.options.to_vec();
@@ -174,13 +168,16 @@ async fn process_slash(
 }
 
 // TODO: See if any twilight resolved data can be used as objects instead of ids.
+/// Message GUI interaction commands.
 async fn process_message(
     ctx: &Context,
     base: Arc<BaseCommand>,
     inter: Arc<Interaction>,
     data: Arc<CommandData>,
 ) -> CommandResult {
-    // Message GUI commands.
+    // Acknowledge the interaction.
+    ephemeral_acknowledge(ctx, &inter).await?;
+
     // let data = data.resolved.as_ref().expect("Empty resolve error");
     // for _message in &data.messages {} // Globally.
 
@@ -190,13 +187,16 @@ async fn process_message(
 }
 
 // TODO: See if any twilight resolved data can be used as objects instead of ids.
+/// User GUI interaction commands.
 async fn process_user(
     ctx: &Context,
     base: Arc<BaseCommand>,
     inter: Arc<Interaction>,
     data: Arc<CommandData>,
 ) -> CommandResult {
-    // User GUI commands.
+    // Acknowledge the interaction.
+    ephemeral_acknowledge(ctx, &inter).await?;
+
     // let data = data.resolved.as_ref().expect("Empty resolve error");
     // for _user in &data.users {} // Globally.
     // for _member in &data.members {} // Guilds only.
@@ -204,6 +204,41 @@ async fn process_user(
     let target = data.target_id.ok_or(CommandError::MissingArgs)?.cast();
     let req = UserRequest::new(Arc::clone(&base), inter, data, target);
     execute(ctx, base.command.user(), req).await
+}
+
+/// Creates a publicly visible loading state message.
+async fn normal_acknowledge(ctx: &Context, inter: &Interaction) -> AnyResult<()> {
+    let interaction = ctx.interaction();
+
+    let resp = InteractionResponse {
+        kind: InteractionResponseType::DeferredChannelMessageWithSource,
+        data: None,
+    };
+
+    interaction
+        .create_response(inter.id, &inter.token, &resp)
+        .await?;
+
+    Ok(())
+}
+
+/// Creates a personal loading state message.
+async fn ephemeral_acknowledge(ctx: &Context, inter: &Interaction) -> AnyResult<()> {
+    let interaction = ctx.interaction();
+
+    let resp = InteractionResponse {
+        kind: InteractionResponseType::DeferredChannelMessageWithSource,
+        data: Some(InteractionResponseData {
+            flags: Some(MessageFlags::EPHEMERAL | MessageFlags::LOADING),
+            ..Default::default()
+        }),
+    };
+
+    interaction
+        .create_response(inter.id, &inter.token, &resp)
+        .await?;
+
+    Ok(())
 }
 
 /// Parse message and execute command functions.
