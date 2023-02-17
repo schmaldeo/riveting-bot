@@ -11,8 +11,8 @@ use crate::commands_v2::prelude::*;
 use crate::utils::prelude::*;
 
 /*
-// TODO Try `event_parser / date_time_parser`
-
+// TODO Try `event_parser / date_time_parser`.
+// TODO Show these examples somewhere as help text.
 HTP examples:
     * 4 min ago, 4 h ago, 1 week ago, in 2 hours, in 1 month
     * last friday at 19, monday at 6 am
@@ -67,7 +67,7 @@ impl Time {
             .dm()
     }
 
-    pub async fn uber(self, ctx: Context) -> CommandResult {
+    async fn uber(self, ctx: Context) -> CommandResult {
         let Some(channel_id) = self.channel_id else {
             return Err(CommandError::Disabled);
         };
@@ -111,7 +111,7 @@ impl Time {
         Ok(Response::Clear)
     }
 
-    pub async fn classic(ctx: Context, req: ClassicRequest) -> CommandResult {
+    async fn classic(ctx: Context, req: ClassicRequest) -> CommandResult {
         Self {
             args: req.args,
             channel_id: Some(req.message.channel_id),
@@ -120,7 +120,7 @@ impl Time {
         .await
     }
 
-    pub async fn slash(ctx: Context, req: SlashRequest) -> CommandResult {
+    async fn slash(ctx: Context, req: SlashRequest) -> CommandResult {
         Self {
             args: req.args,
             channel_id: req.interaction.channel_id,

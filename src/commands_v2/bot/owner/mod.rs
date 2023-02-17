@@ -13,7 +13,7 @@ impl Shutdown {
             .dm()
     }
 
-    pub async fn classic(ctx: Context, req: ClassicRequest) -> CommandResult {
+    async fn classic(ctx: Context, req: ClassicRequest) -> CommandResult {
         // Owner check (not done by command handling).
         let sender_id = req.message.author.id;
         let ok = if let Some(owner) = &ctx.application.owner {

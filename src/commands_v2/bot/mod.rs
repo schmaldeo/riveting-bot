@@ -14,19 +14,19 @@ impl Command {
             .attach(Self::user)
     }
 
-    pub async fn classic(_ctx: Context, _req: ClassicRequest) -> CommandResult {
+    async fn classic(_ctx: Context, _req: ClassicRequest) -> CommandResult {
         todo!();
     }
 
-    pub async fn slash(_ctx: Context, _req: SlashRequest) -> CommandResult {
+    async fn slash(_ctx: Context, _req: SlashRequest) -> CommandResult {
         todo!();
     }
 
-    pub async fn message(_ctx: Context, _req: MessageRequest) -> CommandResult {
+    async fn message(_ctx: Context, _req: MessageRequest) -> CommandResult {
         todo!();
     }
 
-    pub async fn user(_ctx: Context, _req: UserRequest) -> CommandResult {
+    async fn user(_ctx: Context, _req: UserRequest) -> CommandResult {
         todo!();
     }
 }
@@ -64,19 +64,19 @@ pub fn create_commands() -> AnyResult<Commands> {
     commands
         .bind(user::fuel::Fuel::command())
         .bind(user::time::Time::command())
-        .bind(user::quote::Quote::command())
+        // .bind(user::quote::Quote::command()) // WIP
         .bind(user::joke::Joke::command())
         .bind(user::coinflip::Coinflip::command())
         .bind(user::user_info::UserInfo::command());
 
-    #[cfg(feature = "voice")]
-    commands.bind(user::voice::Voice::command());
+    // #[cfg(feature = "voice")]
+    // commands.bind(user::voice::Voice::command()); // WIP
 
     // Moderation functionality.
     #[cfg(feature = "admin")]
     commands
-        .bind(admin::config::Config::command())
-        .bind(admin::alias::Alias::command())
+        // .bind(admin::config::Config::command()) // WIP
+        // .bind(admin::alias::Alias::command()) // WIP
         .bind(admin::roles::Roles::command())
         .bind(admin::bot::Bot::command())
         .bind(admin::silence::Mute::command());

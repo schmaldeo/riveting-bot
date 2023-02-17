@@ -6,6 +6,7 @@ use crate::utils::prelude::*;
 
 const DEFAULT_MUTE: u64 = 60;
 
+/// Command: Silence a voice user for a set amount of time.
 pub struct Mute {
     guild_id: Option<Id<GuildMarker>>,
     user_id: Id<UserMarker>,
@@ -25,7 +26,7 @@ impl Mute {
             .option(integer("seconds", "Duration of the mute.").min(0))
     }
 
-    pub async fn uber(self, ctx: Context) -> CommandResult {
+    async fn uber(self, ctx: Context) -> CommandResult {
         let Some(guild_id) = self.guild_id else {
             return Err(CommandError::Disabled)
         };
@@ -48,7 +49,7 @@ impl Mute {
         Ok(Response::Clear)
     }
 
-    pub async fn classic(ctx: Context, req: ClassicRequest) -> CommandResult {
+    async fn classic(ctx: Context, req: ClassicRequest) -> CommandResult {
         Self {
             guild_id: req.message.guild_id,
             user_id: req.args.user("user").map(|r| r.id())?,
@@ -58,7 +59,7 @@ impl Mute {
         .await
     }
 
-    pub async fn slash(ctx: Context, req: SlashRequest) -> CommandResult {
+    async fn slash(ctx: Context, req: SlashRequest) -> CommandResult {
         Self {
             guild_id: req.interaction.guild_id,
             user_id: req.args.user("user").map(|r| r.id())?,
@@ -68,7 +69,7 @@ impl Mute {
         .await
     }
 
-    pub async fn user(ctx: Context, req: UserRequest) -> CommandResult {
+    async fn user(ctx: Context, req: UserRequest) -> CommandResult {
         Self {
             guild_id: req.interaction.guild_id,
             user_id: req.target_id,

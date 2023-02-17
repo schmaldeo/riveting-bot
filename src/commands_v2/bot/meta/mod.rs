@@ -19,11 +19,11 @@ impl Ping {
             .dm()
     }
 
-    pub async fn classic(_ctx: Context, _req: ClassicRequest) -> CommandResult {
+    async fn classic(_ctx: Context, _req: ClassicRequest) -> CommandResult {
         Ok(Response::CreateMessage("Pong!".to_string()))
     }
 
-    pub async fn slash(_ctx: Context, _req: SlashRequest) -> CommandResult {
+    async fn slash(_ctx: Context, _req: SlashRequest) -> CommandResult {
         Ok(Response::CreateMessage("Pong!".to_string()))
     }
 }
@@ -45,7 +45,7 @@ impl About {
             .dm()
     }
 
-    pub async fn uber(self, ctx: Context) -> CommandResult {
+    async fn uber(self, ctx: Context) -> CommandResult {
         let about_msg = formatdoc!(
             "I am a RivetingBot!
             You can list my commands with `/help` or `{prefix}help` command.
@@ -60,7 +60,7 @@ impl About {
         Ok(Response::CreateMessage(about_msg))
     }
 
-    pub async fn classic(ctx: Context, req: ClassicRequest) -> CommandResult {
+    async fn classic(ctx: Context, req: ClassicRequest) -> CommandResult {
         Self {
             guild_id: req.message.guild_id,
             channel_id: Some(req.message.channel_id),
@@ -70,7 +70,7 @@ impl About {
         .await
     }
 
-    pub async fn slash(ctx: Context, req: SlashRequest) -> CommandResult {
+    async fn slash(ctx: Context, req: SlashRequest) -> CommandResult {
         Self {
             guild_id: req.interaction.guild_id,
             channel_id: req.interaction.channel_id,
@@ -100,7 +100,7 @@ impl Help {
             .dm()
     }
 
-    pub async fn uber(self, ctx: Context) -> CommandResult {
+    async fn uber(self, ctx: Context) -> CommandResult {
         if let Ok(_value) = self.args.string("command") {
             // TODO: If "command" argument exists, show help on that command instead.
             todo!("get rekt");
@@ -121,7 +121,7 @@ impl Help {
         Ok(Response::CreateMessage(help_msg))
     }
 
-    pub async fn classic(ctx: Context, req: ClassicRequest) -> CommandResult {
+    async fn classic(ctx: Context, req: ClassicRequest) -> CommandResult {
         Self {
             args: req.args,
             guild_id: req.message.guild_id,
@@ -132,7 +132,7 @@ impl Help {
         .await
     }
 
-    pub async fn slash(ctx: Context, req: SlashRequest) -> CommandResult {
+    async fn slash(ctx: Context, req: SlashRequest) -> CommandResult {
         Self {
             args: req.args,
             guild_id: req.interaction.guild_id,

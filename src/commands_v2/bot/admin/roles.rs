@@ -22,6 +22,7 @@ use crate::config::ReactionRole;
 use crate::utils::prelude::*;
 use crate::{config, utils};
 
+/// Command: Manage reaction-roles.
 pub struct Roles;
 
 impl Roles {

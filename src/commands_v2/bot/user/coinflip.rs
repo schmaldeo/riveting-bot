@@ -11,14 +11,10 @@ impl Coinflip {
     pub fn command() -> impl Into<BaseCommand> {
         use crate::commands_v2::builder::*;
 
-        command("coinflip", "Coin flip").attach(Self::slash)
+        command("coinflip", "Flip a coin.").attach(Self::slash)
     }
 
-    pub async fn classic(_ctx: Context, _req: ClassicRequest) -> CommandResult {
-        todo!();
-    }
-
-    pub async fn slash(_ctx: Context, _req: SlashRequest) -> CommandResult {
+    async fn slash(_ctx: Context, _req: SlashRequest) -> CommandResult {
         let flip = random::<bool>();
         if flip {
             Ok(Response::CreateMessage("Heads".to_string()))

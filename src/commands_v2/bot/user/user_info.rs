@@ -15,13 +15,9 @@ impl UserInfo {
     pub fn command() -> impl Into<BaseCommand> {
         use crate::commands_v2::builder::*;
 
-        command("userinfo", "Get information about a user")
+        command("userinfo", "Get information about a user.")
             .attach(Self::slash)
-            .option(user("user", "Mention a user"))
-    }
-
-    async fn classic(_ctx: Context, _req: ClassicRequest) -> CommandResult {
-        todo!();
+            .option(user("user", "User to show information about."))
     }
 
     async fn slash(ctx: Context, req: SlashRequest) -> CommandResult {

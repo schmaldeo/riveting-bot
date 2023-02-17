@@ -28,37 +28,37 @@ impl Voice {
             )
     }
 
-    pub async fn classic(_ctx: Context, _req: ClassicRequest) -> CommandResult {
+    async fn classic(_ctx: Context, _req: ClassicRequest) -> CommandResult {
         todo!();
     }
 
-    pub async fn slash(_ctx: Context, _req: SlashRequest) -> CommandResult {
+    async fn slash(_ctx: Context, _req: SlashRequest) -> CommandResult {
         todo!();
     }
 }
 
 /// Command: Tell the bot to connect to a voice channel.
-pub struct Join;
+struct Join;
 
 impl Join {
-    pub async fn classic(_ctx: Context, _req: ClassicRequest) -> CommandResult {
+    async fn classic(_ctx: Context, _req: ClassicRequest) -> CommandResult {
         todo!();
     }
 
-    pub async fn slash(_ctx: Context, _req: SlashRequest) -> CommandResult {
+    async fn slash(_ctx: Context, _req: SlashRequest) -> CommandResult {
         todo!();
     }
 }
 
 /// Command: Tell the bot to disconnect from a voice channel.
-pub struct Leave;
+struct Leave;
 
 impl Leave {
-    pub async fn classic(_ctx: Context, _req: ClassicRequest) -> CommandResult {
+    async fn classic(_ctx: Context, _req: ClassicRequest) -> CommandResult {
         todo!();
     }
 
-    pub async fn slash(_ctx: Context, _req: SlashRequest) -> CommandResult {
+    async fn slash(_ctx: Context, _req: SlashRequest) -> CommandResult {
         todo!();
     }
 }

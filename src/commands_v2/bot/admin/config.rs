@@ -29,50 +29,50 @@ impl Config {
             )
     }
 
-    pub async fn classic(_ctx: Context, _req: ClassicRequest) -> CommandResult {
+    async fn classic(_ctx: Context, _req: ClassicRequest) -> CommandResult {
         todo!();
     }
 
-    pub async fn slash(_ctx: Context, _req: SlashRequest) -> CommandResult {
+    async fn slash(_ctx: Context, _req: SlashRequest) -> CommandResult {
         todo!();
     }
 }
 
 /// Command: Get a guild configuration value.
-pub struct Get;
+struct Get;
 
 impl Get {
-    pub async fn classic(_ctx: Context, _req: ClassicRequest) -> CommandResult {
+    async fn classic(_ctx: Context, _req: ClassicRequest) -> CommandResult {
         todo!();
     }
 
-    pub async fn slash(_ctx: Context, _req: SlashRequest) -> CommandResult {
+    async fn slash(_ctx: Context, _req: SlashRequest) -> CommandResult {
         todo!();
     }
 }
 
 /// Command: Set a guild configuration value.
-pub struct Set;
+struct Set;
 
 impl Set {
-    pub async fn classic(_ctx: Context, _req: ClassicRequest) -> CommandResult {
+    async fn classic(_ctx: Context, _req: ClassicRequest) -> CommandResult {
         todo!();
     }
 
-    pub async fn slash(_ctx: Context, _req: SlashRequest) -> CommandResult {
+    async fn slash(_ctx: Context, _req: SlashRequest) -> CommandResult {
         todo!();
     }
 }
 
 /// Command: Clean config from dangling id references and other expired things.
-pub struct Cleanup;
+struct Cleanup;
 
 impl Cleanup {
-    pub async fn classic(_ctx: Context, _req: ClassicRequest) -> CommandResult {
+    async fn classic(_ctx: Context, _req: ClassicRequest) -> CommandResult {
         todo!();
     }
 
-    pub async fn slash(_ctx: Context, _req: SlashRequest) -> CommandResult {
+    async fn slash(_ctx: Context, _req: SlashRequest) -> CommandResult {
         todo!();
     }
 }

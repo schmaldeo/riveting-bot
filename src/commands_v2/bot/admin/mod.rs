@@ -40,7 +40,7 @@ pub mod bulk {
                 )
         }
 
-        pub async fn uber(self, ctx: Context) -> CommandResult {
+        async fn uber(self, ctx: Context) -> CommandResult {
             const TWO_WEEKS_SECS: i64 = 60 * 60 * 24 * 7 * 2;
 
             let two_weeks_ago = self.timestamp - TWO_WEEKS_SECS;
@@ -100,7 +100,7 @@ pub mod bulk {
             Ok(Response::Clear)
         }
 
-        pub async fn classic(ctx: Context, req: ClassicRequest) -> CommandResult {
+        async fn classic(ctx: Context, req: ClassicRequest) -> CommandResult {
             Self {
                 args: req.args,
                 timestamp: req.message.timestamp.as_secs(),
@@ -111,7 +111,7 @@ pub mod bulk {
             .await
         }
 
-        pub async fn slash(ctx: Context, req: SlashRequest) -> CommandResult {
+        async fn slash(ctx: Context, req: SlashRequest) -> CommandResult {
             Self {
                 args: req.args,
                 timestamp: chrono::Utc::now().timestamp(),

@@ -15,12 +15,12 @@ impl Fuel {
         command("fuel", "Calculate race fuel required.")
             .attach(Self::slash)
             .option(
-                integer("length", "Lenght of the race in minutes")
+                integer("stint", "Length of the race or stint in minutes.")
                     .required()
                     .min(1),
             )
             .option(
-                integer("minutes", "Minutes in the lap")
+                integer("minutes", "Lap time minutes.")
                     .required()
                     .min(0)
                     .max(10),
@@ -28,35 +28,31 @@ impl Fuel {
             .option(
                 number(
                     "seconds",
-                    "Seconds (and optionally milliseconds after a comma) in the lap",
+                    "Lap time seconds (and optionally milliseconds after a comma).",
                 )
                 .required()
                 .min(0.0)
                 .max(59.9999),
             )
             .option(
-                number("fuel_consumption", "Fuel consumption in l/lap")
+                number("consumption", "Fuel consumption in litres per lap.")
                     .required()
                     .min(0.1),
             )
             .dm()
     }
 
-    pub async fn classic(_ctx: Context, _req: ClassicRequest) -> CommandResult {
-        todo!();
-    }
-
-    pub async fn slash(ctx: Context, req: SlashRequest) -> CommandResult {
-        let length = req.args.integer("length")?;
+    async fn slash(ctx: Context, req: SlashRequest) -> CommandResult {
+        let stint = req.args.integer("stint")?;
         let minutes = req.args.integer("minutes")?;
         let seconds = req.args.number("seconds")?;
-        let fuel_consumption = req.args.number("fuel_consumption")?;
+        let consumption = req.args.number("consumption")?;
 
-        let length_in_seconds = (length * 60) as f64;
+        let length_in_seconds = (stint * 60) as f64;
         let laptime_in_seconds = (minutes * 60) as f64 + seconds;
 
         let amount_of_laps = (length_in_seconds / laptime_in_seconds).ceil();
-        let fuel_needed = amount_of_laps * fuel_consumption;
+        let fuel_needed = amount_of_laps * consumption;
 
         let embed = embed::EmbedBuilder::new()
             .title("Fuel needed")
@@ -67,7 +63,7 @@ impl Fuel {
             .field(
                 embed::EmbedFieldBuilder::new(
                     "Recommended litres: ",
-                    (fuel_needed + fuel_consumption).ceil().to_string(),
+                    (fuel_needed + consumption).ceil().to_string(),
                 )
                 .inline(),
             )

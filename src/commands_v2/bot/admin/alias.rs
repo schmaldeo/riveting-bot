@@ -30,63 +30,63 @@ impl Alias {
             )
     }
 
-    pub async fn classic(_ctx: Context, _req: ClassicRequest) -> CommandResult {
+    async fn classic(_ctx: Context, _req: ClassicRequest) -> CommandResult {
         todo!();
     }
 
-    pub async fn slash(_ctx: Context, _req: SlashRequest) -> CommandResult {
+    async fn slash(_ctx: Context, _req: SlashRequest) -> CommandResult {
         todo!();
     }
 }
 
 /// Command: List guild command aliases.
-pub struct List;
+struct List;
 
 impl List {
-    pub async fn classic(_ctx: Context, _req: ClassicRequest) -> CommandResult {
+    async fn classic(_ctx: Context, _req: ClassicRequest) -> CommandResult {
         todo!();
     }
 
-    pub async fn slash(_ctx: Context, _req: SlashRequest) -> CommandResult {
+    async fn slash(_ctx: Context, _req: SlashRequest) -> CommandResult {
         todo!();
     }
 }
 
 /// Command: Get a guild command alias definition.
-pub struct Get;
+struct Get;
 
 impl Get {
-    pub async fn classic(_ctx: Context, _req: ClassicRequest) -> CommandResult {
+    async fn classic(_ctx: Context, _req: ClassicRequest) -> CommandResult {
         todo!();
     }
 
-    pub async fn slash(_ctx: Context, _req: SlashRequest) -> CommandResult {
+    async fn slash(_ctx: Context, _req: SlashRequest) -> CommandResult {
         todo!();
     }
 }
 
 /// Command: Set a guild command alias definition.
-pub struct Set;
+struct Set;
 
 impl Set {
-    pub async fn classic(_ctx: Context, _req: ClassicRequest) -> CommandResult {
+    async fn classic(_ctx: Context, _req: ClassicRequest) -> CommandResult {
         todo!();
     }
 
-    pub async fn slash(_ctx: Context, _req: SlashRequest) -> CommandResult {
+    async fn slash(_ctx: Context, _req: SlashRequest) -> CommandResult {
         todo!();
     }
 }
 
 /// Command: Remove a guild command alias definition.
-pub struct Remove;
+struct Remove;
 
 impl Remove {
-    pub async fn classic(_ctx: Context, _req: ClassicRequest) -> CommandResult {
+    async fn classic(_ctx: Context, _req: ClassicRequest) -> CommandResult {
         todo!();
     }
 
-    pub async fn slash(_ctx: Context, _req: SlashRequest) -> CommandResult {
+    async fn slash(_ctx: Context, _req: SlashRequest) -> CommandResult {
         todo!();
     }
 }

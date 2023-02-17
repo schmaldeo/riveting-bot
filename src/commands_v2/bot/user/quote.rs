@@ -24,49 +24,49 @@ impl Quote {
             )
     }
 
-    pub async fn classic(_ctx: Context, _req: ClassicRequest) -> CommandResult {
+    async fn classic(_ctx: Context, _req: ClassicRequest) -> CommandResult {
         todo!();
     }
 
-    pub async fn slash(_ctx: Context, _req: SlashRequest) -> CommandResult {
+    async fn slash(_ctx: Context, _req: SlashRequest) -> CommandResult {
         todo!();
     }
 
-    pub async fn message(_ctx: Context, _req: MessageRequest) -> CommandResult {
+    async fn message(_ctx: Context, _req: MessageRequest) -> CommandResult {
         todo!();
     }
 }
 
 /// Command: Add a quote.
-pub struct Add;
+struct Add;
 
 impl Add {
-    pub async fn classic(_ctx: Context, _req: ClassicRequest) -> CommandResult {
+    async fn classic(_ctx: Context, _req: ClassicRequest) -> CommandResult {
         todo!();
     }
 
-    pub async fn slash(_ctx: Context, _req: SlashRequest) -> CommandResult {
+    async fn slash(_ctx: Context, _req: SlashRequest) -> CommandResult {
         todo!();
     }
 
-    pub async fn message(_ctx: Context, _req: MessageRequest) -> CommandResult {
+    async fn message(_ctx: Context, _req: MessageRequest) -> CommandResult {
         todo!();
     }
 }
 
 /// Command: Remove a quote.
-pub struct Remove;
+struct Remove;
 
 impl Remove {
-    pub async fn classic(_ctx: Context, _req: ClassicRequest) -> CommandResult {
+    async fn classic(_ctx: Context, _req: ClassicRequest) -> CommandResult {
         todo!();
     }
 
-    pub async fn slash(_ctx: Context, _req: SlashRequest) -> CommandResult {
+    async fn slash(_ctx: Context, _req: SlashRequest) -> CommandResult {
         todo!();
     }
 
-    pub async fn message(_ctx: Context, _req: MessageRequest) -> CommandResult {
+    async fn message(_ctx: Context, _req: MessageRequest) -> CommandResult {
         todo!();
     }
 }
