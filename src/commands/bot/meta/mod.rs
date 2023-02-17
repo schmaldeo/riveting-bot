@@ -2,7 +2,7 @@ use indoc::formatdoc;
 use twilight_model::id::marker::{ChannelMarker, GuildMarker, MessageMarker};
 use twilight_model::id::Id;
 
-use crate::commands_v2::prelude::*;
+use crate::commands::prelude::*;
 // use crate::utils::prelude::*;
 use crate::Context;
 
@@ -11,7 +11,7 @@ pub struct Ping;
 
 impl Ping {
     pub fn command() -> impl Into<BaseCommand> {
-        use crate::commands_v2::builder::*;
+        use crate::commands::builder::*;
 
         command("ping", "Ping the bot.")
             .attach(Self::classic)
@@ -37,7 +37,7 @@ pub struct About {
 
 impl About {
     pub fn command() -> impl Into<BaseCommand> {
-        use crate::commands_v2::builder::*;
+        use crate::commands::builder::*;
 
         command("about", "Display info about the bot.")
             .attach(Self::classic)
@@ -91,7 +91,7 @@ pub struct Help {
 
 impl Help {
     pub fn command() -> impl Into<BaseCommand> {
-        use crate::commands_v2::builder::*;
+        use crate::commands::builder::*;
 
         command("help", "List bot commands.")
             .attach(Self::classic)

@@ -2,7 +2,7 @@ use thiserror::Error;
 use twilight_model::application::command::{Command, CommandOption, CommandType};
 use twilight_util::builder::command::*;
 
-use crate::commands_v2::builder::BaseCommand;
+use crate::commands::builder::BaseCommand;
 use crate::utils::prelude::*;
 
 pub type TwilightCommand = Command;

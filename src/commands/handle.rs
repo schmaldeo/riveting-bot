@@ -12,12 +12,12 @@ use twilight_model::http::interaction::{
     InteractionResponse, InteractionResponseData, InteractionResponseType,
 };
 
-use crate::commands_v2::arg::{Arg, Args};
-use crate::commands_v2::builder::{
+use crate::commands::arg::{Arg, Args};
+use crate::commands::builder::{
     ArgDesc, BaseCommand, CommandFunction, CommandGroup, CommandOption,
 };
-use crate::commands_v2::function::{Callable, ClassicFunction, SlashFunction};
-use crate::commands_v2::prelude::*;
+use crate::commands::function::{Callable, ClassicFunction, SlashFunction};
+use crate::commands::prelude::*;
 use crate::utils::prelude::*;
 use crate::{parser, Context};
 

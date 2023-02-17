@@ -13,7 +13,7 @@ use twilight_model::id::marker::{
 };
 use twilight_model::id::Id;
 
-use crate::commands_v2::CommandError;
+use crate::commands::CommandError;
 use crate::utils::prelude::*;
 use crate::{config, parser, utils};
 

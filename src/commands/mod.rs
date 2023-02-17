@@ -38,8 +38,8 @@ use std::sync::Arc;
 use derive_more::{Index, IntoIterator};
 use thiserror::Error;
 
-use crate::commands_v2::builder::twilight::{CommandValidationError, TwilightCommand};
-use crate::commands_v2::builder::BaseCommand;
+use crate::commands::builder::twilight::{CommandValidationError, TwilightCommand};
+use crate::commands::builder::BaseCommand;
 use crate::utils::prelude::*;
 
 pub mod arg;
@@ -51,12 +51,10 @@ pub mod request;
 
 /// Prelude module for command things.
 pub mod prelude {
-    pub use crate::commands_v2::arg::{ArgValueExt, Args};
-    pub use crate::commands_v2::builder::BaseCommand;
-    pub use crate::commands_v2::request::{
-        ClassicRequest, MessageRequest, SlashRequest, UserRequest,
-    };
-    pub use crate::commands_v2::{CommandError, CommandResult, Response};
+    pub use crate::commands::arg::{ArgValueExt, Args};
+    pub use crate::commands::builder::BaseCommand;
+    pub use crate::commands::request::{ClassicRequest, MessageRequest, SlashRequest, UserRequest};
+    pub use crate::commands::{CommandError, CommandResult, Response};
     pub use crate::Context;
 }
 

@@ -4,16 +4,16 @@ use std::sync::Arc;
 use derive_more::{IsVariant, Unwrap};
 use futures::Future;
 
-use crate::commands_v2::request::{ClassicRequest, MessageRequest, SlashRequest, UserRequest};
-use crate::commands_v2::CommandResult;
+use crate::commands::request::{ClassicRequest, MessageRequest, SlashRequest, UserRequest};
+use crate::commands::CommandResult;
 use crate::Context;
 
 // use crate::utils::prelude::*;
 
 pub mod mock {
     use super::*;
-    use crate::commands_v2::request::{ClassicRequest, MessageRequest, SlashRequest, UserRequest};
-    use crate::commands_v2::{CommandResult, Response};
+    use crate::commands::request::{ClassicRequest, MessageRequest, SlashRequest, UserRequest};
+    use crate::commands::{CommandResult, Response};
 
     pub async fn classic(_ctx: Context, req: ClassicRequest) -> CommandResult {
         println!("CLASSIC REQ: {req:#?}");

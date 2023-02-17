@@ -36,11 +36,11 @@ use twilight_model::user::CurrentUser;
 use twilight_model::voice::VoiceState;
 use twilight_standby::Standby;
 
-use crate::commands_v2::{CommandError, Commands};
+use crate::commands::{CommandError, Commands};
 use crate::config::Config;
 use crate::utils::prelude::*;
 
-mod commands_v2;
+mod commands;
 
 // mod commands;
 mod config;
@@ -211,7 +211,7 @@ async fn main() -> AnyResult<()> {
     let standby = Arc::new(Standby::new());
 
     // Initialize chat commands.
-    let commands = Arc::new(commands_v2::bot::create_commands()?);
+    let commands = Arc::new(commands::bot::create_commands()?);
 
     let ctx = Context {
         config,
@@ -356,7 +356,7 @@ async fn handle_interaction_create(ctx: &Context, mut inter: Interaction) -> Any
     match inter.data.take() {
         Some(InteractionData::ApplicationCommand(d)) => {
             println!("{d:#?}");
-            crate::commands_v2::handle::application_command(ctx, inter, *d)
+            crate::commands::handle::application_command(ctx, inter, *d)
                 .await
                 .context("Failed to handle application command")?;
         },
@@ -390,7 +390,7 @@ async fn handle_message_create(ctx: &Context, msg: Message) -> AnyResult<()> {
     #[cfg(feature = "ban-at-everyone")]
     check_if_at_everyone(ctx, &msg).await.ok();
 
-    match crate::commands_v2::handle::classic_command(ctx, Arc::clone(&msg)).await {
+    match crate::commands::handle::classic_command(ctx, Arc::clone(&msg)).await {
         Err(CommandError::NotPrefixed) => {
             // Message was not a command.
 

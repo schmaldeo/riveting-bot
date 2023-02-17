@@ -1,6 +1,6 @@
 use twilight_util::builder::embed;
 
-use crate::commands_v2::prelude::*;
+use crate::commands::prelude::*;
 use crate::utils::prelude::*;
 
 /// Command: Calculate fuel required.
@@ -10,7 +10,7 @@ pub struct Fuel {
 
 impl Fuel {
     pub fn command() -> impl Into<BaseCommand> {
-        use crate::commands_v2::builder::*;
+        use crate::commands::builder::*;
 
         command("fuel", "Calculate race fuel required.")
             .attach(Self::slash)

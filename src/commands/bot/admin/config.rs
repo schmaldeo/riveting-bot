@@ -1,4 +1,4 @@
-use crate::commands_v2::prelude::*;
+use crate::commands::prelude::*;
 // use crate::utils::prelude::*;
 
 /// Command: Manage guild configuration.
@@ -6,7 +6,7 @@ pub struct Config;
 
 impl Config {
     pub fn command() -> impl Into<BaseCommand> {
-        use crate::commands_v2::builder::*;
+        use crate::commands::builder::*;
 
         command("config", "Manage guild config.")
             .attach(Self::classic)

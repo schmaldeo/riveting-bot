@@ -32,14 +32,14 @@ use futures::Future;
 pub use twilight_model::channel::ChannelType;
 pub use twilight_model::guild::Permissions;
 
-use crate::commands_v2::builder::twilight::{
+use crate::commands::builder::twilight::{
     CommandValidationError, MessageCommand, SlashCommand, TwilightCommand, UserCommand,
 };
-use crate::commands_v2::function::{
+use crate::commands::function::{
     ClassicFunction, Function, FunctionKind, IntoFunction, MessageFunction, SlashFunction,
     UserFunction,
 };
-use crate::commands_v2::CommandResult;
+use crate::commands::CommandResult;
 use crate::utils::prelude::*;
 use crate::Context;
 
@@ -722,7 +722,7 @@ impl From<CommandGroupBuilder> for CommandOption {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::commands_v2::function::mock;
+    use crate::commands::function::mock;
 
     #[test]
     fn valid_commands() {

@@ -17,7 +17,7 @@ use twilight_model::id::marker::{
 use twilight_model::id::Id;
 use twilight_util::builder::InteractionResponseDataBuilder;
 
-use crate::commands_v2::prelude::*;
+use crate::commands::prelude::*;
 use crate::config::ReactionRole;
 use crate::utils::prelude::*;
 use crate::{config, utils};
@@ -27,7 +27,7 @@ pub struct Roles;
 
 impl Roles {
     pub fn command() -> impl Into<BaseCommand> {
-        use crate::commands_v2::builder::*;
+        use crate::commands::builder::*;
 
         command("roles", "Manage reaction-roles.")
             .attach(Self::classic)

@@ -1,6 +1,6 @@
 use reqwest;
 
-use crate::commands_v2::prelude::*;
+use crate::commands::prelude::*;
 
 /// Command: Send a dad joke.
 pub struct Joke {
@@ -18,7 +18,7 @@ enum JokeResponse {
 
 impl Joke {
     pub fn command() -> impl Into<BaseCommand> {
-        use crate::commands_v2::builder::*;
+        use crate::commands::builder::*;
 
         command("joke", "Send a bad joke.").attach(Self::slash)
     }

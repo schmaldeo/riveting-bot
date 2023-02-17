@@ -6,8 +6,8 @@ use twilight_model::channel::Message;
 use twilight_model::id::marker::{MessageMarker, UserMarker};
 use twilight_model::id::Id;
 
-use crate::commands_v2::arg::Args;
-use crate::commands_v2::builder::BaseCommand;
+use crate::commands::arg::Args;
+use crate::commands::builder::BaseCommand;
 
 /// Classic command request with preprocessed arguments and original message.
 #[derive(Debug, Clone)]

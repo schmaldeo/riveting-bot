@@ -1,6 +1,6 @@
 use rand::random;
 
-use crate::commands_v2::prelude::*;
+use crate::commands::prelude::*;
 
 /// Command: Coinflip.
 pub struct Coinflip {
@@ -9,7 +9,7 @@ pub struct Coinflip {
 
 impl Coinflip {
     pub fn command() -> impl Into<BaseCommand> {
-        use crate::commands_v2::builder::*;
+        use crate::commands::builder::*;
 
         command("coinflip", "Flip a coin.").attach(Self::slash)
     }

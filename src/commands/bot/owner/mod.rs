@@ -1,4 +1,4 @@
-use crate::commands_v2::prelude::*;
+use crate::commands::prelude::*;
 use crate::utils::prelude::*;
 
 /// Command: Disconnect and shut down the bot.
@@ -6,7 +6,7 @@ pub struct Shutdown;
 
 impl Shutdown {
     pub fn command() -> impl Into<BaseCommand> {
-        use crate::commands_v2::builder::*;
+        use crate::commands::builder::*;
 
         command("shutdown", "Shutdown the bot.")
             .attach(Self::classic)

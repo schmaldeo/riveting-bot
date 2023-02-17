@@ -7,7 +7,7 @@ use twilight_model::id::marker::ChannelMarker;
 use twilight_model::id::Id;
 use twilight_util::builder::embed::{self, EmbedFieldBuilder, EmbedFooterBuilder};
 
-use crate::commands_v2::prelude::*;
+use crate::commands::prelude::*;
 use crate::utils::prelude::*;
 
 /*
@@ -57,7 +57,7 @@ pub struct Time {
 
 impl Time {
     pub fn command() -> impl Into<BaseCommand> {
-        use crate::commands_v2::builder::*;
+        use crate::commands::builder::*;
 
         command("time", "Display a discord timestamp.")
             .attach(Self::classic)

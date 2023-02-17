@@ -1,7 +1,7 @@
 use twilight_model::id::marker::{ChannelMarker, GuildMarker};
 use twilight_model::id::Id;
 
-use crate::commands_v2::prelude::*;
+use crate::commands::prelude::*;
 use crate::utils::prelude::*;
 
 /// Command: Create or edit bot messages.
@@ -9,7 +9,7 @@ pub struct Bot;
 
 impl Bot {
     pub fn command() -> impl Into<BaseCommand> {
-        use crate::commands_v2::builder::*;
+        use crate::commands::builder::*;
 
         command("bot", "Create or edit bot messages.")
             .attach(Self::classic)

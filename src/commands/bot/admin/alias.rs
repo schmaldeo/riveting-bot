@@ -1,4 +1,4 @@
-use crate::commands_v2::prelude::*;
+use crate::commands::prelude::*;
 // use crate::utils::prelude::*;
 
 /// Command: Manage guild command aliases.
@@ -6,7 +6,7 @@ pub struct Alias;
 
 impl Alias {
     pub fn command() -> impl Into<BaseCommand> {
-        use crate::commands_v2::builder::*;
+        use crate::commands::builder::*;
 
         command("alias", "Manage guild aliases.")
             .attach(Self::classic)

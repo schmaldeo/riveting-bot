@@ -7,8 +7,8 @@ use twilight_model::application::interaction::application_command::CommandOption
 use twilight_model::channel::Message;
 use twilight_model::id::Id;
 
-use crate::commands_v2::builder::{ArgDesc, ArgKind};
-use crate::commands_v2::CommandError;
+use crate::commands::builder::{ArgDesc, ArgKind};
+use crate::commands::CommandError;
 use crate::utils::prelude::*;
 
 pub mod types {
@@ -20,7 +20,7 @@ pub mod types {
     use twilight_model::id::Id;
     use twilight_model::user::User;
 
-    use crate::commands_v2::arg::Ref;
+    use crate::commands::arg::Ref;
 
     pub type ArgBool = bool;
     pub type ArgNumber = f64;

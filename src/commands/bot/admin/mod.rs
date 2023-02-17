@@ -11,7 +11,7 @@ pub mod bulk {
     use twilight_model::id::marker::{ChannelMarker, MessageMarker};
     use twilight_model::id::Id;
 
-    use crate::commands_v2::prelude::*;
+    use crate::commands::prelude::*;
     use crate::utils::prelude::*;
 
     const MAX_DELETE: i64 = 100;
@@ -26,7 +26,7 @@ pub mod bulk {
 
     impl BulkDelete {
         pub fn command() -> impl Into<BaseCommand> {
-            use crate::commands_v2::builder::*;
+            use crate::commands::builder::*;
 
             command("bulk-delete", "Delete many of messages.")
                 .attach(Self::classic)

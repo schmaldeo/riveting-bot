@@ -1,7 +1,7 @@
 use twilight_model::id::marker::{GuildMarker, UserMarker};
 use twilight_model::id::Id;
 
-use crate::commands_v2::prelude::*;
+use crate::commands::prelude::*;
 use crate::utils::prelude::*;
 
 const DEFAULT_MUTE: u64 = 60;
@@ -15,7 +15,7 @@ pub struct Mute {
 
 impl Mute {
     pub fn command() -> impl Into<BaseCommand> {
-        use crate::commands_v2::builder::*;
+        use crate::commands::builder::*;
 
         command("mute", "Silence someone in voice channel.")
             .attach(Self::classic)
