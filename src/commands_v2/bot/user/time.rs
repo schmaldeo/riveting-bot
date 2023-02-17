@@ -1,15 +1,17 @@
+use chrono::{DateTime, Utc};
 use htp::parser::ParseError;
 use htp::HTPError;
 use twilight_mention::timestamp::{Timestamp, TimestampStyle};
 use twilight_mention::Mention;
-use twilight_model::id::marker::{ChannelMarker, MessageMarker};
+use twilight_model::id::marker::ChannelMarker;
 use twilight_model::id::Id;
+use twilight_util::builder::embed::{self, EmbedFieldBuilder, EmbedFooterBuilder};
 
 use crate::commands_v2::prelude::*;
 use crate::utils::prelude::*;
 
 /*
-// TODO Try `event_parser`
+// TODO Try `event_parser / date_time_parser`
 
 HTP examples:
     * 4 min ago, 4 h ago, 1 week ago, in 2 hours, in 1 month
@@ -19,11 +21,38 @@ HTP examples:
     * 2020-12-25T19:43:00
 */
 
+/// If your timezone is something else, unlucky.
+const TIMEZONES: [(&str, &str); 24] = [
+    ("UTC-11", "-11"),
+    ("UTC-10", "-10"),
+    ("UTC-9", "-9"),
+    ("UTC-8", "-8"),
+    ("UTC-7", "-7"),
+    ("UTC-6", "-6"),
+    ("UTC-5", "-5"),
+    ("UTC-4", "-4"),
+    ("UTC-3", "-3"),
+    ("UTC-2", "-2"),
+    ("UTC-1", "-1"),
+    ("UTC+0", "+0"),
+    ("UTC+1", "+1"),
+    ("UTC+2", "+2"),
+    ("UTC+3", "+3"),
+    ("UTC+4", "+4"),
+    ("UTC+5", "+5"),
+    ("UTC+6", "+6"),
+    ("UTC+7", "+7"),
+    ("UTC+8", "+8"),
+    ("UTC+9", "+9"),
+    ("UTC+10", "+10"),
+    ("UTC+11", "+11"),
+    ("UTC+12", "+12"),
+];
+
 /// Command: Display a discord timestamp.
 pub struct Time {
     args: Args,
     channel_id: Option<Id<ChannelMarker>>,
-    message_id: Option<Id<MessageMarker>>,
 }
 
 impl Time {
@@ -34,38 +63,49 @@ impl Time {
             .attach(Self::classic)
             .attach(Self::slash)
             .option(string("expression", "Time expression to evaluate."))
+            .option(string("timezone", "Your timezone offset.").choices(TIMEZONES))
             .dm()
     }
 
     pub async fn uber(self, ctx: Context) -> CommandResult {
-        let expr = self.args.string("expression")?;
-
         let Some(channel_id) = self.channel_id else {
-            return Err(CommandError::MissingArgs);
+            return Err(CommandError::Disabled);
         };
 
-        let Some(message_id) = self.message_id else {
-            return Err(CommandError::MissingArgs); // FIXME: Slash command has no message id.
-        };
+        let expr = self
+            .args
+            .string("expression")
+            .unwrap_or("now".to_string().into_boxed_str());
 
-        let now = chrono::Utc::now();
+        let now = self
+            .args
+            .string("timezone")
+            .and_then(|val| zone_to_now(&val).map_err(Into::into))
+            .unwrap_or(Utc::now());
+
         let parsed = htp::parse_time_clue(expr.trim(), now, true).map_err(|e| {
             if let HTPError::ParseError(ParseError::PestError(_)) = e {
-                CommandError::ParseError("Failed to parse time".to_string())
+                CommandError::ParseError("Failed to parse datetime".to_string())
             } else {
-                CommandError::ParseError(format!("Failed to parse time: {e}"))
+                CommandError::ParseError(format!("Failed to parse datetime: {e}"))
             }
         })?;
 
         let unix = parsed.timestamp() as _;
         let long = Timestamp::new(unix, Some(TimestampStyle::LongDateTime));
         let relative = Timestamp::new(unix, Some(TimestampStyle::RelativeTime));
+        let footer = format!("{} {}", long.mention(), relative.mention());
+
+        let embed = embed::EmbedBuilder::new()
+            .color(0xFFAA44)
+            .field(EmbedFieldBuilder::new("Date & Time", long.mention().to_string()).inline())
+            .field(EmbedFieldBuilder::new("Relative", relative.mention().to_string()).inline())
+            .footer(EmbedFooterBuilder::new(footer))
+            .build();
 
         ctx.http
             .create_message(channel_id)
-            .reply(message_id)
-            .content(&format!("{}\n{}", long.mention(), relative.mention()))?
-            .send()
+            .embeds(&[embed])?
             .await?;
 
         Ok(Response::Clear)
@@ -75,7 +115,6 @@ impl Time {
         Self {
             args: req.args,
             channel_id: Some(req.message.channel_id),
-            message_id: Some(req.message.id),
         }
         .uber(ctx)
         .await
@@ -85,9 +124,15 @@ impl Time {
         Self {
             args: req.args,
             channel_id: req.interaction.channel_id,
-            message_id: None,
         }
         .uber(ctx)
         .await
     }
+}
+
+fn zone_to_now(zone: &str) -> AnyResult<DateTime<Utc>> {
+    let tz = zone.trim().parse::<i64>()?;
+    Utc::now()
+        .checked_add_signed(chrono::Duration::hours(tz))
+        .ok_or(anyhow::anyhow!("Failed to offset timezone"))
 }
