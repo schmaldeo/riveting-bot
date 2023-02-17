@@ -25,6 +25,10 @@ impl UserInfo {
             return Err(CommandError::Disabled);
         };
 
+        let Some(channel_id) = req.interaction.channel_id else {
+            return Err(CommandError::Disabled);
+        };
+
         // If no args provided, check own props
         let user_id = match req.args.user("user") {
             Ok(user) => user.id(),
@@ -78,7 +82,7 @@ impl UserInfo {
             .build();
 
         ctx.http
-            .create_message(req.interaction.channel_id.unwrap())
+            .create_message(channel_id)
             .embeds(&[embed])?
             .send()
             .await?;

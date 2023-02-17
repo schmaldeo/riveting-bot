@@ -44,6 +44,10 @@ impl Fuel {
     }
 
     async fn slash(ctx: Context, req: SlashRequest) -> CommandResult {
+        let Some(channel_id) = req.interaction.channel_id else {
+            return Err(CommandError::Disabled);
+        };
+
         let stint = req.args.integer("stint")?;
         let minutes = req.args.integer("minutes")?;
         let seconds = req.args.number("seconds")?;
@@ -73,7 +77,7 @@ impl Fuel {
             .build();
 
         ctx.http
-            .create_message(req.interaction.channel_id.unwrap())
+            .create_message(channel_id)
             .embeds(&[embed])?
             .send()
             .await?;

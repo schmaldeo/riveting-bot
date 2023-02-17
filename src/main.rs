@@ -388,7 +388,7 @@ async fn handle_message_create(ctx: &Context, msg: Message) -> AnyResult<()> {
     let msg = Arc::new(msg);
 
     #[cfg(feature = "ban-at-everyone")]
-    check_if_at_everyone(ctx, &msg).await;
+    check_if_at_everyone(ctx, &msg).await.ok();
 
     match crate::commands_v2::handle::classic_command(ctx, Arc::clone(&msg)).await {
         Err(CommandError::NotPrefixed) => {
@@ -414,13 +414,16 @@ async fn handle_message_create(ctx: &Context, msg: Message) -> AnyResult<()> {
     }
 }
 #[cfg(feature = "ban-at-everyone")]
-async fn check_if_at_everyone(ctx: &Context, msg: &Message) {
+async fn check_if_at_everyone(ctx: &Context, msg: &Message) -> AnyResult<()> {
+    let Some(guild_id) = msg.guild_id else {
+        anyhow::bail!("Disabled");
+    };
+
     if msg.mention_everyone {
-        ctx.http
-            .create_ban(msg.guild_id.unwrap(), msg.author.id)
-            .await
-            .unwrap();
+        ctx.http.create_ban(guild_id, msg.author.id).await?;
     }
+
+    Ok(())
 }
 
 async fn handle_message_update(_ctx: &Context, _mu: MessageUpdate) -> AnyResult<()> {
