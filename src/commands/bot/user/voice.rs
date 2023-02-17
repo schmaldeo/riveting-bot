@@ -1,4 +1,4 @@
-use crate::commands_v2::prelude::*;
+use crate::commands::prelude::*;
 // use crate::utils::prelude::*;
 
 /// Command: Voice channel controls.
@@ -6,7 +6,7 @@ pub struct Voice;
 
 impl Voice {
     pub fn command() -> impl Into<BaseCommand> {
-        use crate::commands_v2::builder::*;
+        use crate::commands::builder::*;
 
         command("voice", "Manage voice connection.")
             .attach(Self::classic)

@@ -5,7 +5,7 @@ pub struct Command;
 
 impl Command {
     pub fn command() -> impl Into<BaseCommand> {
-        use crate::commands_v2::builder::*;
+        use crate::commands::builder::*;
 
         command("cmd", "Thing.")
             .attach(Self::classic)
