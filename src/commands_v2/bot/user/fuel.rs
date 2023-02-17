@@ -23,12 +23,12 @@ impl Fuel {
                 integer("minutes", "Lap time minutes.")
                     .required()
                     .min(0)
-                    .max(10),
+                    .max(30),
             )
             .option(
                 number(
                     "seconds",
-                    "Lap time seconds (and optionally milliseconds after a comma).",
+                    "Lap time seconds (and optionally milliseconds as decimal).",
                 )
                 .required()
                 .min(0.0)
@@ -37,7 +37,8 @@ impl Fuel {
             .option(
                 number("consumption", "Fuel consumption in litres per lap.")
                     .required()
-                    .min(0.1),
+                    .min(0.1)
+                    .max(100.0),
             )
             .dm()
     }
