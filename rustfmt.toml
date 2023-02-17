@@ -1,17 +1,20 @@
-
+# Meta
+edition = "2021"
 unstable_features = true
+version = "Two"
 
 # Ordering
 group_imports = "StdExternalCrate"
 imports_granularity = "Module"
 reorder_impl_items = true
 
-# Reformat
+# Format
+condense_wildcard_suffixes = true
+match_block_trailing_comma = true
 overflow_delimited_expr = true
 use_field_init_shorthand = true
 use_try_shorthand = true
 
-# Extra
 format_macro_matchers = true
 format_strings = true
-match_block_trailing_comma = true
+hex_literal_case = "Upper"

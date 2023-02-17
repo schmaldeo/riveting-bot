@@ -1,9 +1,13 @@
-#![feature(let_else)]
-#![feature(decl_macro)]
-#![feature(pattern)]
 #![feature(associated_type_bounds)]
-#![feature(option_get_or_insert_default)]
+#![feature(associated_type_defaults)]
+#![feature(decl_macro)]
+#![feature(iter_intersperse)]
+#![feature(iterator_try_collect)]
 #![feature(iterator_try_reduce)]
+#![feature(option_get_or_insert_default)]
+#![feature(pattern)]
+#![feature(trait_alias)]
+//
 #![allow(dead_code)]
 #![allow(clippy::significant_drop_in_scrutinee)]
 
@@ -17,41 +21,51 @@ use twilight_cache_inmemory::InMemoryCache;
 use twilight_gateway::{Cluster, Event};
 use twilight_http::client::InteractionClient;
 use twilight_http::Client;
-use twilight_model::application::interaction::Interaction;
-use twilight_model::channel::{Message, Reaction};
+use twilight_model::application::interaction::{Interaction, InteractionData};
+use twilight_model::channel::Message;
 use twilight_model::gateway::event::shard::Connected;
 use twilight_model::gateway::payload::incoming::{
-    MessageDelete, MessageDeleteBulk, MessageUpdate, Ready,
+    MessageDelete, MessageDeleteBulk, MessageUpdate, Ready, RoleUpdate,
 };
-use twilight_model::gateway::Intents;
-use twilight_model::guild::Guild;
-use twilight_model::id::marker::GuildMarker;
+use twilight_model::gateway::{GatewayReaction, Intents};
+use twilight_model::guild::{Guild, Role};
+use twilight_model::id::marker::{GuildMarker, RoleMarker};
 use twilight_model::id::Id;
 use twilight_model::oauth::Application;
 use twilight_model::user::CurrentUser;
 use twilight_model::voice::VoiceState;
 use twilight_standby::Standby;
 
-use crate::commands::admin::scheduler::handle_timer;
-use crate::commands::{ChatCommands, CommandCall, CommandError};
+use crate::commands::{CommandError, Commands};
 use crate::config::Config;
 use crate::utils::prelude::*;
 
 mod commands;
+
+// mod commands;
 mod config;
 mod parser;
 mod utils;
 
 #[derive(Debug, Clone)]
 pub struct Context {
+    /// Bot configuration.
     config: Arc<Mutex<Config>>,
+    /// Application http client.
     http: Arc<Client>,
+    /// Application shard manager.
     cluster: Arc<Cluster>,
+    /// Application information.
     application: Arc<Application>,
+    /// Application bot user.
     user: Arc<CurrentUser>,
+    /// Caching of events.
     cache: Arc<InMemoryCache>,
+    /// Standby event system.
     standby: Arc<Standby>,
-    chat_commands: Arc<ChatCommands>,
+    /// Bot commands list.
+    commands: Arc<Commands>,
+    /// Shard id associated with the event.
     shard: Option<u64>,
 }
 
@@ -71,13 +85,50 @@ impl Context {
     pub fn classic_prefix(&self, guild_id: Option<Id<GuildMarker>>) -> String {
         let lock = self.config.lock().unwrap();
 
-        match guild_id {
-            Some(guild_id) => match lock.guild(guild_id) {
-                Some(data) => data.prefix.to_string(),
-                None => lock.prefix.to_string(),
+        guild_id.map_or_else(
+            || lock.prefix.to_string(),
+            |guild_id| {
+                lock.guild(guild_id)
+                    .map_or_else(|| lock.prefix.to_string(), |data| data.prefix.to_string())
             },
-            None => lock.prefix.to_string(),
+        )
+    }
+
+    /// Get role objects with `ids` from cache or fetch from client.
+    pub async fn roles_from(
+        &self,
+        guild_id: Id<GuildMarker>,
+        ids: &[Id<RoleMarker>],
+    ) -> AnyResult<Vec<Role>> {
+        // Try to get the roles from cache.
+        let cached_roles = ids
+            .iter()
+            .map(|id| self.cache.role(*id).map(|r| r.resource().to_owned()))
+            .try_collect();
+
+        // Use cached roles or otherwise fetch from client.
+        match cached_roles {
+            Some(r) => Ok(r),
+            None => self.fetch_roles_from(guild_id, ids).await,
         }
+    }
+
+    /// Fetch role objects with `ids` from client without cache.
+    pub async fn fetch_roles_from(
+        &self,
+        guild_id: Id<GuildMarker>,
+        ids: &[Id<RoleMarker>],
+    ) -> AnyResult<Vec<Role>> {
+        let mut fetch = self.http.roles(guild_id).send().await?;
+
+        // Manually update the cache.
+        for role in fetch.iter().cloned() {
+            self.cache.update(&RoleUpdate { guild_id, role });
+        }
+
+        fetch.retain(|r| ids.contains(&r.id));
+
+        Ok(fetch)
     }
 }
 
@@ -160,7 +211,7 @@ async fn main() -> AnyResult<()> {
     let standby = Arc::new(Standby::new());
 
     // Initialize chat commands.
-    let chat_commands = Arc::new(ChatCommands::new());
+    let commands = Arc::new(commands::bot::create_commands()?);
 
     let ctx = Context {
         config,
@@ -170,12 +221,13 @@ async fn main() -> AnyResult<()> {
         user,
         cache,
         standby,
-        chat_commands,
+        commands,
         shard: None,
     };
 
+    // TODO: To be implemented.
     // Spawn community event handler.
-    tokio::spawn(handle_timer(ctx.clone(), 60 * 5));
+    // tokio::spawn(handle_timer(ctx.clone(), 60 * 5));
 
     // Process each event as they come in.
     while let Some((id, event)) = events.next().await {
@@ -207,18 +259,38 @@ async fn handle_event(ctx: Context, event: Event) -> AnyResult<()> {
         Event::ReactionRemove(r) => handle_reaction_remove(&ctx, r.0).await,
         Event::VoiceStateUpdate(v) => handle_voice_state(&ctx, v.0).await,
 
+        // Gateway events.
+        Event::GatewayHeartbeat(_)
+        | Event::GatewayHeartbeatAck
+        | Event::GatewayHello(_)
+        | Event::GatewayInvalidateSession(_)
+        | Event::GatewayReconnect => {
+            debug!("Gateway event: {:?}", event.kind());
+            Ok(())
+        },
+
         // Other events here...
         event => {
             println!("Event: {:?}", event.kind());
             debug!("Event: {:?}", event.kind());
-
             Ok(())
         },
     };
 
     if let Err(e) = result {
-        println!("Event error: {e}");
-        error!("Event error: {e}");
+        let chain = e.oneliner();
+        eprintln!("Event error: {e:?}");
+        error!("Event error: {chain}");
+
+        if let Ok(id) = env::var("DISCORD_BOTDEV_CHANNEL") {
+            // Send error as message on bot dev channel.
+            let bot_dev = Id::new(id.parse()?);
+            ctx.http
+                .create_message(bot_dev)
+                .content(&format!("{e:?}"))?
+                .send()
+                .await?;
+        }
     }
 
     Ok(())
@@ -233,9 +305,20 @@ async fn handle_shard_connected(_ctx: &Context, connected: Connected) -> AnyResu
     Ok(())
 }
 
-async fn handle_ready(_ctx: &Context, ready: Ready) -> AnyResult<()> {
+async fn handle_ready(ctx: &Context, ready: Ready) -> AnyResult<()> {
     println!("Ready: '{}'", ready.user.name);
     info!("Ready: '{}'", ready.user.name);
+
+    let commands = ctx.commands.twilight_commands()?;
+
+    debug!("Creating {} global commands", commands.len());
+
+    // Set global application commands.
+    ctx.http
+        .interaction(ctx.application.id)
+        .set_global_commands(&commands)
+        .send()
+        .await?;
 
     Ok(())
 }
@@ -250,47 +333,47 @@ async fn handle_guild_create(ctx: &Context, guild: Guild) -> AnyResult<()> {
     if let Some(whitelist) = whitelist {
         if !whitelist.contains(&guild.id) {
             info!("Leaving a non-whitelisted guild '{}'", guild.id);
-            ctx.http.leave_guild(guild.id).exec().await?;
+            ctx.http.leave_guild(guild.id).await?;
         } else {
             debug!("Whitelisted guild: '{}'", guild.id)
         }
     }
 
+    // ctx.http
+    //     .interaction(ctx.application.id)
+    //     .set_guild_commands(guild.id, &commands)
+    //     .send()
+    //     .await?;
+
     Ok(())
 }
 
-async fn handle_interaction_create(_ctx: &Context, _inter: Interaction) -> AnyResult<()> {
-    // use twilight_model::http::interaction::{InteractionResponse, InteractionResponseType};
-    // match inter {
-    //     Interaction::Ping(p) => {
-    //         println!("{:#?}", p);
-    //     },
-    //     Interaction::ApplicationCommand(c) => {
-    //         println!("{:#?}", c);
-    //     },
-    //     Interaction::ApplicationCommandAutocomplete(a) => {
-    //         println!("{:#?}", a);
-    //     },
-    //     Interaction::MessageComponent(m) => {
-    //         println!("{:#?}", m);
-    //         let inter = ctx.http.interaction(ctx.application.id);
-    //         let resp = InteractionResponse {
-    //             kind: InteractionResponseType::UpdateMessage,
-    //             data: Some(
-    //                 twilight_util::builder::InteractionResponseDataBuilder::new()
-    //                     .content("newcontent".to_string())
-    //                     .build(),
-    //             ),
-    //         };
-    //         inter.create_response(m.id, &m.token, &resp).exec().await?;
+async fn handle_interaction_create(ctx: &Context, mut inter: Interaction) -> AnyResult<()> {
+    // println!("{:#?}", inter);
 
-    //         println!("{:#?}", "DONE");
-    //     },
-    //     Interaction::ModalSubmit(s) => {
-    //         println!("{:#?}", s);
-    //     },
-    //     i => todo!("not yet implemented: {:?}", i),
-    // };
+    // Take interaction data from the interaction,
+    // so that both can be passed forward without matching again.
+    match inter.data.take() {
+        Some(InteractionData::ApplicationCommand(d)) => {
+            println!("{d:#?}");
+            crate::commands::handle::application_command(ctx, inter, *d)
+                .await
+                .context("Failed to handle application command")?;
+        },
+        Some(InteractionData::MessageComponent(d)) => {
+            println!("{d:#?}");
+            //
+        },
+        Some(InteractionData::ModalSubmit(d)) => {
+            println!("{d:#?}");
+            //
+        },
+        Some(d) => {
+            println!("{d:#?}");
+            //
+        },
+        None => println!("{inter:#?}"),
+    }
 
     Ok(())
 }
@@ -302,51 +385,49 @@ async fn handle_message_create(ctx: &Context, msg: Message) -> AnyResult<()> {
         return Ok(());
     }
 
-    // Handle chat commands.
-    if let Err(e) = ctx.chat_commands.process(ctx, &msg).await {
-        match e {
+    let msg = Arc::new(msg);
+
+    #[cfg(feature = "ban-at-everyone")]
+    check_if_at_everyone(ctx, &msg).await.ok();
+
+    match crate::commands::handle::classic_command(ctx, Arc::clone(&msg)).await {
+        Err(CommandError::NotPrefixed) => {
             // Message was not a command.
-            CommandError::NotPrefixed => (),
 
-            // Log processing errors.
-            e => {
-                eprintln!("Error processing command: {}", e);
-                error!("Error processing command: {}", e);
+            if msg.mentions.iter().any(|mention| mention.id == ctx.user.id) {
+                // Send bot help message.
+                let about_msg = format!(
+                    "Try `/about` or `{prefix}about` for general info, or `/help` or \
+                     `{prefix}help` for commands.",
+                    prefix = ctx.classic_prefix(msg.guild_id),
+                );
 
-                if let Ok(id) = env::var("DISCORD_BOTDEV_CHANNEL") {
-                    // On a bot dev channel, reply with error message.
-                    let bot_dev = Id::new(id.parse()?);
+                ctx.http
+                    .create_message(msg.channel_id)
+                    .content(&about_msg)?
+                    .await?;
+            }
 
-                    if msg.channel_id == bot_dev {
-                        ctx.http
-                            .create_message(bot_dev)
-                            .reply(msg.id)
-                            .content(&e.to_string())?
-                            .send()
-                            .await?;
-                    }
-                }
-            },
-        }
+            Ok(())
+        },
+        res => res.context("Failed to handle classic command"),
+    }
+}
+#[cfg(feature = "ban-at-everyone")]
+async fn check_if_at_everyone(ctx: &Context, msg: &Message) -> AnyResult<()> {
+    let Some(guild_id) = msg.guild_id else {
+        anyhow::bail!("Disabled");
+    };
+
+    if msg.mention_everyone {
+        ctx.http.create_ban(guild_id, msg.author.id).await?;
     }
 
     Ok(())
 }
 
-async fn handle_message_update(ctx: &Context, mu: MessageUpdate) -> AnyResult<()> {
+async fn handle_message_update(_ctx: &Context, _mu: MessageUpdate) -> AnyResult<()> {
     // TODO Check if updated message is something that should update content from the bot.
-
-    let text = mu.content.unwrap_or_default();
-
-    if let Some(author) = mu.author {
-        if author.bot {
-            return Ok(());
-        }
-
-        if let Some(ccall) = CommandCall::parse_from(ctx, mu.guild_id, &text) {
-            println!("Updated message command: {}", ccall);
-        }
-    }
 
     Ok(())
 }
@@ -379,13 +460,14 @@ async fn handle_message_delete_bulk(ctx: &Context, mdb: MessageDeleteBulk) -> An
     };
 
     for id in mdb.ids {
-        handle_message_delete(ctx, message_delete_with(id)).await?; // Haxxx.
+        // Calls single delete handler for every deletion.
+        handle_message_delete(ctx, message_delete_with(id)).await?;
     }
 
     Ok(())
 }
 
-async fn handle_reaction_add(ctx: &Context, reaction: Reaction) -> AnyResult<()> {
+async fn handle_reaction_add(ctx: &Context, reaction: GatewayReaction) -> AnyResult<()> {
     let Some(guild_id) = reaction.guild_id else {
         return Ok(());
     };
@@ -438,14 +520,13 @@ async fn handle_reaction_add(ctx: &Context, reaction: Reaction) -> AnyResult<()>
     for role_id in add_roles {
         ctx.http
             .add_guild_member_role(guild_id, reaction.user_id, role_id)
-            .exec()
             .await?;
     }
 
     Ok(())
 }
 
-async fn handle_reaction_remove(ctx: &Context, reaction: Reaction) -> AnyResult<()> {
+async fn handle_reaction_remove(ctx: &Context, reaction: GatewayReaction) -> AnyResult<()> {
     let Some(guild_id) = reaction.guild_id else {
         return Ok(());
     };
@@ -499,7 +580,6 @@ async fn handle_reaction_remove(ctx: &Context, reaction: Reaction) -> AnyResult<
     for role_id in remove_roles {
         ctx.http
             .remove_guild_member_role(guild_id, reaction.user_id, role_id)
-            .exec()
             .await?;
     }
 
@@ -514,16 +594,22 @@ async fn handle_voice_state(_ctx: &Context, voice: VoiceState) -> AnyResult<()> 
 
 fn intents() -> Intents {
     #[cfg(feature = "all-intents")]
-    return Intents::all();
-    Intents::MESSAGE_CONTENT
-        | Intents::GUILDS
-        | Intents::GUILD_MESSAGES
-        | Intents::GUILD_MESSAGE_REACTIONS
-        | Intents::GUILD_MEMBERS
-        | Intents::GUILD_PRESENCES
-        | Intents::GUILD_VOICE_STATES
-        | Intents::DIRECT_MESSAGES
-        | Intents::DIRECT_MESSAGE_REACTIONS
+    {
+        Intents::all()
+    }
+
+    #[cfg(not(feature = "all-intents"))]
+    {
+        Intents::MESSAGE_CONTENT
+            | Intents::GUILDS
+            | Intents::GUILD_MESSAGES
+            | Intents::GUILD_MESSAGE_REACTIONS
+            | Intents::GUILD_MEMBERS
+            | Intents::GUILD_PRESENCES
+            | Intents::GUILD_VOICE_STATES
+            | Intents::DIRECT_MESSAGES
+            | Intents::DIRECT_MESSAGE_REACTIONS
+    }
 }
 
 fn log_processed(p: twilight_standby::ProcessResults) {

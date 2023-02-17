@@ -1,145 +1,222 @@
-use std::time::Duration;
-
-use serde::{Deserialize, Serialize};
-use tokio::time;
 use twilight_gateway::Event;
 use twilight_http::request::channel::reaction::RequestReactionType;
-use twilight_model::application::component::button::ButtonStyle;
-use twilight_model::application::component::select_menu::SelectMenuOption;
-use twilight_model::application::component::{ActionRow, Button, Component, SelectMenu};
 use twilight_model::application::interaction::{Interaction, InteractionData};
-use twilight_model::channel::message::MessageFlags;
-use twilight_model::channel::{Message, Reaction, ReactionType};
+use twilight_model::channel::message::component::{
+    ActionRow, Button, ButtonStyle, SelectMenu, SelectMenuOption,
+};
+use twilight_model::channel::message::{Component, MessageFlags, ReactionType};
+use twilight_model::channel::Message;
 use twilight_model::gateway::payload::incoming::RoleUpdate;
 use twilight_model::guild::Permissions;
 use twilight_model::http::interaction::{
     InteractionResponse, InteractionResponseData, InteractionResponseType,
 };
-use twilight_model::id::marker::{GuildMarker, RoleMarker};
+use twilight_model::id::marker::{
+    ChannelMarker, GuildMarker, MessageMarker, RoleMarker, UserMarker,
+};
 use twilight_model::id::Id;
 use twilight_util::builder::InteractionResponseDataBuilder;
 
-use crate::commands::{CommandContext, CommandError, CommandResult};
+use crate::commands::prelude::*;
+use crate::config::ReactionRole;
 use crate::utils::prelude::*;
 use crate::{config, utils};
 
 /// Command: Manage reaction-roles.
-pub async fn roles(cc: CommandContext<'_>) -> CommandResult {
-    if cc.msg.guild_id.is_none() {
-        return Err(CommandError::Disabled);
+pub struct Roles;
+
+impl Roles {
+    pub fn command() -> impl Into<BaseCommand> {
+        use crate::commands::builder::*;
+
+        command("roles", "Manage reaction-roles.")
+            .attach(Self::classic)
+            .attach(Self::slash)
+            .permissions(Permissions::ADMINISTRATOR)
+            .option(
+                sub("setup", "Setup a new reaction-roles message.")
+                    .attach(Setup::classic)
+                    .attach(Setup::slash),
+            )
+            .option(
+                sub("edit", "Edit an existing reaction-roles message.")
+                    .attach(Edit::classic)
+                    .option(message("message", "Reaction-roles message to edit.").required()),
+            )
     }
 
-    cc.http
-        .create_message(cc.msg.channel_id)
-        .reply(cc.msg.id)
-        .content(&format!("```{}```", cc.cmd))?
-        .send()
-        .await?;
+    async fn classic(_ctx: Context, _req: ClassicRequest) -> CommandResult {
+        todo!();
+    }
 
-    Ok(())
+    async fn slash(_ctx: Context, _req: SlashRequest) -> CommandResult {
+        todo!();
+    }
 }
 
 /// Command: Setup a reaction-roles message.
-pub async fn setup(cc: CommandContext<'_>) -> CommandResult {
-    let Some(guild_id) = cc.msg.guild_id else {
-        return Err(CommandError::Disabled)
-    };
+struct Setup {
+    guild_id: Id<GuildMarker>,
+    channel_id: Id<ChannelMarker>,
+    author_id: Id<UserMarker>,
+}
 
-    let Some(mappings) = roles_setup_process(&cc, guild_id, None).await? else {
-        return Ok(()) // Canceled or whatever.
-    };
+impl Setup {
+    async fn uber(self, ctx: Context) -> CommandResult {
+        let Some(mappings) = roles_setup_process(&ctx, self.guild_id, self.channel_id, self.author_id, None).await? else {
+            return Ok(Response::Clear) // Canceled or whatever.
+        };
 
-    let list = display_emoji_roles(&cc, guild_id, &mappings).await?;
-    let output_content = indoc::formatdoc! {"
-        React to give yourself some roles:
+        let output_content = output_message_content(&ctx, self.guild_id, &mappings).await?;
+        let output = ctx
+            .http
+            .create_message(self.channel_id)
+            .content(&output_content)?
+            .send()
+            .await?;
 
-        {}
-        ",
-        list
-    };
+        add_reactions_to_message(&ctx, &mappings, &output).await?;
 
-    let output = cc
-        .http
-        .create_message(cc.msg.channel_id)
-        .content(&output_content)?
-        .send()
-        .await?;
+        register_reaction_roles(&ctx, self.guild_id, output.channel_id, output.id, mappings)?;
 
-    add_reactions_to_message(&cc, &mappings, &output).await?;
+        Ok(Response::Clear)
+    }
 
-    let mut lock = cc.config.lock().unwrap();
-    lock.add_reaction_roles(guild_id, output.channel_id, output.id, mappings);
-    lock.write_guild(guild_id)?;
+    async fn classic(ctx: Context, req: ClassicRequest) -> CommandResult {
+        let Some(guild_id) = req.message.guild_id else {
+            return Err(CommandError::Disabled)
+        };
 
-    Ok(())
+        let channel_id = req.message.channel_id;
+
+        Self {
+            guild_id,
+            channel_id,
+            author_id: req.message.author.id,
+        }
+        .uber(ctx)
+        .await
+    }
+
+    async fn slash(ctx: Context, req: SlashRequest) -> CommandResult {
+        let Some(guild_id) = req.interaction.guild_id else {
+            return Err(CommandError::Disabled)
+        };
+
+        let Some(channel_id) = req.interaction.channel_id else {
+            return Err(CommandError::Disabled)
+        };
+
+        let Some(author_id) = req.interaction.author_id() else {
+            return Err(CommandError::MissingArgs)
+        };
+
+        Self {
+            guild_id,
+            channel_id,
+            author_id,
+        }
+        .uber(ctx)
+        .await
+    }
 }
 
 /// Command: Edit a reaction-roles mapping.
-pub async fn edit(cc: CommandContext<'_>) -> CommandResult {
-    let Some(guild_id) = cc.msg.guild_id else {
-        return Err(CommandError::Disabled)
-    };
+struct Edit;
 
-    let Some(replied) = &cc.msg.referenced_message else {
-        return Err(CommandError::MissingReply);
-    };
+impl Edit {
+    async fn classic(ctx: Context, req: ClassicRequest) -> CommandResult {
+        let Some(guild_id) = req.message.guild_id else {
+            return Err(CommandError::Disabled)
+        };
 
-    // Ignore if replied message is not from this bot.
-    if replied.author.id != cc.user.id {
-        return Err(CommandError::UnexpectedArgs(
-            "Replied message is not from this bot".to_string(),
-        ));
+        let Some(replied) = &req.message.referenced_message else {
+            return Err(CommandError::MissingReply);
+        };
+
+        // Ignore if replied message is not from this bot.
+        if replied.author.id != ctx.user.id {
+            return Err(CommandError::UnexpectedArgs(
+                "Replied message is not from this bot".to_string(),
+            ));
+        }
+
+        let reaction_roles = {
+            let lock = ctx.config.lock().unwrap();
+            lock.guild(guild_id)
+                .and_then(|s| {
+                    let key = config::reaction_roles_key(replied.channel_id, replied.id);
+                    s.reaction_roles.get(&key)
+                })
+                .cloned()
+        };
+
+        if reaction_roles.is_none() {
+            return Err(CommandError::UnexpectedArgs(
+                "Message is not a reaction-roles post".to_string(),
+            ));
+        }
+
+        let author_id = req.message.author.id;
+        let channel_id = req.message.channel_id;
+
+        let Some(mappings) = roles_setup_process(&ctx, guild_id, channel_id, author_id, reaction_roles).await? else {
+            return Ok(Response::Clear) // Canceled or whatever.
+        };
+
+        let output_content = output_message_content(&ctx, guild_id, &mappings).await?;
+
+        // NOTE: This will just overwrite all content of the original message.
+        let output = ctx
+            .http
+            .update_message(replied.channel_id, replied.id)
+            .content(Some(&output_content))?
+            .send()
+            .await?;
+
+        add_reactions_to_message(&ctx, &mappings, &output).await?;
+
+        register_reaction_roles(&ctx, guild_id, output.channel_id, output.id, mappings)?;
+
+        Ok(Response::Clear)
     }
+}
 
-    let reaction_roles = {
-        let lock = cc.config.lock().unwrap();
-        lock.guild(guild_id)
-            .and_then(|s| {
-                let key = config::reaction_roles_key(replied.channel_id, replied.id);
-                s.reaction_roles.get(&key)
-            })
-            .cloned()
-    };
-
-    if reaction_roles.is_none() {
-        return Err(CommandError::UnexpectedArgs(
-            "Message is not a reaction-roles post".to_string(),
-        ));
-    }
-
-    let Some(mappings) = roles_setup_process(&cc, guild_id, reaction_roles).await? else {
-        return Ok(()) // Canceled or whatever.
-    };
-
-    let list = display_emoji_roles(&cc, guild_id, &mappings).await?;
-    let output_content = indoc::formatdoc! {"
+/// Content to show on the final message.
+async fn output_message_content(
+    ctx: &Context,
+    guild_id: Id<GuildMarker>,
+    mappings: &[ReactionRole],
+) -> AnyResult<String> {
+    let list = display_emoji_roles(ctx, guild_id, mappings).await?;
+    Ok(indoc::formatdoc! {"
         React to give yourself some roles:
 
         {}
         ",
         list
-    };
-
-    // NOTE This will just overwrite all content of the original message.
-    let output = cc
-        .http
-        .update_message(replied.channel_id, replied.id)
-        .content(Some(&output_content))?
-        .send()
-        .await?;
-
-    add_reactions_to_message(&cc, &mappings, &output).await?;
-
-    let mut lock = cc.config.lock().unwrap();
-    lock.add_reaction_roles(guild_id, output.channel_id, output.id, mappings);
-    lock.write_guild(guild_id)?;
-
-    Ok(())
+    })
 }
 
-async fn roles_setup_process(
-    cc: &CommandContext<'_>,
+/// Write to config.
+fn register_reaction_roles(
+    ctx: &Context,
     guild_id: Id<GuildMarker>,
+    channel_id: Id<ChannelMarker>,
+    message_id: Id<MessageMarker>,
+    mappings: Vec<ReactionRole>,
+) -> AnyResult<()> {
+    let mut lock = ctx.config.lock().unwrap();
+    lock.add_reaction_roles(guild_id, channel_id, message_id, mappings);
+    lock.write_guild(guild_id)
+}
+
+/// Cognitive overload.
+async fn roles_setup_process(
+    ctx: &Context,
+    guild_id: Id<GuildMarker>,
+    channel_id: Id<ChannelMarker>,
+    author_id: Id<UserMarker>,
     preset: Option<Vec<ReactionRole>>,
 ) -> Result<Option<Vec<ReactionRole>>, CommandError> {
     let info_text = indoc::formatdoc! {"
@@ -153,32 +230,30 @@ async fn roles_setup_process(
     If any role is not displayed in the list, it may be too stronk for the bot.
     "};
 
-    let author_id = cc.msg.author.id;
-    let interaction = cc.interaction();
+    let interaction = ctx.interaction();
     let mut mappings = preset.unwrap_or_default();
 
     // Initial content of the controller message.
     let content = {
-        let list = display_emoji_roles(cc, guild_id, &mappings).await?;
+        let list = display_emoji_roles(ctx, guild_id, &mappings).await?;
         format!("{info_text}\n{list}")
     };
 
     // Setup message with controls.
-    let mut controller = cc
+    let mut controller = ctx
         .http
-        .create_message(cc.msg.channel_id)
-        .reply(cc.msg.id)
+        .create_message(channel_id)
         .content(&content)?
         .components(&controller_components(true))?
         .send()
         .await?;
 
     // Add any previous reactions if this is an edit.
-    add_reactions_to_message(cc, &mappings, &controller).await?;
+    add_reactions_to_message(ctx, &mappings, &controller).await?;
 
     let controller_mci = loop {
         // Future that waits for controller button press.
-        let controller_fut = cc
+        let controller_fut = ctx
             .standby
             .wait_for_component(controller.id, move |event: &Interaction| {
                 event.author_id() == Some(author_id)
@@ -187,9 +262,8 @@ async fn roles_setup_process(
         // Future that waits for a reaction add or remove.
         let reaction_fut = {
             let id = controller.id;
-            let channel_id = controller.channel_id;
 
-            cc.standby
+            ctx.standby
                 .wait_for(guild_id, move |event: &Event| match event {
                     Event::ReactionAdd(r) => {
                         r.message_id == id && r.channel_id == channel_id && r.user_id == author_id
@@ -220,22 +294,21 @@ async fn roles_setup_process(
                     continue;
                 }
 
-                let components = dropdown_components(cc, guild_id, &added).await?;
+                let components = dropdown_components(ctx, guild_id, &added.emoji).await?;
 
                 // Gray out controller buttons.
-                update_controller(cc, &mut controller, None, false).await?;
+                update_controller(ctx, &mut controller, None, false).await?;
 
                 // Create dropdown list interaction.
-                let dropdown = cc
+                let dropdown = ctx
                     .http
-                    .create_message(cc.msg.channel_id)
-                    .reply(cc.msg.id)
+                    .create_message(channel_id)
                     .components(&components)?
                     .send()
                     .await?;
 
                 // Wait for user to select an option.
-                let list_mci = cc
+                let list_mci = ctx
                     .standby
                     .wait_for_component(dropdown.id, move |event: &Interaction| {
                         event.author_id() == Some(author_id)
@@ -250,11 +323,10 @@ async fn roles_setup_process(
                 // Acknowledge the interaction.
                 interaction
                     .create_response(list_mci.id, &list_mci.token, &resp)
-                    .exec()
                     .await?;
 
                 // Delete the dropdown message.
-                interaction.delete_response(&list_mci.token).exec().await?;
+                interaction.delete_response(&list_mci.token).await?;
 
                 let choice = match list_mci.data {
                     Some(InteractionData::MessageComponent(mut data)) => {
@@ -268,14 +340,13 @@ async fn roles_setup_process(
 
                 if choice == "cancel" {
                     // Canceling, re-enable controller buttons.
-                    update_controller(cc, &mut controller, None, true).await?;
+                    update_controller(ctx, &mut controller, None, true).await?;
 
                     // Remove canceled reaction.
                     let request_emoji = request_from_emoji(&added.emoji);
 
-                    cc.http
+                    ctx.http
                         .delete_all_reaction(controller.channel_id, controller.id, &request_emoji)
-                        .exec()
                         .await?;
 
                     continue;
@@ -287,18 +358,18 @@ async fn roles_setup_process(
                         mappings.push(ReactionRole::new(added.emoji.to_owned(), role_id));
 
                         // Create a message that lists all roles that have been added so far.
-                        let list = display_emoji_roles(cc, guild_id, &mappings).await?;
+                        let list = display_emoji_roles(ctx, guild_id, &mappings).await?;
                         let content = format!("{info_text}\n{list}");
 
                         // Update the controller message and re-enable controller buttons.
-                        update_controller(cc, &mut controller, Some(&content), true).await?;
+                        update_controller(ctx, &mut controller, Some(&content), true).await?;
                     },
                     Err(e) => {
                         // Error parsing the choice.
                         warn!("Could not parse role choice: {e}");
 
                         // Update the controller message and re-enable controller buttons.
-                        update_controller(cc, &mut controller, None, true).await?;
+                        update_controller(ctx, &mut controller, None, true).await?;
                     },
                 }
             },
@@ -311,16 +382,15 @@ async fn roles_setup_process(
                     .map(|(idx, _)| idx)
                     .map(|idx| mappings.remove(idx));
 
-                let list = display_emoji_roles(cc, guild_id, &mappings).await?;
+                let list = display_emoji_roles(ctx, guild_id, &mappings).await?;
                 let content = format!("{info_text}\n{list}");
 
-                update_controller(cc, &mut controller, Some(&content), true).await?;
+                update_controller(ctx, &mut controller, Some(&content), true).await?;
 
                 let request_emoji = request_from_emoji(&removed.emoji);
 
-                cc.http
+                ctx.http
                     .delete_all_reaction(controller.channel_id, controller.id, &request_emoji)
-                    .exec()
                     .await?;
             },
             _ => {
@@ -337,51 +407,11 @@ async fn roles_setup_process(
         ))?,
     };
 
-    if data.custom_id == "roles_cancel" {
+    // If cancelled, no reaction-roles were added or all were removed.
+    if data.custom_id == "roles_cancel" || mappings.is_empty() {
         // Delete the controller message.
-        cc.http
+        ctx.http
             .delete_message(controller.channel_id, controller.id)
-            .exec()
-            .await?;
-
-        // Delete the original command message.
-        cc.http
-            .delete_message(cc.msg.channel_id, cc.msg.id)
-            .exec()
-            .await?;
-
-        // Nothing more to be done here.
-        return Ok(None);
-    }
-
-    // If no reaction-roles were added or all were removed.
-    if mappings.is_empty() {
-        let text = "Well, that was kinda pointless... This message will self-destruct in 5 \
-                    seconds."
-            .to_string();
-
-        let resp = InteractionResponse {
-            kind: InteractionResponseType::UpdateMessage,
-            data: Some(InteractionResponseDataBuilder::new().content(text).build()),
-        };
-
-        interaction
-            .create_response(controller_mci.id, &controller_mci.token, &resp)
-            .exec()
-            .await?;
-
-        time::sleep(Duration::from_secs(5)).await;
-
-        // Delete the controller message.
-        cc.http
-            .delete_message(controller.channel_id, controller.id)
-            .exec()
-            .await?;
-
-        // Delete the original command message.
-        cc.http
-            .delete_message(cc.msg.channel_id, cc.msg.id)
-            .exec()
             .await?;
 
         // Nothing more to be done here.
@@ -393,47 +423,38 @@ async fn roles_setup_process(
         data: Some(
             InteractionResponseDataBuilder::new()
                 .flags(MessageFlags::EPHEMERAL)
-                .content(
-                    "Done; You can use `bot edit` command to edit the message content, or `roles \
-                     edit` command to edit the role mappings."
-                        .to_string(),
-                )
+                .content(format!(
+                    "Done; You can use `{prefix}bot edit` command to edit the message content, or \
+                     `{prefix}roles edit` command to edit the role mappings.",
+                    prefix = ctx.classic_prefix(Some(guild_id))
+                ))
                 .build(),
         ),
     };
 
     interaction
         .create_response(controller_mci.id, &controller_mci.token, &resp)
-        .exec()
         .await?;
 
     // Delete the controller message.
-    cc.http
+    ctx.http
         .delete_message(controller.channel_id, controller.id)
-        .exec()
         .await?;
-
-    // Delete the original command message.
-    cc.http
-        .delete_message(cc.msg.channel_id, cc.msg.id)
-        .exec()
-        .await
-        .ok(); // Ignore outcome.
 
     Ok(Some(mappings))
 }
 
+/// Does what it says.
 async fn add_reactions_to_message(
-    cc: &CommandContext<'_>,
+    ctx: &Context,
     mappings: &[ReactionRole],
     message: &Message,
 ) -> AnyResult<()> {
     for rr in mappings.iter() {
         let request_emoji = request_from_emoji(&rr.emoji);
 
-        cc.http
+        ctx.http
             .create_reaction(message.channel_id, message.id, &request_emoji)
-            .exec()
             .await?;
     }
 
@@ -442,47 +463,26 @@ async fn add_reactions_to_message(
 
 /// Creates components for reaction-roles setup dropdown selection.
 async fn dropdown_components(
-    cc: &CommandContext<'_>,
+    ctx: &Context,
     guild_id: Id<GuildMarker>,
-    reaction: &Reaction,
-) -> Result<Vec<Component>, CommandError> {
-    // Get all available roles, try cache.
-    let roles = cc.cache.guild_roles(guild_id).and_then(|role_ids| {
-        let mut cached_roles = Vec::with_capacity(role_ids.len());
-
-        for id in role_ids.iter() {
-            // Return out of closure if role is not cached.
-            cc.cache
-                .role(*id)
-                .map(|r| cached_roles.push(r.resource().to_owned()))?
-        }
-
-        // All roles were cached.
-        Some(cached_roles)
-    });
-
-    // Use cached roles or otherwise fetch from client.
-    let roles = match roles {
-        Some(r) => r,
-        None => {
-            let fetch = cc.http.roles(guild_id).send().await?;
-
-            // Manually update the cache.
-            for role in fetch.iter().cloned() {
-                cc.cache.update(&RoleUpdate { guild_id, role });
-            }
-
-            fetch
+    emoji: &ReactionType,
+) -> AnyResult<Vec<Component>> {
+    // Get all available roles. Try cache, otherwise fetch.
+    let roles = match ctx.cache.guild_roles(guild_id) {
+        Some(role_ids) => {
+            ctx.roles_from(guild_id, &role_ids.iter().copied().collect::<Vec<_>>())
+                .await?
         },
+        None => ctx.http.roles(guild_id).send().await?,
     };
 
     // Find the highest role that the bot has.
     let bot_role = {
-        let bot_roles = match cc.cache.member(guild_id, cc.user.id) {
+        let bot_roles = match ctx.cache.member(guild_id, ctx.user.id) {
             Some(m) => m.value().roles().to_vec(),
             None => {
-                cc.http
-                    .guild_member(guild_id, cc.user.id)
+                ctx.http
+                    .guild_member(guild_id, ctx.user.id)
                     .send()
                     .await?
                     .roles
@@ -501,7 +501,7 @@ async fn dropdown_components(
     let role_opts = roles
         .into_iter()
         // Filter out `@everyone` role.
-        .filter(|r| r.id.cast() != guild_id)
+        .filter(|r| r.id != guild_id.cast())
         // Filter out roles that are higher or same as the bot's role.
         .filter(|r| *r < bot_role)
         // Filter out roles that are integration managed.
@@ -511,7 +511,7 @@ async fn dropdown_components(
         .map(|r| SelectMenuOption {
             default: false,
             description: None,
-            emoji: Some(reaction.emoji.to_owned()),
+            emoji: Some(emoji.to_owned()),
             label: r.name,
             value: r.id.to_string(),
         }).chain([
@@ -566,12 +566,12 @@ fn controller_components(enabled: bool) -> Vec<Component> {
 /// Enable or disable setup message controls.
 /// If `content` is `None`, previous content is used.
 async fn update_controller(
-    cc: &CommandContext<'_>,
+    ctx: &Context,
     controller: &mut Message,
     content: Option<&str>,
     enabled: bool,
 ) -> AnyResult<()> {
-    *controller = cc
+    *controller = ctx
         .http
         .update_message(controller.channel_id, controller.id)
         .content(content.or(Some(&controller.content)))?
@@ -582,8 +582,9 @@ async fn update_controller(
     Ok(())
 }
 
+/// Creates a string with `<emoji> : <role>` pairs.
 async fn display_emoji_roles(
-    cc: &CommandContext<'_>,
+    ctx: &Context,
     guild_id: Id<GuildMarker>,
     emoji_roles: &[ReactionRole],
 ) -> Result<String, CommandError> {
@@ -596,11 +597,11 @@ async fn display_emoji_roles(
         emoji_roles_msg.push_str(" : `");
 
         // Try to get a name from the cache.
-        let cached_name = cc.cache.role(*role).map(|r| r.name.to_string());
+        let cached_name = ctx.cache.role(*role).map(|r| r.name.to_string());
         let name = match cached_name {
             Some(n) => n,
             None => {
-                let roles = cc.http.roles(guild_id).send().await?;
+                let roles = ctx.http.roles(guild_id).send().await?;
 
                 // Name of this role.
                 let this = roles
@@ -611,7 +612,7 @@ async fn display_emoji_roles(
 
                 // Manually update the cache.
                 for role in roles {
-                    cc.cache.update(&RoleUpdate { guild_id, role });
+                    ctx.cache.update(&RoleUpdate { guild_id, role });
                 }
 
                 this
@@ -632,23 +633,5 @@ fn request_from_emoji(r: &ReactionType) -> RequestReactionType {
             name: name.as_deref(),
         },
         ReactionType::Unicode { name } => RequestReactionType::Unicode { name },
-    }
-}
-
-#[derive(Debug, Clone, Deserialize, Serialize)]
-pub struct ReactionRole {
-    pub emoji: ReactionType,
-    pub role: Id<RoleMarker>,
-}
-
-impl ReactionRole {
-    pub const fn new(emoji: ReactionType, role: Id<RoleMarker>) -> Self {
-        Self { emoji, role }
-    }
-}
-
-impl PartialEq for ReactionRole {
-    fn eq(&self, other: &Self) -> bool {
-        utils::reaction_type_eq(&self.emoji, &other.emoji) && self.role == other.role
     }
 }
