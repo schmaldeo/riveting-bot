@@ -2,7 +2,7 @@
 edition = "2021"
 name = "riveting-bot"
 repository = "https://github.com/Samzyre/riveting-bot"
-version = "0.1.0"
+version = "0.2.0"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
@@ -36,7 +36,8 @@ features = ["full"]
 version = "0.14"
 
 [dependencies.reqwest]
-features = ["json"]
+default-features = false
+features = ["json", "rustls-tls"]
 version = "0.11"
 
 [dependencies.chrono]
@@ -61,15 +62,16 @@ version = "0.3"
 
 [features]
 # Default features
-default = ["admin", "owner"]
+default = ["user", "admin", "owner"]
 # Debugging features
 debug = ["all-intents", "bulk-delete"]
 # Full set of features
-full = ["admin", "owner", "debug", "voice", "ban-at-everyone"]
+full = ["user", "admin", "owner", "debug", "voice", "ban-at-everyone"]
 #
 admin = []
 all-intents = []
 ban-at-everyone = []
 bulk-delete = ["admin"]
 owner = []
-voice = ["dep:songbird"]
+user = []
+voice = ["dep:songbird", "user"]

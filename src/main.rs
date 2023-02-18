@@ -7,10 +7,8 @@
 #![feature(option_get_or_insert_default)]
 #![feature(pattern)]
 #![feature(trait_alias)]
-#![feature(async_fn_in_trait)]
 //
 #![allow(dead_code)]
-#![allow(incomplete_features)]
 #![allow(clippy::significant_drop_in_scrutinee)]
 
 use std::sync::{Arc, Mutex};
@@ -38,11 +36,11 @@ use twilight_model::user::CurrentUser;
 use twilight_model::voice::VoiceState;
 use twilight_standby::Standby;
 
-use crate::commands_v2::{CommandError, Commands};
+use crate::commands::{CommandError, Commands};
 use crate::config::Config;
 use crate::utils::prelude::*;
 
-mod commands_v2;
+mod commands;
 
 // mod commands;
 mod config;
@@ -51,14 +49,23 @@ mod utils;
 
 #[derive(Debug, Clone)]
 pub struct Context {
+    /// Bot configuration.
     config: Arc<Mutex<Config>>,
+    /// Application http client.
     http: Arc<Client>,
+    /// Application shard manager.
     cluster: Arc<Cluster>,
+    /// Application information.
     application: Arc<Application>,
+    /// Application bot user.
     user: Arc<CurrentUser>,
+    /// Caching of events.
     cache: Arc<InMemoryCache>,
+    /// Standby event system.
     standby: Arc<Standby>,
+    /// Bot commands list.
     commands: Arc<Commands>,
+    /// Shard id associated with the event.
     shard: Option<u64>,
 }
 
@@ -204,7 +211,7 @@ async fn main() -> AnyResult<()> {
     let standby = Arc::new(Standby::new());
 
     // Initialize chat commands.
-    let commands = Arc::new(commands_v2::bot::create_commands()?);
+    let commands = Arc::new(commands::bot::create_commands()?);
 
     let ctx = Context {
         config,
@@ -274,6 +281,16 @@ async fn handle_event(ctx: Context, event: Event) -> AnyResult<()> {
         let chain = e.oneliner();
         eprintln!("Event error: {e:?}");
         error!("Event error: {chain}");
+
+        if let Ok(id) = env::var("DISCORD_BOTDEV_CHANNEL") {
+            // Send error as message on bot dev channel.
+            let bot_dev = Id::new(id.parse()?);
+            ctx.http
+                .create_message(bot_dev)
+                .content(&format!("{e:?}"))?
+                .send()
+                .await?;
+        }
     }
 
     Ok(())
@@ -339,7 +356,7 @@ async fn handle_interaction_create(ctx: &Context, mut inter: Interaction) -> Any
     match inter.data.take() {
         Some(InteractionData::ApplicationCommand(d)) => {
             println!("{d:#?}");
-            crate::commands_v2::handle::application_command(ctx, inter, *d)
+            crate::commands::handle::application_command(ctx, inter, *d)
                 .await
                 .context("Failed to handle application command")?;
         },
@@ -370,11 +387,11 @@ async fn handle_message_create(ctx: &Context, msg: Message) -> AnyResult<()> {
 
     let msg = Arc::new(msg);
 
-    match crate::commands_v2::handle::classic_command(ctx, Arc::clone(&msg))
-        .await
-        .context("Failed to handle classic command")
-    {
-        Err(e) if e.downcast_ref() == Some(&CommandError::NotPrefixed) => {
+    #[cfg(feature = "ban-at-everyone")]
+    check_if_at_everyone(ctx, &msg).await.ok();
+
+    match crate::commands::handle::classic_command(ctx, Arc::clone(&msg)).await {
+        Err(CommandError::NotPrefixed) => {
             // Message was not a command.
 
             if msg.mentions.iter().any(|mention| mention.id == ctx.user.id) {
@@ -390,44 +407,23 @@ async fn handle_message_create(ctx: &Context, msg: Message) -> AnyResult<()> {
                     .content(&about_msg)?
                     .await?;
             }
+
+            Ok(())
         },
-        Err(e) => {
-            let chain = e.oneliner();
-
-            // Log processing errors.
-            eprintln!("Error processing command: {e:?}\n");
-            error!("Error processing command: {chain}");
-
-            if let Ok(id) = env::var("DISCORD_BOTDEV_CHANNEL") {
-                // On a bot dev channel, reply with error message.
-                let bot_dev = Id::new(id.parse()?);
-
-                if msg.channel_id == bot_dev {
-                    ctx.http
-                        .create_message(bot_dev)
-                        .reply(msg.id)
-                        .content(&format!("{e:?}"))?
-                        .send()
-                        .await?;
-                }
-            }
-        },
-        _ => (),
+        res => res.context("Failed to handle classic command"),
     }
-
-    #[cfg(feature = "ban-at-everyone")]
-    check_if_at_everyone(ctx, &msg).await;
-
-    Ok(())
 }
 #[cfg(feature = "ban-at-everyone")]
-async fn check_if_at_everyone(ctx: &Context, msg: &Message) {
+async fn check_if_at_everyone(ctx: &Context, msg: &Message) -> AnyResult<()> {
+    let Some(guild_id) = msg.guild_id else {
+        anyhow::bail!("Disabled");
+    };
+
     if msg.mention_everyone {
-        ctx.http
-            .create_ban(msg.guild_id.unwrap(), msg.author.id)
-            .await
-            .unwrap();
+        ctx.http.create_ban(guild_id, msg.author.id).await?;
     }
+
+    Ok(())
 }
 
 async fn handle_message_update(_ctx: &Context, _mu: MessageUpdate) -> AnyResult<()> {

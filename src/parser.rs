@@ -3,7 +3,7 @@
 
 use std::str::pattern::{Pattern, ReverseSearcher};
 
-use crate::commands_v2::CommandError;
+use crate::commands::CommandError;
 use crate::utils::{self, consts};
 
 /// Returns `Some((prefix, unprefixed))`,

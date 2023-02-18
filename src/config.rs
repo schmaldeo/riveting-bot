@@ -13,10 +13,9 @@ use twilight_model::id::marker::{
 };
 use twilight_model::id::Id;
 
-use crate::commands_v2::CommandError;
+use crate::commands::CommandError;
 use crate::utils::prelude::*;
-use crate::utils::{self};
-use crate::{config, parser};
+use crate::{config, parser, utils};
 
 pub const CONFIG_FILE: &str = "./data/bot.json";
 pub const GUILD_CONFIG_DIR: &str = "./data/guilds/";
@@ -257,6 +256,110 @@ impl Config {
         self.guild_or_default(guild_id)
             .reaction_roles
             .insert(key, map);
+    }
+
+    pub fn forbid_role(
+        &mut self,
+        guild_id: Id<GuildMarker>,
+        command: String,
+        target: Id<RoleMarker>,
+    ) {
+        self.guild_or_default(guild_id)
+            .perms
+            .entry(command)
+            .or_default()
+            .set_role(target, false);
+    }
+
+    pub fn allow_role(
+        &mut self,
+        guild_id: Id<GuildMarker>,
+        command: String,
+        target: Id<RoleMarker>,
+    ) {
+        self.guild_or_default(guild_id)
+            .perms
+            .entry(command)
+            .or_default()
+            .set_role(target, true);
+    }
+
+    pub fn clear_role(
+        &mut self,
+        guild_id: Id<GuildMarker>,
+        command: String,
+        target: Id<RoleMarker>,
+    ) {
+        self.guild_or_default(guild_id)
+            .perms
+            .entry(command)
+            .or_default()
+            .remove_role(target);
+    }
+
+    pub fn forbid_user(
+        &mut self,
+        guild_id: Id<GuildMarker>,
+        command: String,
+        target: Id<UserMarker>,
+    ) {
+        self.guild_or_default(guild_id)
+            .perms
+            .entry(command)
+            .or_default()
+            .set_user(target, false);
+    }
+
+    pub fn allow_user(
+        &mut self,
+        guild_id: Id<GuildMarker>,
+        command: String,
+        target: Id<UserMarker>,
+    ) {
+        self.guild_or_default(guild_id)
+            .perms
+            .entry(command)
+            .or_default()
+            .set_user(target, true);
+    }
+
+    pub fn clear_user(
+        &mut self,
+        guild_id: Id<GuildMarker>,
+        command: String,
+        target: Id<UserMarker>,
+    ) {
+        self.guild_or_default(guild_id)
+            .perms
+            .entry(command)
+            .or_default()
+            .remove_user(target);
+    }
+
+    pub fn forbid_channel(
+        &mut self,
+        guild_id: Id<GuildMarker>,
+        command: String,
+        target: Id<ChannelMarker>,
+    ) {
+        self.guild_or_default(guild_id)
+            .perms
+            .entry(command)
+            .or_default()
+            .disable_channel(target);
+    }
+
+    pub fn allow_channel(
+        &mut self,
+        guild_id: Id<GuildMarker>,
+        command: String,
+        target: Id<ChannelMarker>,
+    ) {
+        self.guild_or_default(guild_id)
+            .perms
+            .entry(command)
+            .or_default()
+            .enable_channel(target);
     }
 
     /// Look up all guild configurations in `GUILD_CONFIG_DIR` and save them to `self`.
