@@ -1,8 +1,12 @@
 # FROM rust:slim AS builder
 FROM rustlang/rust:nightly-slim AS builder
 
+# Use sparse registry.
+ARG CARGO_UNSTABLE_SPARSE_REGISTRY=true
+
 # Update OS.
 RUN apt update && apt upgrade -y
+# RUN apt install -y pkg-config
 
 # Create a new empty shell project.
 RUN USER=root cargo new --bin app
