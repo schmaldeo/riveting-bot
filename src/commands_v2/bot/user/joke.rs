@@ -29,12 +29,14 @@ impl Command for Joke {
             .await
             .unwrap()
             .json::<JokeResponse>()
-            .await
-            .unwrap();
+            .await;
 
         let joke = match body {
-            JokeResponse::Single { joke } => joke,
-            JokeResponse::TwoPart { setup, delivery } => format!("> {setup}\n> {delivery}"),
+            Ok(res) => match res {
+                JokeResponse::Single { joke } => joke,
+                JokeResponse::TwoPart { setup, delivery } => format!("> {setup}\n> {delivery}"),
+            },
+            Err(_) => "There's been an error".to_string(),
         };
 
         Ok(Response::CreateMessage(joke))
