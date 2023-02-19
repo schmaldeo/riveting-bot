@@ -55,7 +55,8 @@ pub async fn application_command(
     // Handle execution result.
     // Catch erroneous execution and clear dangling response.
     match result {
-        Ok(Response::None | Response::Clear) => {
+        Ok(Response::None) => {},
+        Ok(Response::Clear) => {
             // Clear deferred message response.
             interaction
                 .delete_response(&inter.token)

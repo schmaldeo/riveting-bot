@@ -82,6 +82,6 @@ impl Fuel {
             .send()
             .await?;
 
-        Ok(Response::None)
+        Ok(Response::Clear)
     }
 }
