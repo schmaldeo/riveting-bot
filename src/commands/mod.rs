@@ -173,7 +173,7 @@ impl Response {
         Self::new(move || async move { Ok(()) })
     }
 
-    /// Deletes original message or response.
+    /// Deletes original message or response. This will ignore any errors from the deletion.
     pub fn clear(ctx: Context, req: impl Into<Request> + Send + 'static) -> Self {
         Self::new(move || async move {
             match req.into() {
@@ -182,7 +182,7 @@ impl Response {
                 Request::Message(req) => req.clear(&ctx).await,
                 Request::User(req) => req.clear(&ctx).await,
             }
-            .map_err(Into::into)
+            .or(Ok(()))
         })
     }
 
