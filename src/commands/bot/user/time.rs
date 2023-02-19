@@ -1,4 +1,4 @@
-use chrono::{DateTime, Utc};
+use chrono::{DateTime, FixedOffset, Utc};
 use htp::parser::ParseError;
 use htp::HTPError;
 use twilight_mention::timestamp::{Timestamp, TimestampStyle};
@@ -80,8 +80,8 @@ impl Time {
         let now = self
             .args
             .string("timezone")
-            .and_then(|val| zone_to_now(&val).map_err(Into::into))
-            .unwrap_or(Utc::now());
+            .and_then(|val| Ok(timezone(&val)?))
+            .unwrap_or(Utc::now().into());
 
         let parsed = htp::parse_time_clue(expr.trim(), now, true).map_err(|e| {
             if let HTPError::ParseError(ParseError::PestError(_)) = e {
@@ -130,9 +130,11 @@ impl Time {
     }
 }
 
-fn zone_to_now(zone: &str) -> AnyResult<DateTime<Utc>> {
-    let tz = zone.trim().parse::<i64>()?;
-    Utc::now()
-        .checked_add_signed(chrono::Duration::hours(tz))
-        .ok_or(anyhow::anyhow!("Failed to offset timezone"))
+fn timezone(zone: &str) -> AnyResult<DateTime<FixedOffset>> {
+    let hour = 3600; // Seconds.
+    let offset = hour * zone.trim().parse::<i32>()?;
+    let offset = FixedOffset::east_opt(offset)
+        .or_else(|| FixedOffset::west_opt(offset))
+        .ok_or(anyhow::anyhow!("Invalid timezone offset"))?;
+    Ok(Utc::now().with_timezone(&offset))
 }
