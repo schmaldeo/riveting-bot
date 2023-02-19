@@ -1,3 +1,5 @@
+use twilight_gateway::Event;
+use twilight_model::channel::ChannelType;
 use twilight_model::id::marker::{GuildMarker, UserMarker};
 use twilight_model::id::Id;
 
@@ -33,43 +35,81 @@ impl Mute {
 
         let timeout = self.duration.unwrap_or(DEFAULT_MUTE);
 
-        ctx.http
+        // This fails if the target user is not connected to a voice channel.
+        if ctx
+            .http
             .update_guild_member(guild_id, self.user_id)
             .mute(true)
-            .await?;
+            .await
+            .is_err()
+        {
+            return Ok(Response::None); // Nothing more to do here.
+        }
 
         tokio::time::sleep(std::time::Duration::from_secs(timeout)).await;
 
-        // FIXME: This fails if the target user is not connected to a voice channel leaving them server muted.
+        let channels = ctx.http.guild_channels(guild_id).send().await?;
+        let on_voice = channels
+            .into_iter()
+            .filter(|c| {
+                matches!(
+                    c.kind,
+                    ChannelType::GuildVoice | ChannelType::GuildStageVoice
+                )
+            })
+            .filter_map(|c| c.recipients)
+            .flatten()
+            .any(|u| u.id == self.user_id);
+
+        if !on_voice {
+            // Wait for user to connect to voice.
+            ctx.standby
+                .wait_for(guild_id, move |event: &Event| match event {
+                    Event::VoiceStateUpdate(data) => data
+                        .member
+                        .as_ref()
+                        .map_or(false, |m| m.user.id == self.user_id),
+                    _ => false,
+                })
+                .await?;
+        }
+
+        // This fails if the target user is not connected to a voice channel leaving them server muted.
         ctx.http
             .update_guild_member(guild_id, self.user_id)
             .mute(false)
             .await?;
 
-        Ok(Response::Clear)
+        Ok(Response::None) // Already cleared.
     }
 
     async fn classic(ctx: Context, req: ClassicRequest) -> CommandResult {
+        req.clear(&ctx).await?;
+
         Self {
             guild_id: req.message.guild_id,
             user_id: req.args.user("user").map(|r| r.id())?,
-            duration: req.args.integer("duration").map(|i| i as u64).ok(),
+            duration: req.args.integer("seconds").map(|i| i as u64).ok(),
         }
         .uber(ctx)
         .await
     }
 
     async fn slash(ctx: Context, req: SlashRequest) -> CommandResult {
+        req.clear(&ctx).await?;
+
         Self {
             guild_id: req.interaction.guild_id,
             user_id: req.args.user("user").map(|r| r.id())?,
-            duration: req.args.integer("duration").map(|i| i as u64).ok(),
+            duration: req.args.integer("seconds").map(|i| i as u64).ok(),
         }
         .uber(ctx)
         .await
     }
 
     async fn user(ctx: Context, req: UserRequest) -> CommandResult {
+        req.clear(&ctx).await?;
+
         Self {
             guild_id: req.interaction.guild_id,
             user_id: req.target_id,
