@@ -33,14 +33,18 @@
 
 use std::collections::{BTreeMap, HashSet};
 use std::mem;
+use std::pin::Pin;
 use std::sync::Arc;
 
-use derive_more::{Index, IntoIterator};
+use derive_more::{Deref, DerefMut, Index, IntoIterator};
+use futures::Future;
 use thiserror::Error;
 
 use crate::commands::builder::twilight::{CommandValidationError, TwilightCommand};
 use crate::commands::builder::BaseCommand;
+use crate::commands::request::Request;
 use crate::utils::prelude::*;
+use crate::Context;
 
 pub mod arg;
 pub mod bot;
@@ -53,8 +57,13 @@ pub mod request;
 pub mod prelude {
     pub use crate::commands::arg::{ArgValueExt, Args};
     pub use crate::commands::builder::BaseCommand;
-    pub use crate::commands::request::{ClassicRequest, MessageRequest, SlashRequest, UserRequest};
-    pub use crate::commands::{CommandError, CommandResult, Response};
+    pub use crate::commands::request::{
+        ClassicRequest, MessageRequest, Request, SlashRequest, UserRequest,
+    };
+    pub use crate::commands::{
+        CallFuture, CommandError, CommandFuture, CommandResponse, CommandResult, Response,
+        ResponseFuture,
+    };
     pub use crate::Context;
 }
 
@@ -135,14 +144,64 @@ impl_into_command_error!(Other; twilight_util::builder::embed::image_source::Ima
 impl_into_command_error!(Other; twilight_validate::message::MessageValidationError);
 impl_into_command_error!(Other; twilight_validate::request::ValidationError);
 
-#[derive(Debug, Clone)]
-pub enum Response {
-    None,
-    Clear,
-    CreateMessage(String),
+/// Trait alias for a command response future.
+pub trait ResponseFuture = Future<Output = CommandResponse> + Send;
+
+/// Trait alias for a command result future.
+pub trait CommandFuture = Future<Output = Result<(), CommandError>> + Send;
+
+/// Non-generic return type for async command functions.
+pub type CallFuture = Pin<Box<dyn CommandFuture>>;
+
+/// Response result from a command function.
+pub type CommandResponse = Result<Response, CommandError>;
+
+/// Generic command result with command error type.
+pub type CommandResult<T> = Result<T, CommandError>;
+
+/// Command function response type.
+#[derive(Deref, DerefMut)]
+pub struct Response(CallFuture);
+
+impl Response {
+    /// Noop.
+    pub fn none() -> Self {
+        Self::new(move || async move { Ok(()) })
+    }
+
+    /// Deletes original message or response.
+    pub fn clear(ctx: Context, req: impl Into<Request> + Send + 'static) -> Self {
+        Self::new(move || async move {
+            match req.into() {
+                Request::Classic(req) => req.clear(&ctx).await,
+                Request::Slash(req) => req.clear(&ctx).await,
+                Request::Message(req) => req.clear(&ctx).await,
+                Request::User(req) => req.clear(&ctx).await,
+            }
+            .map_err(Into::into)
+        })
+    }
+
+    /// Creates a new response from a function.
+    pub fn new<F, Fut>(f: F) -> Self
+    where
+        F: FnOnce() -> Fut + Send + 'static,
+        Fut: CommandFuture + 'static,
+    {
+        Self(Box::pin(f()))
+    }
 }
 
-pub type CommandResult = Result<Response, CommandError>;
+impl Future for Response {
+    type Output = CommandResult<()>;
+
+    fn poll(
+        mut self: Pin<&mut Self>,
+        cx: &mut std::task::Context<'_>,
+    ) -> std::task::Poll<Self::Output> {
+        Future::poll(self.0.as_mut(), cx)
+    }
+}
 
 /// Newtype for commands collection.
 #[derive(Debug, Default, Clone, IntoIterator, Index)]

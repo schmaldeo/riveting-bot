@@ -29,66 +29,65 @@ impl Bot {
             )
     }
 
-    async fn classic(_ctx: Context, _req: ClassicRequest) -> CommandResult {
+    async fn classic(_ctx: Context, _req: ClassicRequest) -> CommandResponse {
         todo!();
     }
 
-    async fn slash(_ctx: Context, _req: SlashRequest) -> CommandResult {
+    async fn slash(_ctx: Context, _req: SlashRequest) -> CommandResponse {
         todo!();
     }
 }
 
 /// Command: Post a message as the bot.
-struct Say {
-    guild_id: Option<Id<GuildMarker>>,
-    channel_id: Id<ChannelMarker>,
-    args: Args,
-}
+struct Say;
 
 impl Say {
-    async fn uber(self, ctx: Context) -> CommandResult {
-        if self.guild_id.is_none() {
+    async fn uber(
+        ctx: &Context,
+        args: &Args,
+        guild_id: Option<Id<GuildMarker>>,
+        channel_id: Id<ChannelMarker>,
+    ) -> CommandResult<()> {
+        if guild_id.is_none() {
             return Err(CommandError::Disabled);
         }
 
-        let text = self.args.string("text")?;
+        let text = args.string("text")?;
         let empty = text.trim().is_empty();
         let content = if empty { "no u" } else { &text };
 
         let msg = ctx
             .http
-            .create_message(self.channel_id)
+            .create_message(channel_id)
             .content(content)?
             .send()
             .await?;
 
         info!("Bot message created with id '{}'", msg.id);
 
-        Ok(Response::Clear)
+        Ok(())
     }
 
-    async fn classic(ctx: Context, req: ClassicRequest) -> CommandResult {
-        Self {
-            guild_id: req.message.guild_id,
-            channel_id: req.message.channel_id,
-            args: req.args,
-        }
-        .uber(ctx)
-        .await
+    async fn classic(ctx: Context, req: ClassicRequest) -> CommandResponse {
+        Self::uber(
+            &ctx,
+            &req.args,
+            req.message.guild_id,
+            req.message.channel_id,
+        )
+        .await?;
+
+        Ok(Response::clear(ctx, req))
     }
 
-    async fn slash(ctx: Context, req: SlashRequest) -> CommandResult {
+    async fn slash(ctx: Context, req: SlashRequest) -> CommandResponse {
         let Some(channel_id) = req.interaction.channel_id else {
             return Err(CommandError::MissingArgs);
         };
 
-        Self {
-            guild_id: req.interaction.guild_id,
-            channel_id,
-            args: req.args,
-        }
-        .uber(ctx)
-        .await
+        Self::uber(&ctx, &req.args, req.interaction.guild_id, channel_id).await?;
+
+        Ok(Response::clear(ctx, req))
     }
 }
 
@@ -96,7 +95,7 @@ impl Say {
 struct Edit;
 
 impl Edit {
-    async fn classic(ctx: Context, req: ClassicRequest) -> CommandResult {
+    async fn classic(ctx: Context, req: ClassicRequest) -> CommandResponse {
         if req.message.guild_id.is_none() {
             return Err(CommandError::Disabled);
         }
@@ -124,6 +123,6 @@ impl Edit {
 
         info!("Bot message edited with id '{}'", replied.id);
 
-        Ok(Response::Clear)
+        Ok(Response::clear(ctx, req))
     }
 }

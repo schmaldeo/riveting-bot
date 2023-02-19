@@ -9,11 +9,7 @@ use crate::utils::prelude::*;
 const DEFAULT_MUTE: u64 = 60;
 
 /// Command: Silence a voice user for a set amount of time.
-pub struct Mute {
-    guild_id: Option<Id<GuildMarker>>,
-    user_id: Id<UserMarker>,
-    duration: Option<u64>,
-}
+pub struct Mute;
 
 impl Mute {
     pub fn command() -> impl Into<BaseCommand> {
@@ -28,22 +24,27 @@ impl Mute {
             .option(integer("seconds", "Duration of the mute.").min(0))
     }
 
-    async fn uber(self, ctx: Context) -> CommandResult {
-        let Some(guild_id) = self.guild_id else {
+    async fn uber(
+        ctx: Context,
+        guild_id: Option<Id<GuildMarker>>,
+        user_id: Id<UserMarker>,
+        duration: Option<u64>,
+    ) -> CommandResult<()> {
+        let Some(guild_id) = guild_id else {
             return Err(CommandError::Disabled)
         };
 
-        let timeout = self.duration.unwrap_or(DEFAULT_MUTE);
+        let timeout = duration.unwrap_or(DEFAULT_MUTE);
 
         // This fails if the target user is not connected to a voice channel.
         if ctx
             .http
-            .update_guild_member(guild_id, self.user_id)
+            .update_guild_member(guild_id, user_id)
             .mute(true)
             .await
             .is_err()
         {
-            return Ok(Response::None); // Nothing more to do here.
+            return Ok(()); // Nothing more to do here.
         }
 
         tokio::time::sleep(std::time::Duration::from_secs(timeout)).await;
@@ -59,16 +60,15 @@ impl Mute {
             })
             .filter_map(|c| c.recipients)
             .flatten()
-            .any(|u| u.id == self.user_id);
+            .any(|u| u.id == user_id);
 
         if !on_voice {
             // Wait for user to connect to voice.
             ctx.standby
                 .wait_for(guild_id, move |event: &Event| match event {
-                    Event::VoiceStateUpdate(data) => data
-                        .member
-                        .as_ref()
-                        .map_or(false, |m| m.user.id == self.user_id),
+                    Event::VoiceStateUpdate(data) => {
+                        data.member.as_ref().map_or(false, |m| m.user.id == user_id)
+                    },
                     _ => false,
                 })
                 .await?;
@@ -76,46 +76,49 @@ impl Mute {
 
         // This fails if the target user is not connected to a voice channel leaving them server muted.
         ctx.http
-            .update_guild_member(guild_id, self.user_id)
+            .update_guild_member(guild_id, user_id)
             .mute(false)
             .await?;
 
-        Ok(Response::None) // Already cleared.
+        Ok(())
     }
 
-    async fn classic(ctx: Context, req: ClassicRequest) -> CommandResult {
-        req.clear(&ctx).await?;
+    async fn classic(ctx: Context, req: ClassicRequest) -> CommandResponse {
+        req.clear(&ctx).await?; // Clear original beforehand.
 
-        Self {
-            guild_id: req.message.guild_id,
-            user_id: req.args.user("user").map(|r| r.id())?,
-            duration: req.args.integer("seconds").map(|i| i as u64).ok(),
-        }
-        .uber(ctx)
+        Self::uber(
+            ctx,
+            req.message.guild_id,
+            req.args.user("user").map(|r| r.id())?,
+            req.args.integer("seconds").map(|i| i as u64).ok(),
+        )
         .await
+        .map(|_| Response::none())
     }
 
-    async fn slash(ctx: Context, req: SlashRequest) -> CommandResult {
-        req.clear(&ctx).await?;
+    async fn slash(ctx: Context, req: SlashRequest) -> CommandResponse {
+        req.clear(&ctx).await?; // Clear original beforehand.
 
-        Self {
-            guild_id: req.interaction.guild_id,
-            user_id: req.args.user("user").map(|r| r.id())?,
-            duration: req.args.integer("seconds").map(|i| i as u64).ok(),
-        }
-        .uber(ctx)
+        Self::uber(
+            ctx,
+            req.interaction.guild_id,
+            req.args.user("user").map(|r| r.id())?,
+            req.args.integer("seconds").map(|i| i as u64).ok(),
+        )
         .await
+        .map(|_| Response::none())
     }
 
-    async fn user(ctx: Context, req: UserRequest) -> CommandResult {
-        req.clear(&ctx).await?;
+    async fn user(ctx: Context, req: UserRequest) -> CommandResponse {
+        req.clear(&ctx).await?; // Clear original beforehand.
 
-        Self {
-            guild_id: req.interaction.guild_id,
-            user_id: req.target_id,
-            duration: None, // TODO: Create modal for duration input.
-        }
-        .uber(ctx)
+        Self::uber(
+            ctx,
+            req.interaction.guild_id,
+            req.target_id,
+            None, // TODO: Create modal for duration input.
+        )
         .await
+        .map(|_| Response::none())
     }
 }

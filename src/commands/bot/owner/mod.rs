@@ -13,7 +13,7 @@ impl Shutdown {
             .dm()
     }
 
-    async fn classic(ctx: Context, req: ClassicRequest) -> CommandResult {
+    async fn classic(ctx: Context, req: ClassicRequest) -> CommandResponse {
         // Owner check (not done by command handling).
         let sender_id = req.message.author.id;
         let ok = if let Some(owner) = &ctx.application.owner {
@@ -25,13 +25,14 @@ impl Shutdown {
         };
 
         if !ok {
-            return Ok(Response::None);
+            return Ok(Response::none());
         }
 
         info!("Shutting down by chat command");
 
         ctx.http
             .create_message(req.message.channel_id)
+            .reply(req.message.id)
             .content("Shutting down...")?
             .send()
             .await?;
@@ -39,6 +40,6 @@ impl Shutdown {
         // Shut down the cluster, sessions will not be resumable.
         ctx.cluster.down();
 
-        Ok(Response::None)
+        Ok(Response::none())
     }
 }

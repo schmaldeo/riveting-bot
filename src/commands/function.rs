@@ -1,89 +1,76 @@
-use std::pin::Pin;
 use std::sync::Arc;
 
 use derive_more::{IsVariant, Unwrap};
-use futures::Future;
 
-use crate::commands::request::{ClassicRequest, MessageRequest, SlashRequest, UserRequest};
-use crate::commands::CommandResult;
+use crate::commands::prelude::*;
+use crate::utils::prelude::*;
 use crate::Context;
-
-// use crate::utils::prelude::*;
 
 pub mod mock {
     use super::*;
-    use crate::commands::request::{ClassicRequest, MessageRequest, SlashRequest, UserRequest};
-    use crate::commands::{CommandResult, Response};
 
-    pub async fn classic(_ctx: Context, req: ClassicRequest) -> CommandResult {
+    pub async fn classic(_ctx: Context, req: ClassicRequest) -> CommandResponse {
         println!("CLASSIC REQ: {req:#?}");
-        Ok(Response::Clear)
+        Ok(Response::none())
     }
 
-    pub async fn slash(_ctx: Context, req: SlashRequest) -> CommandResult {
+    pub async fn slash(_ctx: Context, req: SlashRequest) -> CommandResponse {
         println!("SLASH REQ: {req:#?}");
-        Ok(Response::Clear)
+        Ok(Response::none())
     }
 
-    pub async fn message(_ctx: Context, req: MessageRequest) -> CommandResult {
+    pub async fn message(_ctx: Context, req: MessageRequest) -> CommandResponse {
         println!("MESSAGE REQ: {req:#?}");
-        Ok(Response::Clear)
+        Ok(Response::none())
     }
 
-    pub async fn user(_ctx: Context, req: UserRequest) -> CommandResult {
+    pub async fn user(_ctx: Context, req: UserRequest) -> CommandResponse {
         println!("USER REQ: {req:#?}");
-        Ok(Response::Clear)
+        Ok(Response::none())
     }
 }
-
-/// Non-generic return type for async command functions.
-pub type CallFuture = Pin<Box<dyn Future<Output = CommandResult> + Send>>;
 
 macro_rules! function_trait {
-    ( $( $request:ty => $var:path )* ) => {
-        $(
-            impl<F, Fut> Callable<$request> for F
-            where
-                F: Fn(Context, $request) -> Fut + Send + Sync + 'static,
-                Fut: Future<Output = CommandResult> + Send + 'static,
-            {
-                fn call(&self, ctx: Context, req: $request) -> CallFuture {
-                    Box::pin((self)(ctx, req))
-                }
+    ($request:ty => $var:path) => {
+        impl<F, Fut> Callable<$request> for F
+        where
+            F: Fn(Context, $request) -> Fut + Send + Sync + 'static,
+            Fut: ResponseFuture + 'static,
+        {
+            fn call(&self, ctx: Context, req: $request) -> CallFuture {
+                Box::pin((self)(ctx, req).and_then(|x| x))
+            }
+        }
+
+        impl Callable<$request> for Arc<dyn Callable<$request>> {
+            fn call(&self, ctx: Context, req: $request) -> CallFuture {
+                (**self).call(ctx, req)
             }
 
-            impl Callable<$request> for Arc<dyn Callable<$request>> {
-                fn call(&self, ctx: Context, req: $request) -> CallFuture {
-                    (**self).call(ctx, req)
-                }
-
-                fn into_shared(self) -> Arc<dyn Callable<$request>> {
-                    self
-                }
+            fn into_shared(self) -> Arc<dyn Callable<$request>> {
+                self
             }
+        }
 
-            impl<T> IntoFunction<$request> for T
-            where
-                T: Callable<$request> + 'static,
-            {
-                fn into_function(self) -> Function {
-                    $var(self.into_shared())
-                }
+        impl<T> IntoFunction<$request> for T
+        where
+            T: Callable<$request> + 'static,
+        {
+            fn into_function(self) -> Function {
+                $var(self.into_shared())
             }
-        )*
-    }
+        }
+    };
 }
 
-function_trait! {
-    // Function that can handle basic text command.
-    ClassicRequest => Function::Classic
-    // Function that can handle interactive text command.
-    SlashRequest => Function::Slash
-    // Function that can handle GUI-based message command.
-    MessageRequest => Function::Message
-    // Function that can handle GUI-based user command.
-    UserRequest => Function::User
-}
+// Function that can handle basic text command.
+function_trait!(ClassicRequest => Function::Classic);
+// Function that can handle interactive text command.
+function_trait!(SlashRequest => Function::Slash);
+// Function that can handle GUI-based message command.
+function_trait!(MessageRequest => Function::Message);
+// Function that can handle GUI-based user command.
+function_trait!(UserRequest => Function::User);
 
 pub type ClassicFunction = Arc<dyn Callable<ClassicRequest>>;
 pub type SlashFunction = Arc<dyn Callable<SlashRequest>>;

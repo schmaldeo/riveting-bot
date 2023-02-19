@@ -12,7 +12,7 @@ use twilight_model::http::interaction::{
     InteractionResponse, InteractionResponseData, InteractionResponseType,
 };
 
-use crate::commands::arg::{Arg, Args};
+use crate::commands::arg::Arg;
 use crate::commands::builder::{
     ArgDesc, BaseCommand, CommandFunction, CommandGroup, CommandOption,
 };
@@ -50,37 +50,17 @@ pub async fn application_command(
         }
     };
 
-    let interaction = ctx.interaction();
-
     // Handle execution result.
     // Catch erroneous execution and clear dangling response.
-    match result {
-        Ok(Response::None) => {},
-        Ok(Response::Clear) => {
-            // Clear deferred message response.
-            interaction
-                .delete_response(&inter.token)
-                .await
-                .context("Failed to clear interaction")?;
-        },
-        Ok(Response::CreateMessage(text)) => {
-            interaction
-                .update_response(&inter.token)
-                .content(Some(&text))
-                .context("Response message error")?
-                .await
-                .context("Failed to send response message")?;
-        },
-        Err(e) => {
-            interaction
-                .create_followup(&inter.token)
-                .flags(MessageFlags::EPHEMERAL)
-                .content(ERROR_MESSAGE)?
-                .await
-                .context("Failed to send error message")?;
+    if let Err(e) = result {
+        ctx.interaction()
+            .create_followup(&inter.token)
+            .flags(MessageFlags::EPHEMERAL)
+            .content(ERROR_MESSAGE)?
+            .await
+            .context("Failed to send error message")?;
 
-            return Err(e);
-        },
+        return Err(e);
     }
 
     Ok(())
@@ -92,7 +72,7 @@ async fn process_slash(
     base: Arc<BaseCommand>,
     inter: Arc<Interaction>,
     data: Arc<CommandData>,
-) -> CommandResult {
+) -> CommandResult<()> {
     // Acknowledge the interaction.
     normal_acknowledge(ctx, &inter).await?;
 
@@ -175,7 +155,7 @@ async fn process_message(
     base: Arc<BaseCommand>,
     inter: Arc<Interaction>,
     data: Arc<CommandData>,
-) -> CommandResult {
+) -> CommandResult<()> {
     // Acknowledge the interaction.
     ephemeral_acknowledge(ctx, &inter).await?;
 
@@ -194,7 +174,7 @@ async fn process_user(
     base: Arc<BaseCommand>,
     inter: Arc<Interaction>,
     data: Arc<CommandData>,
-) -> CommandResult {
+) -> CommandResult<()> {
     // Acknowledge the interaction.
     ephemeral_acknowledge(ctx, &inter).await?;
 
@@ -311,32 +291,14 @@ pub async fn classic_command(ctx: &Context, msg: Arc<Message>) -> Result<(), Com
     trace!("Completing '{name}' by user '{}'", msg.author.id);
 
     // Handle execution result.
-    match response {
-        Ok(Response::None) => (),
-        Ok(Response::Clear) => {
-            ctx.http
-                .delete_message(msg.channel_id, msg.id)
-                .await
-                .context("Failed to clear command message")?;
-        },
-        Ok(Response::CreateMessage(text)) => {
-            ctx.http
-                .create_message(msg.channel_id)
-                .reply(msg.id)
-                .content(&format!("{text}\n"))
-                .context("Response message error")?
-                .await
-                .context("Failed to send response message")?;
-        },
-        Err(e) => {
-            ctx.http
-                .create_message(msg.channel_id)
-                .reply(msg.id)
-                .content(ERROR_MESSAGE)?
-                .await?;
+    if let Err(e) = response {
+        ctx.http
+            .create_message(msg.channel_id)
+            .reply(msg.id)
+            .content(ERROR_MESSAGE)?
+            .await?;
 
-            return Err(e);
-        },
+        return Err(e);
     }
 
     Ok(())
@@ -439,7 +401,7 @@ impl<'a> Lookup<'a> {
 }
 
 /// Execute tasks.
-async fn execute<F, R>(ctx: &Context, funcs: impl Iterator<Item = F>, req: R) -> CommandResult
+async fn execute<F, R>(ctx: &Context, funcs: impl Iterator<Item = F>, req: R) -> CommandResult<()>
 where
     F: Callable<R>,
     R: Clone,

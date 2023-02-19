@@ -7,9 +7,7 @@ use crate::utils::prelude::*;
 // Useful: https://discord.com/developers/docs/reference#image-formatting-cdn-endpoints
 
 /// Command: Get information about user.
-pub struct UserInfo {
-    args: Args,
-}
+pub struct UserInfo;
 
 impl UserInfo {
     pub fn command() -> impl Into<BaseCommand> {
@@ -20,12 +18,8 @@ impl UserInfo {
             .option(user("user", "User to show information about."))
     }
 
-    async fn slash(ctx: Context, req: SlashRequest) -> CommandResult {
+    async fn slash(ctx: Context, req: SlashRequest) -> CommandResponse {
         let Some(guild_id) = req.interaction.guild_id else {
-            return Err(CommandError::Disabled);
-        };
-
-        let Some(channel_id) = req.interaction.channel_id else {
             return Err(CommandError::Disabled);
         };
 
@@ -81,12 +75,12 @@ impl UserInfo {
             .field(EmbedFieldBuilder::new("Roles", roles).inline())
             .build();
 
-        ctx.http
-            .create_message(channel_id)
-            .embeds(&[embed])?
+        ctx.interaction()
+            .update_response(&req.interaction.token)
+            .embeds(Some(&[embed]))?
             .send()
             .await?;
 
-        Ok(Response::Clear)
+        Ok(Response::none())
     }
 }

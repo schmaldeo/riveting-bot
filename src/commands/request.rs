@@ -1,5 +1,6 @@
 use std::sync::Arc;
 
+use derive_more::From;
 use twilight_model::application::interaction::application_command::CommandData;
 use twilight_model::application::interaction::Interaction;
 use twilight_model::channel::Message;
@@ -138,4 +139,12 @@ impl UserRequest {
             .context("Failed to clear interaction")
             .map(|_| ())
     }
+}
+
+#[derive(Debug, From)]
+pub enum Request {
+    Classic(ClassicRequest),
+    Slash(SlashRequest),
+    Message(MessageRequest),
+    User(UserRequest),
 }

@@ -19,12 +19,23 @@ impl Ping {
             .dm()
     }
 
-    async fn classic(_ctx: Context, _req: ClassicRequest) -> CommandResult {
-        Ok(Response::CreateMessage("Pong!".to_string()))
+    async fn classic(ctx: Context, req: ClassicRequest) -> CommandResponse {
+        ctx.http
+            .create_message(req.message.channel_id)
+            .reply(req.message.id)
+            .content("Pong!")?
+            .await?;
+
+        Ok(Response::none())
     }
 
-    async fn slash(_ctx: Context, _req: SlashRequest) -> CommandResult {
-        Ok(Response::CreateMessage("Pong!".to_string()))
+    async fn slash(ctx: Context, req: SlashRequest) -> CommandResponse {
+        ctx.interaction()
+            .create_followup(&req.interaction.token)
+            .content("Pong!")?
+            .await?;
+
+        Ok(Response::none())
     }
 }
 
@@ -45,8 +56,8 @@ impl About {
             .dm()
     }
 
-    async fn uber(self, ctx: Context) -> CommandResult {
-        let about_msg = formatdoc!(
+    fn uber(self, ctx: &Context) -> String {
+        formatdoc!(
             "I am a RivetingBot!
             You can list my commands with `/help` or `{prefix}help` command.
             My current version *(allegedly)* is `{version}`.
@@ -55,29 +66,40 @@ impl About {
             prefix = ctx.classic_prefix(self.guild_id),
             version = env!("CARGO_PKG_VERSION"),
             link = env!("CARGO_PKG_REPOSITORY"),
-        );
-
-        Ok(Response::CreateMessage(about_msg))
+        )
     }
 
-    async fn classic(ctx: Context, req: ClassicRequest) -> CommandResult {
-        Self {
+    async fn classic(ctx: Context, req: ClassicRequest) -> CommandResponse {
+        let about_msg = Self {
             guild_id: req.message.guild_id,
             channel_id: Some(req.message.channel_id),
             message_id: Some(req.message.id),
         }
-        .uber(ctx)
-        .await
+        .uber(&ctx);
+
+        ctx.http
+            .create_message(req.message.channel_id)
+            .reply(req.message.id)
+            .content(&about_msg)?
+            .await?;
+
+        Ok(Response::none())
     }
 
-    async fn slash(ctx: Context, req: SlashRequest) -> CommandResult {
-        Self {
+    async fn slash(ctx: Context, req: SlashRequest) -> CommandResponse {
+        let about_msg = Self {
             guild_id: req.interaction.guild_id,
             channel_id: req.interaction.channel_id,
             message_id: None,
         }
-        .uber(ctx)
-        .await
+        .uber(&ctx);
+
+        ctx.interaction()
+            .create_followup(&req.interaction.token)
+            .content(&about_msg)?
+            .await?;
+
+        Ok(Response::none())
     }
 }
 
@@ -100,46 +122,55 @@ impl Help {
             .dm()
     }
 
-    async fn uber(self, ctx: Context) -> CommandResult {
+    fn uber(self, ctx: &Context) -> String {
         if let Ok(_value) = self.args.string("command") {
             // TODO: If "command" argument exists, show help on that command instead.
             todo!("get rekt");
         }
 
-        let help_msg = {
-            formatdoc!(
-                "```yaml
+        formatdoc!(
+            "```yaml
                 Prefix: '/' or '{prefix}'
                 Commands:
                 {commands}
                 ```",
-                prefix = ctx.classic_prefix(self.guild_id),
-                commands = ctx.commands
-            )
-        };
-
-        Ok(Response::CreateMessage(help_msg))
+            prefix = ctx.classic_prefix(self.guild_id),
+            commands = ctx.commands
+        )
     }
 
-    async fn classic(ctx: Context, req: ClassicRequest) -> CommandResult {
-        Self {
+    async fn classic(ctx: Context, req: ClassicRequest) -> CommandResponse {
+        let help_msg = Self {
             args: req.args,
             guild_id: req.message.guild_id,
             channel_id: Some(req.message.channel_id),
             message_id: Some(req.message.id),
         }
-        .uber(ctx)
-        .await
+        .uber(&ctx);
+
+        ctx.http
+            .create_message(req.message.channel_id)
+            .reply(req.message.id)
+            .content(&help_msg)?
+            .await?;
+
+        Ok(Response::none())
     }
 
-    async fn slash(ctx: Context, req: SlashRequest) -> CommandResult {
-        Self {
+    async fn slash(ctx: Context, req: SlashRequest) -> CommandResponse {
+        let help_msg = Self {
             args: req.args,
             guild_id: req.interaction.guild_id,
             channel_id: req.interaction.channel_id,
             message_id: None,
         }
-        .uber(ctx)
-        .await
+        .uber(&ctx);
+
+        ctx.interaction()
+            .create_followup(&req.interaction.token)
+            .content(&help_msg)?
+            .await?;
+
+        Ok(Response::none())
     }
 }
