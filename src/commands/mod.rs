@@ -93,6 +93,10 @@ pub enum CommandError {
     #[error("Expected arguments missing")]
     MissingArgs,
 
+    /// The argument was found, but of a different type.
+    #[error("Argument type mismatch")]
+    ArgsMismatch,
+
     /// Some arguments are wrong, invalid or unexpected.
     #[error("Arguments unexpected or failed to process: {0}")]
     UnexpectedArgs(String),
