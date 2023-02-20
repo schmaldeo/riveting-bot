@@ -8,9 +8,11 @@ use twilight_model::application::interaction::application_command::{
 use twilight_model::application::interaction::Interaction;
 use twilight_model::channel::message::MessageFlags;
 use twilight_model::channel::Message;
+use twilight_model::guild::Permissions;
 use twilight_model::http::interaction::{
     InteractionResponse, InteractionResponseData, InteractionResponseType,
 };
+use twilight_util::permission_calculator::PermissionCalculator;
 
 use crate::commands::arg::Arg;
 use crate::commands::builder::{
@@ -238,6 +240,14 @@ pub async fn classic_command(ctx: &Context, msg: Arc<Message>) -> Result<(), Com
         return Err(CommandError::NotFound(format!("Command '{name}' does not exist")))
     };
 
+    // Continue with access if there is no permission requirements.
+    if let Some(perms) = base.member_permissions {
+        // Return with error if the user does not have the permissions.
+        if !sender_has_permissions(ctx, &msg, perms).await? {
+            return Err(CommandError::AccessDenied);
+        }
+    }
+
     let base = Arc::new(base.to_owned());
     let mut lookup = Lookup::Command(&base.command);
 
@@ -302,6 +312,50 @@ pub async fn classic_command(ctx: &Context, msg: Arc<Message>) -> Result<(), Com
     }
 
     Ok(())
+}
+
+/// Calculate if the message sender has the `required` permissions.
+pub async fn sender_has_permissions(
+    ctx: &Context,
+    msg: &Message,
+    required: Permissions,
+) -> CommandResult<bool> {
+    let Message { member: Some(member), guild_id: Some(guild_id), .. } = msg else {
+        return Ok(true); // Return true if not in a guild.
+    };
+
+    // `@everyone` role id is the same as the guild's id.
+    let everyone_id = guild_id.cast();
+
+    // Permissions that are given by `@everyone` role
+    let everyone_perm = ctx
+        .roles_from(*guild_id, &[everyone_id])
+        .await?
+        .pop()
+        .ok_or_else(|| anyhow::anyhow!("'@everyone' role not found"))?
+        .permissions;
+
+    // The member's assigned roles' ids.
+    let roles: Vec<_> = ctx
+        .roles_from(*guild_id, &member.roles)
+        .await?
+        .into_iter()
+        // Map roles into a `PermissionCalculator` happy format.
+        .map(|r| (r.id, r.permissions))
+        .collect();
+
+    // Create a calculator.
+    let calc = PermissionCalculator::new(*guild_id, msg.author.id, everyone_perm, &roles);
+
+    // Get the channel in which the message was sent.
+    let channel = ctx.channel_from(msg.channel_id).await?;
+
+    // Get channel specific permission overwrites.
+    let overwrites = channel.permission_overwrites.unwrap_or_default();
+
+    Ok(calc
+        .in_channel(channel.kind, &overwrites)
+        .contains(required))
 }
 
 fn parse_classic_args(
