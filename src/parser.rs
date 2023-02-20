@@ -3,7 +3,7 @@
 
 use std::str::pattern::{Pattern, ReverseSearcher};
 
-use crate::commands::CommandError;
+use crate::commands::{CommandError, CommandResult};
 use crate::utils::{self, consts};
 
 /// Returns `Some((prefix, unprefixed))`,
@@ -129,7 +129,7 @@ where
 }
 
 /// Make sure there's nothing else by mistake.
-pub fn ensure_rest_is_empty(rest: Option<&str>) -> Result<(), CommandError> {
+pub fn ensure_rest_is_empty(rest: Option<&str>) -> CommandResult<()> {
     if let Some(rest) = rest {
         if !rest.trim().is_empty() {
             return Err(CommandError::UnexpectedArgs(

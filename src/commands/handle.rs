@@ -30,7 +30,7 @@ pub async fn application_command(
     ctx: &Context,
     inter: Interaction,
     data: CommandData,
-) -> Result<(), CommandError> {
+) -> CommandResult<()> {
     // Lookup command from context.
     let Some(base) = ctx.commands.get(data.name.as_str()) else {
         return Err(CommandError::NotFound(format!("Command '{}' does not exist", data.name)))
@@ -225,7 +225,7 @@ async fn ephemeral_acknowledge(ctx: &Context, inter: &Interaction) -> AnyResult<
 }
 
 /// Parse message and execute command functions.
-pub async fn classic_command(ctx: &Context, msg: Arc<Message>) -> Result<(), CommandError> {
+pub async fn classic_command(ctx: &Context, msg: Arc<Message>) -> CommandResult<()> {
     // Unprefix the message contents.
     let prefix = ctx.classic_prefix(msg.guild_id);
     let Some((_, unprefixed)) =  parser::unprefix_with([prefix], &msg.content) else {

@@ -152,7 +152,7 @@ impl_into_command_error!(Other; twilight_validate::request::ValidationError);
 pub trait ResponseFuture = Future<Output = CommandResponse> + Send;
 
 /// Trait alias for a command result future.
-pub trait CommandFuture = Future<Output = Result<(), CommandError>> + Send;
+pub trait CommandFuture = Future<Output = CommandResult<()>> + Send;
 
 /// Non-generic return type for async command functions.
 pub type CallFuture = Pin<Box<dyn CommandFuture>>;
