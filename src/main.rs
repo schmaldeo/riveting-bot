@@ -23,14 +23,14 @@ use twilight_http::client::InteractionClient;
 use twilight_http::Client;
 use twilight_model::application::command::permissions::GuildCommandPermissions;
 use twilight_model::application::interaction::{Interaction, InteractionData};
-use twilight_model::channel::Message;
+use twilight_model::channel::{Channel, Message};
 use twilight_model::gateway::event::shard::Connected;
 use twilight_model::gateway::payload::incoming::{
-    MessageDelete, MessageDeleteBulk, MessageUpdate, Ready, RoleUpdate,
+    ChannelUpdate, MessageDelete, MessageDeleteBulk, MessageUpdate, Ready, RoleUpdate,
 };
 use twilight_model::gateway::{GatewayReaction, Intents};
 use twilight_model::guild::{Guild, Role};
-use twilight_model::id::marker::{GuildMarker, RoleMarker};
+use twilight_model::id::marker::{ChannelMarker, GuildMarker, RoleMarker};
 use twilight_model::id::Id;
 use twilight_model::oauth::Application;
 use twilight_model::user::CurrentUser;
@@ -130,6 +130,25 @@ impl Context {
         fetch.retain(|r| ids.contains(&r.id));
 
         Ok(fetch)
+    }
+
+    /// Get the channel object from cache or fetch from client.
+    pub async fn channel_from(&self, channel_id: Id<ChannelMarker>) -> AnyResult<Channel> {
+        match self.cache.channel(channel_id) {
+            Some(chan) => {
+                // Use cached channel.
+                Ok(chan.to_owned())
+            },
+            None => {
+                // Fetch channel from the http client.
+                let chan = self.http.channel(channel_id).send().await?;
+
+                // Manually update the cache.
+                self.cache.update(&ChannelUpdate(chan.clone()));
+
+                Ok(chan)
+            },
+        }
     }
 }
 
