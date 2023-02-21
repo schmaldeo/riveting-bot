@@ -28,7 +28,6 @@ use std::collections::HashSet;
 use std::sync::Arc;
 
 use derive_more::{Display, IsVariant, Unwrap};
-use futures::Future;
 pub use twilight_model::channel::ChannelType;
 pub use twilight_model::guild::Permissions;
 
@@ -39,7 +38,7 @@ use crate::commands::function::{
     ClassicFunction, Function, FunctionKind, IntoFunction, MessageFunction, SlashFunction,
     UserFunction,
 };
-use crate::commands::CommandResult;
+use crate::commands::ResponseFuture;
 use crate::utils::prelude::*;
 use crate::Context;
 
@@ -447,7 +446,7 @@ impl BaseCommandBuilder {
     pub fn attach<F, R, Fut>(mut self, function: F) -> Self
     where
         F: Fn(Context, R) -> Fut + IntoFunction<R> + Send + Sync + 'static,
-        Fut: Future<Output = CommandResult> + Send + 'static,
+        Fut: ResponseFuture + 'static,
     {
         self.0.command.functions.push(function.into_function());
         self
@@ -570,7 +569,7 @@ impl CommandFunctionBuilder {
     pub fn attach<F, R, Fut>(mut self, function: F) -> Self
     where
         F: Fn(Context, R) -> Fut + IntoFunction<R> + Send + Sync + 'static,
-        Fut: Future<Output = CommandResult> + Send + 'static,
+        Fut: ResponseFuture + 'static,
     {
         self.0.functions.push(function.into_function());
         self

@@ -8,11 +8,13 @@ use twilight_model::application::interaction::application_command::{
 use twilight_model::application::interaction::Interaction;
 use twilight_model::channel::message::MessageFlags;
 use twilight_model::channel::Message;
+use twilight_model::guild::Permissions;
 use twilight_model::http::interaction::{
     InteractionResponse, InteractionResponseData, InteractionResponseType,
 };
+use twilight_util::permission_calculator::PermissionCalculator;
 
-use crate::commands::arg::{Arg, Args};
+use crate::commands::arg::Arg;
 use crate::commands::builder::{
     ArgDesc, BaseCommand, CommandFunction, CommandGroup, CommandOption,
 };
@@ -28,7 +30,7 @@ pub async fn application_command(
     ctx: &Context,
     inter: Interaction,
     data: CommandData,
-) -> Result<(), CommandError> {
+) -> CommandResult<()> {
     // Lookup command from context.
     let Some(base) = ctx.commands.get(data.name.as_str()) else {
         return Err(CommandError::NotFound(format!("Command '{}' does not exist", data.name)))
@@ -50,36 +52,17 @@ pub async fn application_command(
         }
     };
 
-    let interaction = ctx.interaction();
-
     // Handle execution result.
     // Catch erroneous execution and clear dangling response.
-    match result {
-        Ok(Response::None | Response::Clear) => {
-            // Clear deferred message response.
-            interaction
-                .delete_response(&inter.token)
-                .await
-                .context("Failed to clear interaction")?;
-        },
-        Ok(Response::CreateMessage(text)) => {
-            interaction
-                .update_response(&inter.token)
-                .content(Some(&text))
-                .context("Response message error")?
-                .await
-                .context("Failed to send response message")?;
-        },
-        Err(e) => {
-            interaction
-                .create_followup(&inter.token)
-                .flags(MessageFlags::EPHEMERAL)
-                .content(ERROR_MESSAGE)?
-                .await
-                .context("Failed to send error message")?;
+    if let Err(e) = result {
+        ctx.interaction()
+            .create_followup(&inter.token)
+            .flags(MessageFlags::EPHEMERAL)
+            .content(ERROR_MESSAGE)?
+            .await
+            .context("Failed to send error message")?;
 
-            return Err(e);
-        },
+        return Err(e);
     }
 
     Ok(())
@@ -91,7 +74,7 @@ async fn process_slash(
     base: Arc<BaseCommand>,
     inter: Arc<Interaction>,
     data: Arc<CommandData>,
-) -> CommandResult {
+) -> CommandResult<()> {
     // Acknowledge the interaction.
     normal_acknowledge(ctx, &inter).await?;
 
@@ -174,7 +157,7 @@ async fn process_message(
     base: Arc<BaseCommand>,
     inter: Arc<Interaction>,
     data: Arc<CommandData>,
-) -> CommandResult {
+) -> CommandResult<()> {
     // Acknowledge the interaction.
     ephemeral_acknowledge(ctx, &inter).await?;
 
@@ -193,7 +176,7 @@ async fn process_user(
     base: Arc<BaseCommand>,
     inter: Arc<Interaction>,
     data: Arc<CommandData>,
-) -> CommandResult {
+) -> CommandResult<()> {
     // Acknowledge the interaction.
     ephemeral_acknowledge(ctx, &inter).await?;
 
@@ -242,7 +225,7 @@ async fn ephemeral_acknowledge(ctx: &Context, inter: &Interaction) -> AnyResult<
 }
 
 /// Parse message and execute command functions.
-pub async fn classic_command(ctx: &Context, msg: Arc<Message>) -> Result<(), CommandError> {
+pub async fn classic_command(ctx: &Context, msg: Arc<Message>) -> CommandResult<()> {
     // Unprefix the message contents.
     let prefix = ctx.classic_prefix(msg.guild_id);
     let Some((_, unprefixed)) =  parser::unprefix_with([prefix], &msg.content) else {
@@ -256,6 +239,14 @@ pub async fn classic_command(ctx: &Context, msg: Arc<Message>) -> Result<(), Com
     let Some(base) = ctx.commands.get(name) else {
         return Err(CommandError::NotFound(format!("Command '{name}' does not exist")))
     };
+
+    // Continue with access if there is no permission requirements.
+    if let Some(perms) = base.member_permissions {
+        // Return with error if the user does not have the permissions.
+        if !sender_has_permissions(ctx, &msg, perms).await? {
+            return Err(CommandError::AccessDenied);
+        }
+    }
 
     let base = Arc::new(base.to_owned());
     let mut lookup = Lookup::Command(&base.command);
@@ -310,35 +301,61 @@ pub async fn classic_command(ctx: &Context, msg: Arc<Message>) -> Result<(), Com
     trace!("Completing '{name}' by user '{}'", msg.author.id);
 
     // Handle execution result.
-    match response {
-        Ok(Response::None) => (),
-        Ok(Response::Clear) => {
-            ctx.http
-                .delete_message(msg.channel_id, msg.id)
-                .await
-                .context("Failed to clear command message")?;
-        },
-        Ok(Response::CreateMessage(text)) => {
-            ctx.http
-                .create_message(msg.channel_id)
-                .reply(msg.id)
-                .content(&format!("{text}\n"))
-                .context("Response message error")?
-                .await
-                .context("Failed to send response message")?;
-        },
-        Err(e) => {
-            ctx.http
-                .create_message(msg.channel_id)
-                .reply(msg.id)
-                .content(ERROR_MESSAGE)?
-                .await?;
+    if let Err(e) = response {
+        ctx.http
+            .create_message(msg.channel_id)
+            .reply(msg.id)
+            .content(ERROR_MESSAGE)?
+            .await?;
 
-            return Err(e);
-        },
+        return Err(e);
     }
 
     Ok(())
+}
+
+/// Calculate if the message sender has the `required` permissions.
+pub async fn sender_has_permissions(
+    ctx: &Context,
+    msg: &Message,
+    required: Permissions,
+) -> CommandResult<bool> {
+    let Message { member: Some(member), guild_id: Some(guild_id), .. } = msg else {
+        return Ok(true); // Return true if not in a guild.
+    };
+
+    // `@everyone` role id is the same as the guild's id.
+    let everyone_id = guild_id.cast();
+
+    // Permissions that are given by `@everyone` role
+    let everyone_perm = ctx
+        .roles_from(*guild_id, &[everyone_id])
+        .await?
+        .pop()
+        .ok_or_else(|| anyhow::anyhow!("'@everyone' role not found"))?
+        .permissions;
+
+    // The member's assigned roles' ids.
+    let roles: Vec<_> = ctx
+        .roles_from(*guild_id, &member.roles)
+        .await?
+        .into_iter()
+        // Map roles into a `PermissionCalculator` happy format.
+        .map(|r| (r.id, r.permissions))
+        .collect();
+
+    // Create a calculator.
+    let calc = PermissionCalculator::new(*guild_id, msg.author.id, everyone_perm, &roles);
+
+    // Get the channel in which the message was sent.
+    let channel = ctx.channel_from(msg.channel_id).await?;
+
+    // Get channel specific permission overwrites.
+    let overwrites = channel.permission_overwrites.unwrap_or_default();
+
+    Ok(calc
+        .in_channel(channel.kind, &overwrites)
+        .contains(required))
 }
 
 fn parse_classic_args(
@@ -438,7 +455,7 @@ impl<'a> Lookup<'a> {
 }
 
 /// Execute tasks.
-async fn execute<F, R>(ctx: &Context, funcs: impl Iterator<Item = F>, req: R) -> CommandResult
+async fn execute<F, R>(ctx: &Context, funcs: impl Iterator<Item = F>, req: R) -> CommandResult<()>
 where
     F: Callable<R>,
     R: Clone,

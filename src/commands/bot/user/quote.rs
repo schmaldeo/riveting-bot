@@ -24,15 +24,15 @@ impl Quote {
             )
     }
 
-    async fn classic(_ctx: Context, _req: ClassicRequest) -> CommandResult {
+    async fn classic(_ctx: Context, _req: ClassicRequest) -> CommandResponse {
         todo!();
     }
 
-    async fn slash(_ctx: Context, _req: SlashRequest) -> CommandResult {
+    async fn slash(_ctx: Context, _req: SlashRequest) -> CommandResponse {
         todo!();
     }
 
-    async fn message(_ctx: Context, _req: MessageRequest) -> CommandResult {
+    async fn message(_ctx: Context, _req: MessageRequest) -> CommandResponse {
         todo!();
     }
 }
@@ -41,15 +41,15 @@ impl Quote {
 struct Add;
 
 impl Add {
-    async fn classic(_ctx: Context, _req: ClassicRequest) -> CommandResult {
+    async fn classic(_ctx: Context, _req: ClassicRequest) -> CommandResponse {
         todo!();
     }
 
-    async fn slash(_ctx: Context, _req: SlashRequest) -> CommandResult {
+    async fn slash(_ctx: Context, _req: SlashRequest) -> CommandResponse {
         todo!();
     }
 
-    async fn message(_ctx: Context, _req: MessageRequest) -> CommandResult {
+    async fn message(_ctx: Context, _req: MessageRequest) -> CommandResponse {
         todo!();
     }
 }
@@ -58,15 +58,15 @@ impl Add {
 struct Remove;
 
 impl Remove {
-    async fn classic(_ctx: Context, _req: ClassicRequest) -> CommandResult {
+    async fn classic(_ctx: Context, _req: ClassicRequest) -> CommandResponse {
         todo!();
     }
 
-    async fn slash(_ctx: Context, _req: SlashRequest) -> CommandResult {
+    async fn slash(_ctx: Context, _req: SlashRequest) -> CommandResponse {
         todo!();
     }
 
-    async fn message(_ctx: Context, _req: MessageRequest) -> CommandResult {
+    async fn message(_ctx: Context, _req: MessageRequest) -> CommandResponse {
         todo!();
     }
 }

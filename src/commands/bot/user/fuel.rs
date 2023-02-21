@@ -4,9 +4,7 @@ use crate::commands::prelude::*;
 use crate::utils::prelude::*;
 
 /// Command: Calculate fuel required.
-pub struct Fuel {
-    args: Args,
-}
+pub struct Fuel;
 
 impl Fuel {
     pub fn command() -> impl Into<BaseCommand> {
@@ -43,11 +41,7 @@ impl Fuel {
             .dm()
     }
 
-    async fn slash(ctx: Context, req: SlashRequest) -> CommandResult {
-        let Some(channel_id) = req.interaction.channel_id else {
-            return Err(CommandError::Disabled);
-        };
-
+    async fn slash(ctx: Context, req: SlashRequest) -> CommandResponse {
         let stint = req.args.integer("stint")?;
         let minutes = req.args.integer("minutes")?;
         let seconds = req.args.number("seconds")?;
@@ -76,12 +70,12 @@ impl Fuel {
             .color(0xDB3DBE)
             .build();
 
-        ctx.http
-            .create_message(channel_id)
-            .embeds(&[embed])?
+        ctx.interaction()
+            .update_response(&req.interaction.token)
+            .embeds(Some(&[embed]))?
             .send()
             .await?;
 
-        Ok(Response::None)
+        Ok(Response::none())
     }
 }

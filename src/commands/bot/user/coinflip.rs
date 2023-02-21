@@ -3,9 +3,7 @@ use rand::random;
 use crate::commands::prelude::*;
 
 /// Command: Coinflip.
-pub struct Coinflip {
-    args: Args,
-}
+pub struct Coinflip;
 
 impl Coinflip {
     pub fn command() -> impl Into<BaseCommand> {
@@ -14,12 +12,15 @@ impl Coinflip {
         command("coinflip", "Flip a coin.").attach(Self::slash)
     }
 
-    async fn slash(_ctx: Context, _req: SlashRequest) -> CommandResult {
+    async fn slash(ctx: Context, req: SlashRequest) -> CommandResponse {
         let flip = random::<bool>();
-        if flip {
-            Ok(Response::CreateMessage("Heads".to_string()))
-        } else {
-            Ok(Response::CreateMessage("Tails".to_string()))
-        }
+        let flip = if flip { "> Heads" } else { "> Tails" };
+
+        ctx.interaction()
+            .create_followup(&req.interaction.token)
+            .content(flip)?
+            .await?;
+
+        Ok(Response::none())
     }
 }

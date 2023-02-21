@@ -17,12 +17,7 @@ pub mod bulk {
     const MAX_DELETE: i64 = 100;
 
     /// Command: Delete a bunch of messages at once.
-    pub struct BulkDelete {
-        args: Args,
-        timestamp: i64,
-        channel_id: Option<Id<ChannelMarker>>,
-        message_id: Option<Id<MessageMarker>>,
-    }
+    pub struct BulkDelete {}
 
     impl BulkDelete {
         pub fn command() -> impl Into<BaseCommand> {
@@ -40,26 +35,32 @@ pub mod bulk {
                 )
         }
 
-        async fn uber(self, ctx: Context) -> CommandResult {
+        async fn uber(
+            ctx: &Context,
+            args: &Args,
+            timestamp: i64,
+            channel_id: Option<Id<ChannelMarker>>,
+            message_id: Option<Id<MessageMarker>>,
+        ) -> CommandResult<()> {
             const TWO_WEEKS_SECS: i64 = 60 * 60 * 24 * 7 * 2;
 
-            let two_weeks_ago = self.timestamp - TWO_WEEKS_SECS;
+            let two_weeks_ago = timestamp - TWO_WEEKS_SECS;
 
-            let count = self.args.integer("amount")?;
+            let count = args.integer("amount")?;
 
             let Ok(delete_count) = count.min(MAX_DELETE).try_into() else {
                 return Err(CommandError::UnexpectedArgs(format!("Could not parse delete count: '{count}'")))
             };
 
             if delete_count == 0 {
-                return Ok(Response::Clear);
+                return Ok(());
             }
 
-            let Some(channel_id) = self.channel_id else {
+            let Some(channel_id) = channel_id else {
                 return Err(CommandError::MissingArgs);
             };
 
-            let message_id = match self.message_id {
+            let message_id = match message_id {
                 Some(id) => id,
                 None => {
                     match ctx
@@ -97,29 +98,33 @@ pub mod bulk {
                 ctx.http.delete_message(channel_id, *msg).await?;
             }
 
-            Ok(Response::Clear)
+            Ok(())
         }
 
-        async fn classic(ctx: Context, req: ClassicRequest) -> CommandResult {
-            Self {
-                args: req.args,
-                timestamp: req.message.timestamp.as_secs(),
-                channel_id: Some(req.message.channel_id),
-                message_id: Some(req.message.id),
-            }
-            .uber(ctx)
-            .await
+        async fn classic(ctx: Context, req: ClassicRequest) -> CommandResponse {
+            Self::uber(
+                &ctx,
+                &req.args,
+                req.message.timestamp.as_secs(),
+                Some(req.message.channel_id),
+                Some(req.message.id),
+            )
+            .await?;
+
+            Ok(Response::clear(ctx, req))
         }
 
-        async fn slash(ctx: Context, req: SlashRequest) -> CommandResult {
-            Self {
-                args: req.args,
-                timestamp: chrono::Utc::now().timestamp(),
-                channel_id: req.interaction.channel_id,
-                message_id: None,
-            }
-            .uber(ctx)
-            .await
+        async fn slash(ctx: Context, req: SlashRequest) -> CommandResponse {
+            Self::uber(
+                &ctx,
+                &req.args,
+                chrono::Utc::now().timestamp(),
+                req.interaction.channel_id,
+                None,
+            )
+            .await?;
+
+            Ok(Response::clear(ctx, req))
         }
     }
 }

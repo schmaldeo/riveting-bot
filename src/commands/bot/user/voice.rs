@@ -28,11 +28,11 @@ impl Voice {
             )
     }
 
-    async fn classic(_ctx: Context, _req: ClassicRequest) -> CommandResult {
+    async fn classic(_ctx: Context, _req: ClassicRequest) -> CommandResponse {
         todo!();
     }
 
-    async fn slash(_ctx: Context, _req: SlashRequest) -> CommandResult {
+    async fn slash(_ctx: Context, _req: SlashRequest) -> CommandResponse {
         todo!();
     }
 }
@@ -41,11 +41,11 @@ impl Voice {
 struct Join;
 
 impl Join {
-    async fn classic(_ctx: Context, _req: ClassicRequest) -> CommandResult {
+    async fn classic(_ctx: Context, _req: ClassicRequest) -> CommandResponse {
         todo!();
     }
 
-    async fn slash(_ctx: Context, _req: SlashRequest) -> CommandResult {
+    async fn slash(_ctx: Context, _req: SlashRequest) -> CommandResponse {
         todo!();
     }
 }
@@ -54,11 +54,11 @@ impl Join {
 struct Leave;
 
 impl Leave {
-    async fn classic(_ctx: Context, _req: ClassicRequest) -> CommandResult {
+    async fn classic(_ctx: Context, _req: ClassicRequest) -> CommandResponse {
         todo!();
     }
 
-    async fn slash(_ctx: Context, _req: SlashRequest) -> CommandResult {
+    async fn slash(_ctx: Context, _req: SlashRequest) -> CommandResponse {
         todo!();
     }
 }

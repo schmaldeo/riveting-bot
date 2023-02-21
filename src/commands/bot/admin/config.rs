@@ -29,11 +29,11 @@ impl Config {
             )
     }
 
-    async fn classic(_ctx: Context, _req: ClassicRequest) -> CommandResult {
+    async fn classic(_ctx: Context, _req: ClassicRequest) -> CommandResponse {
         todo!();
     }
 
-    async fn slash(_ctx: Context, _req: SlashRequest) -> CommandResult {
+    async fn slash(_ctx: Context, _req: SlashRequest) -> CommandResponse {
         todo!();
     }
 }
@@ -42,11 +42,11 @@ impl Config {
 struct Get;
 
 impl Get {
-    async fn classic(_ctx: Context, _req: ClassicRequest) -> CommandResult {
+    async fn classic(_ctx: Context, _req: ClassicRequest) -> CommandResponse {
         todo!();
     }
 
-    async fn slash(_ctx: Context, _req: SlashRequest) -> CommandResult {
+    async fn slash(_ctx: Context, _req: SlashRequest) -> CommandResponse {
         todo!();
     }
 }
@@ -55,11 +55,11 @@ impl Get {
 struct Set;
 
 impl Set {
-    async fn classic(_ctx: Context, _req: ClassicRequest) -> CommandResult {
+    async fn classic(_ctx: Context, _req: ClassicRequest) -> CommandResponse {
         todo!();
     }
 
-    async fn slash(_ctx: Context, _req: SlashRequest) -> CommandResult {
+    async fn slash(_ctx: Context, _req: SlashRequest) -> CommandResponse {
         todo!();
     }
 }
@@ -68,11 +68,11 @@ impl Set {
 struct Cleanup;
 
 impl Cleanup {
-    async fn classic(_ctx: Context, _req: ClassicRequest) -> CommandResult {
+    async fn classic(_ctx: Context, _req: ClassicRequest) -> CommandResponse {
         todo!();
     }
 
-    async fn slash(_ctx: Context, _req: SlashRequest) -> CommandResult {
+    async fn slash(_ctx: Context, _req: SlashRequest) -> CommandResponse {
         todo!();
     }
 }

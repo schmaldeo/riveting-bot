@@ -13,7 +13,7 @@ use twilight_http::request::channel::GetChannel;
 use twilight_http::request::guild::emoji::GetEmojis;
 use twilight_http::request::guild::member::GetMember;
 use twilight_http::request::guild::role::GetGuildRoles;
-use twilight_http::request::guild::GetGuild;
+use twilight_http::request::guild::{GetGuild, GetGuildChannels};
 use twilight_http::request::user::{GetCurrentUser, GetCurrentUserGuildMember, GetUser};
 use twilight_http::request::GetUserApplicationInfo;
 use twilight_model::application::command::Command;
@@ -31,11 +31,22 @@ pub use crate::utils::prelude::*;
 
 /// Re-exports of useful things.
 pub mod prelude {
+    // Error stuff.
     pub use anyhow::{Context as _, Result as AnyResult};
+    // Async extras.
     pub use async_trait::async_trait;
-    pub use futures::prelude::*;
+    // pub use futures::Sink as _;
+    // pub use futures::SinkExt as _;
+    pub use futures::{
+        AsyncBufRead as _, AsyncBufReadExt as _, AsyncRead as _, AsyncReadExt as _, AsyncSeek as _,
+        AsyncSeekExt as _, AsyncWrite as _, AsyncWriteExt as _, Future as _, FutureExt as _,
+        Stream as _, StreamExt as _, TryFuture as _, TryFutureExt as _, TryStream as _,
+        TryStreamExt as _,
+    };
+    // Logging macros.
     pub use tracing::{debug, error, info, trace, warn};
 
+    // Local goods.
     pub use super::{impl_debug_struct_fields, impl_variant_option, ErrorExt, ExecModelExt, IdExt};
 }
 
@@ -88,6 +99,7 @@ impl_exec_model_ext!(GetCurrentUser<'_>, CurrentUser);
 impl_exec_model_ext!(GetCurrentUserGuildMember<'_>, Member);
 impl_exec_model_ext!(GetEmojis<'_>, Vec<Emoji>);
 impl_exec_model_ext!(GetGuild<'_>, Guild);
+impl_exec_model_ext!(GetGuildChannels<'_>, Vec<Channel>);
 impl_exec_model_ext!(GetGuildRoles<'_>, Vec<Role>);
 impl_exec_model_ext!(GetMember<'_>, Member);
 impl_exec_model_ext!(GetMessage<'_>, Message);

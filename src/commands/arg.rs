@@ -73,16 +73,17 @@ where
 #[derive(Debug, Default, Clone, AsMut, AsRef, From, Index, IndexMut, IntoIterator)]
 pub struct Args(Vec<Arg>);
 
-// TODO: These methods could return a different error, if the arg was found, but not the correct type.
 macro_rules! impl_variant_get {
     ($( $vis:vis fn $method:ident -> $value:ty );* $(;)?) => {
         $(
-            /// Finds argument by name and returns the value if it matches the variant,
-            /// otherwise returns `CommandError::MissingArgs`.
+            /// Finds argument by name and returns the value, if it matches the variant.
+            /// # Errors
+            /// * Returns `CommandError::MissingArgs` if the arg was not found.
+            /// * Returns `CommandError::ArgsMismatch` if the arg was found, but as different type.
             $vis fn $method(&self, name: &str) -> Result<$value, CommandError> {
                 self.get(name)
-                    .and_then(|a| a.$method())
                     .ok_or(CommandError::MissingArgs)
+                    .and_then(|a| a.$method().ok_or(CommandError::ArgsMismatch))
             }
         )*
     };

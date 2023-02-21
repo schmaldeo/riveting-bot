@@ -45,60 +45,57 @@ impl Roles {
             )
     }
 
-    async fn classic(_ctx: Context, _req: ClassicRequest) -> CommandResult {
+    async fn classic(_ctx: Context, _req: ClassicRequest) -> CommandResponse {
         todo!();
     }
 
-    async fn slash(_ctx: Context, _req: SlashRequest) -> CommandResult {
+    async fn slash(_ctx: Context, _req: SlashRequest) -> CommandResponse {
         todo!();
     }
 }
 
 /// Command: Setup a reaction-roles message.
-struct Setup {
-    guild_id: Id<GuildMarker>,
-    channel_id: Id<ChannelMarker>,
-    author_id: Id<UserMarker>,
-}
+struct Setup;
 
 impl Setup {
-    async fn uber(self, ctx: Context) -> CommandResult {
-        let Some(mappings) = roles_setup_process(&ctx, self.guild_id, self.channel_id, self.author_id, None).await? else {
-            return Ok(Response::Clear) // Canceled or whatever.
+    async fn uber(
+        ctx: Context,
+        guild_id: Id<GuildMarker>,
+        channel_id: Id<ChannelMarker>,
+        author_id: Id<UserMarker>,
+    ) -> CommandResult<()> {
+        let Some(mappings) = roles_setup_process(&ctx, guild_id, channel_id, author_id, None).await? else {
+            return Ok(()) // Canceled or whatever.
         };
 
-        let output_content = output_message_content(&ctx, self.guild_id, &mappings).await?;
+        let output_content = output_message_content(&ctx, guild_id, &mappings).await?;
         let output = ctx
             .http
-            .create_message(self.channel_id)
+            .create_message(channel_id)
             .content(&output_content)?
             .send()
             .await?;
 
         add_reactions_to_message(&ctx, &mappings, &output).await?;
 
-        register_reaction_roles(&ctx, self.guild_id, output.channel_id, output.id, mappings)?;
+        register_reaction_roles(&ctx, guild_id, output.channel_id, output.id, mappings)?;
 
-        Ok(Response::Clear)
+        Ok(())
     }
 
-    async fn classic(ctx: Context, req: ClassicRequest) -> CommandResult {
+    async fn classic(ctx: Context, req: ClassicRequest) -> CommandResponse {
         let Some(guild_id) = req.message.guild_id else {
             return Err(CommandError::Disabled)
         };
 
-        let channel_id = req.message.channel_id;
+        req.clear(&ctx).await?;
 
-        Self {
-            guild_id,
-            channel_id,
-            author_id: req.message.author.id,
-        }
-        .uber(ctx)
-        .await
+        Self::uber(ctx, guild_id, req.message.channel_id, req.message.author.id)
+            .await
+            .map(|_| Response::none())
     }
 
-    async fn slash(ctx: Context, req: SlashRequest) -> CommandResult {
+    async fn slash(ctx: Context, req: SlashRequest) -> CommandResponse {
         let Some(guild_id) = req.interaction.guild_id else {
             return Err(CommandError::Disabled)
         };
@@ -111,13 +108,11 @@ impl Setup {
             return Err(CommandError::MissingArgs)
         };
 
-        Self {
-            guild_id,
-            channel_id,
-            author_id,
-        }
-        .uber(ctx)
-        .await
+        req.clear(&ctx).await?;
+
+        Self::uber(ctx, guild_id, channel_id, author_id)
+            .await
+            .map(|_| Response::none())
     }
 }
 
@@ -125,7 +120,7 @@ impl Setup {
 struct Edit;
 
 impl Edit {
-    async fn classic(ctx: Context, req: ClassicRequest) -> CommandResult {
+    async fn uber(ctx: Context, req: ClassicRequest) -> CommandResult<()> {
         let Some(guild_id) = req.message.guild_id else {
             return Err(CommandError::Disabled)
         };
@@ -161,7 +156,7 @@ impl Edit {
         let channel_id = req.message.channel_id;
 
         let Some(mappings) = roles_setup_process(&ctx, guild_id, channel_id, author_id, reaction_roles).await? else {
-            return Ok(Response::Clear) // Canceled or whatever.
+            return Ok(()) // Canceled or whatever.
         };
 
         let output_content = output_message_content(&ctx, guild_id, &mappings).await?;
@@ -178,7 +173,12 @@ impl Edit {
 
         register_reaction_roles(&ctx, guild_id, output.channel_id, output.id, mappings)?;
 
-        Ok(Response::Clear)
+        Ok(())
+    }
+
+    async fn classic(ctx: Context, req: ClassicRequest) -> CommandResponse {
+        req.clear(&ctx).await?;
+        Self::uber(ctx, req).await.map(|_| Response::none())
     }
 }
 

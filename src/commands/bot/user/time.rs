@@ -1,10 +1,9 @@
-use chrono::{DateTime, Utc};
+use chrono::{DateTime, FixedOffset, Utc};
 use htp::parser::ParseError;
 use htp::HTPError;
 use twilight_mention::timestamp::{Timestamp, TimestampStyle};
 use twilight_mention::Mention;
-use twilight_model::id::marker::ChannelMarker;
-use twilight_model::id::Id;
+use twilight_model::channel::message::Embed;
 use twilight_util::builder::embed::{self, EmbedFieldBuilder, EmbedFooterBuilder};
 
 use crate::commands::prelude::*;
@@ -50,10 +49,7 @@ const TIMEZONES: [(&str, &str); 24] = [
 ];
 
 /// Command: Display a discord timestamp.
-pub struct Time {
-    args: Args,
-    channel_id: Option<Id<ChannelMarker>>,
-}
+pub struct Time;
 
 impl Time {
     pub fn command() -> impl Into<BaseCommand> {
@@ -67,21 +63,15 @@ impl Time {
             .dm()
     }
 
-    async fn uber(self, ctx: Context) -> CommandResult {
-        let Some(channel_id) = self.channel_id else {
-            return Err(CommandError::Disabled);
-        };
-
-        let expr = self
-            .args
+    async fn uber(args: Args) -> CommandResult<Embed> {
+        let expr = args
             .string("expression")
-            .unwrap_or("now".to_string().into_boxed_str());
+            .unwrap_or_else(|_| "now".to_string().into_boxed_str());
 
-        let now = self
-            .args
+        let now = args
             .string("timezone")
-            .and_then(|val| zone_to_now(&val).map_err(Into::into))
-            .unwrap_or(Utc::now());
+            .and_then(|val| Ok(timezone(&val)?))
+            .unwrap_or_else(|_| Utc::now().into());
 
         let parsed = htp::parse_time_clue(expr.trim(), now, true).map_err(|e| {
             if let HTPError::ParseError(ParseError::PestError(_)) = e {
@@ -96,43 +86,43 @@ impl Time {
         let relative = Timestamp::new(unix, Some(TimestampStyle::RelativeTime));
         let footer = format!("{} {}", long.mention(), relative.mention());
 
-        let embed = embed::EmbedBuilder::new()
+        Ok(embed::EmbedBuilder::new()
             .color(0xFFAA44)
             .field(EmbedFieldBuilder::new("Date & Time", long.mention().to_string()).inline())
             .field(EmbedFieldBuilder::new("Relative", relative.mention().to_string()).inline())
             .footer(EmbedFooterBuilder::new(footer))
-            .build();
+            .build())
+    }
+
+    async fn classic(ctx: Context, req: ClassicRequest) -> CommandResponse {
+        let embed = Self::uber(req.args).await?;
 
         ctx.http
-            .create_message(channel_id)
+            .create_message(req.message.channel_id)
+            .reply(req.message.id)
             .embeds(&[embed])?
             .await?;
 
-        Ok(Response::Clear)
+        Ok(Response::none())
     }
 
-    async fn classic(ctx: Context, req: ClassicRequest) -> CommandResult {
-        Self {
-            args: req.args,
-            channel_id: Some(req.message.channel_id),
-        }
-        .uber(ctx)
-        .await
-    }
+    async fn slash(ctx: Context, req: SlashRequest) -> CommandResponse {
+        let embed = Self::uber(req.args).await?;
 
-    async fn slash(ctx: Context, req: SlashRequest) -> CommandResult {
-        Self {
-            args: req.args,
-            channel_id: req.interaction.channel_id,
-        }
-        .uber(ctx)
-        .await
+        ctx.interaction()
+            .update_response(&req.interaction.token)
+            .embeds(Some(&[embed]))?
+            .await?;
+
+        Ok(Response::none())
     }
 }
 
-fn zone_to_now(zone: &str) -> AnyResult<DateTime<Utc>> {
-    let tz = zone.trim().parse::<i64>()?;
-    Utc::now()
-        .checked_add_signed(chrono::Duration::hours(tz))
-        .ok_or(anyhow::anyhow!("Failed to offset timezone"))
+fn timezone(zone: &str) -> AnyResult<DateTime<FixedOffset>> {
+    let hour = 3600; // Seconds.
+    let offset = hour * zone.trim().parse::<i32>()?;
+    let offset = FixedOffset::east_opt(offset)
+        .or_else(|| FixedOffset::west_opt(offset))
+        .ok_or_else(|| anyhow::anyhow!("Invalid timezone offset"))?;
+    Ok(Utc::now().with_timezone(&offset))
 }

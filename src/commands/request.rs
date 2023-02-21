@@ -1,5 +1,6 @@
 use std::sync::Arc;
 
+use derive_more::From;
 use twilight_model::application::interaction::application_command::CommandData;
 use twilight_model::application::interaction::Interaction;
 use twilight_model::channel::Message;
@@ -8,6 +9,8 @@ use twilight_model::id::Id;
 
 use crate::commands::arg::Args;
 use crate::commands::builder::BaseCommand;
+use crate::utils::prelude::*;
+use crate::Context;
 
 /// Classic command request with preprocessed arguments and original message.
 #[derive(Debug, Clone)]
@@ -24,6 +27,15 @@ impl ClassicRequest {
             message,
             args,
         }
+    }
+
+    /// Deletes the command call message.
+    pub async fn clear(&self, ctx: &Context) -> AnyResult<()> {
+        ctx.http
+            .delete_message(self.message.channel_id, self.message.id)
+            .await
+            .context("Failed to clear command message")
+            .map(|_| ())
     }
 }
 
@@ -50,6 +62,15 @@ impl SlashRequest {
             args,
         }
     }
+
+    /// Deletes the interaction loading message (acknowledge response).
+    pub async fn clear(&self, ctx: &Context) -> AnyResult<()> {
+        ctx.interaction()
+            .delete_response(&self.interaction.token)
+            .await
+            .context("Failed to clear interaction")
+            .map(|_| ())
+    }
 }
 
 /// Message command request with command and interaction data.
@@ -74,6 +95,15 @@ impl MessageRequest {
             data,
             target_id,
         }
+    }
+
+    /// Deletes the interaction loading message (acknowledge response).
+    pub async fn clear(&self, ctx: &Context) -> AnyResult<()> {
+        ctx.interaction()
+            .delete_response(&self.interaction.token)
+            .await
+            .context("Failed to clear interaction")
+            .map(|_| ())
     }
 }
 
@@ -100,4 +130,21 @@ impl UserRequest {
             target_id,
         }
     }
+
+    /// Deletes the interaction loading message (acknowledge response).
+    pub async fn clear(&self, ctx: &Context) -> AnyResult<()> {
+        ctx.interaction()
+            .delete_response(&self.interaction.token)
+            .await
+            .context("Failed to clear interaction")
+            .map(|_| ())
+    }
+}
+
+#[derive(Debug, From)]
+pub enum Request {
+    Classic(ClassicRequest),
+    Slash(SlashRequest),
+    Message(MessageRequest),
+    User(UserRequest),
 }

@@ -30,11 +30,11 @@ impl Alias {
             )
     }
 
-    async fn classic(_ctx: Context, _req: ClassicRequest) -> CommandResult {
+    async fn classic(_ctx: Context, _req: ClassicRequest) -> CommandResponse {
         todo!();
     }
 
-    async fn slash(_ctx: Context, _req: SlashRequest) -> CommandResult {
+    async fn slash(_ctx: Context, _req: SlashRequest) -> CommandResponse {
         todo!();
     }
 }
@@ -43,11 +43,11 @@ impl Alias {
 struct List;
 
 impl List {
-    async fn classic(_ctx: Context, _req: ClassicRequest) -> CommandResult {
+    async fn classic(_ctx: Context, _req: ClassicRequest) -> CommandResponse {
         todo!();
     }
 
-    async fn slash(_ctx: Context, _req: SlashRequest) -> CommandResult {
+    async fn slash(_ctx: Context, _req: SlashRequest) -> CommandResponse {
         todo!();
     }
 }
@@ -56,11 +56,11 @@ impl List {
 struct Get;
 
 impl Get {
-    async fn classic(_ctx: Context, _req: ClassicRequest) -> CommandResult {
+    async fn classic(_ctx: Context, _req: ClassicRequest) -> CommandResponse {
         todo!();
     }
 
-    async fn slash(_ctx: Context, _req: SlashRequest) -> CommandResult {
+    async fn slash(_ctx: Context, _req: SlashRequest) -> CommandResponse {
         todo!();
     }
 }
@@ -69,11 +69,11 @@ impl Get {
 struct Set;
 
 impl Set {
-    async fn classic(_ctx: Context, _req: ClassicRequest) -> CommandResult {
+    async fn classic(_ctx: Context, _req: ClassicRequest) -> CommandResponse {
         todo!();
     }
 
-    async fn slash(_ctx: Context, _req: SlashRequest) -> CommandResult {
+    async fn slash(_ctx: Context, _req: SlashRequest) -> CommandResponse {
         todo!();
     }
 }
@@ -82,11 +82,11 @@ impl Set {
 struct Remove;
 
 impl Remove {
-    async fn classic(_ctx: Context, _req: ClassicRequest) -> CommandResult {
+    async fn classic(_ctx: Context, _req: ClassicRequest) -> CommandResponse {
         todo!();
     }
 
-    async fn slash(_ctx: Context, _req: SlashRequest) -> CommandResult {
+    async fn slash(_ctx: Context, _req: SlashRequest) -> CommandResponse {
         todo!();
     }
 }

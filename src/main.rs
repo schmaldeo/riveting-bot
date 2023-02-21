@@ -21,15 +21,16 @@ use twilight_cache_inmemory::InMemoryCache;
 use twilight_gateway::{Cluster, Event};
 use twilight_http::client::InteractionClient;
 use twilight_http::Client;
+use twilight_model::application::command::permissions::GuildCommandPermissions;
 use twilight_model::application::interaction::{Interaction, InteractionData};
-use twilight_model::channel::Message;
+use twilight_model::channel::{Channel, Message};
 use twilight_model::gateway::event::shard::Connected;
 use twilight_model::gateway::payload::incoming::{
-    MessageDelete, MessageDeleteBulk, MessageUpdate, Ready, RoleUpdate,
+    ChannelUpdate, MessageDelete, MessageDeleteBulk, MessageUpdate, Ready, RoleUpdate,
 };
 use twilight_model::gateway::{GatewayReaction, Intents};
 use twilight_model::guild::{Guild, Role};
-use twilight_model::id::marker::{GuildMarker, RoleMarker};
+use twilight_model::id::marker::{ChannelMarker, GuildMarker, RoleMarker};
 use twilight_model::id::Id;
 use twilight_model::oauth::Application;
 use twilight_model::user::CurrentUser;
@@ -129,6 +130,25 @@ impl Context {
         fetch.retain(|r| ids.contains(&r.id));
 
         Ok(fetch)
+    }
+
+    /// Get the channel object from cache or fetch from client.
+    pub async fn channel_from(&self, channel_id: Id<ChannelMarker>) -> AnyResult<Channel> {
+        match self.cache.channel(channel_id) {
+            Some(chan) => {
+                // Use cached channel.
+                Ok(chan.to_owned())
+            },
+            None => {
+                // Fetch channel from the http client.
+                let chan = self.http.channel(channel_id).send().await?;
+
+                // Manually update the cache.
+                self.cache.update(&ChannelUpdate(chan.clone()));
+
+                Ok(chan)
+            },
+        }
     }
 }
 
@@ -258,6 +278,9 @@ async fn handle_event(ctx: Context, event: Event) -> AnyResult<()> {
         Event::ReactionAdd(r) => handle_reaction_add(&ctx, r.0).await,
         Event::ReactionRemove(r) => handle_reaction_remove(&ctx, r.0).await,
         Event::VoiceStateUpdate(v) => handle_voice_state(&ctx, v.0).await,
+        Event::CommandPermissionsUpdate(cpu) => {
+            handle_command_permissions_update(&ctx, cpu.0).await
+        },
 
         // Gateway events.
         Event::GatewayHeartbeat(_)
@@ -589,6 +612,19 @@ async fn handle_reaction_remove(ctx: &Context, reaction: GatewayReaction) -> Any
 async fn handle_voice_state(_ctx: &Context, voice: VoiceState) -> AnyResult<()> {
     println!("{voice:#?}",);
 
+    Ok(())
+}
+
+async fn handle_command_permissions_update(
+    _ctx: &Context,
+    cpu: GuildCommandPermissions,
+) -> AnyResult<()> {
+    println!("Permissions update: {:#?}", cpu);
+    // cpu.permissions.into_iter().for_each(|p| match p.id {
+    //     CommandPermissionType::Channel(_) => todo!(),
+    //     CommandPermissionType::Role(_) => todo!(),
+    //     CommandPermissionType::User(_) => todo!(),
+    // });
     Ok(())
 }
 

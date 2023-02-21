@@ -23,7 +23,7 @@ impl Joke {
         command("joke", "Send a bad joke.").attach(Self::slash)
     }
 
-    async fn slash(_ctx: Context, _req: SlashRequest) -> CommandResult {
+    async fn slash(ctx: Context, req: SlashRequest) -> CommandResponse {
         let body = reqwest::get("https://v2.jokeapi.dev/joke/Any")
             .await?
             .json::<JokeResponse>()
@@ -34,6 +34,11 @@ impl Joke {
             JokeResponse::TwoPart { setup, delivery } => format!("> {setup}\n> {delivery}"),
         };
 
-        Ok(Response::CreateMessage(joke))
+        ctx.interaction()
+            .update_response(&req.interaction.token)
+            .content(Some(&joke))?
+            .await?;
+
+        Ok(Response::none())
     }
 }
