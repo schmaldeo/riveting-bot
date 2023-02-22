@@ -84,7 +84,7 @@ impl Time {
         let unix = parsed.timestamp() as _;
         let long = Timestamp::new(unix, Some(TimestampStyle::LongDateTime));
         let relative = Timestamp::new(unix, Some(TimestampStyle::RelativeTime));
-        let footer = format!("{} {}", long.mention(), relative.mention());
+        let footer = format!("Copypasta: {} {}", long.mention(), relative.mention());
 
         Ok(embed::EmbedBuilder::new()
             .color(0xFFAA44)
