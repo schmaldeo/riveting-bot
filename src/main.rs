@@ -153,6 +153,7 @@ impl Context {
 }
 
 #[tokio::main]
+#[tracing::instrument]
 async fn main() -> AnyResult<()> {
     // Load environment variables from `./.env` file, if any exists.
     dotenv::dotenv().ok();
@@ -265,6 +266,7 @@ async fn main() -> AnyResult<()> {
 }
 
 /// Main events handler.
+#[tracing::instrument(name = "events", skip_all, fields(event = event.kind().name()))]
 async fn handle_event(ctx: Context, event: Event) -> AnyResult<()> {
     let result = match event {
         Event::ShardConnected(c) => handle_shard_connected(&ctx, c).await,
