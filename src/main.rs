@@ -428,9 +428,17 @@ async fn handle_message_create(ctx: &Context, msg: Message) -> AnyResult<()> {
                 ctx.http
                     .create_message(msg.channel_id)
                     .content(&about_msg)?
+                    .reply(msg.id)
                     .await?;
             }
-
+            Ok(())
+        },
+        Err(CommandError::AccessDenied) => {
+            ctx.http
+                .create_message(msg.channel_id)
+                .content("Rekt, you cannot use that. :melting_face:")?
+                .reply(msg.id)
+                .await?;
             Ok(())
         },
         res => res.context("Failed to handle classic command"),
