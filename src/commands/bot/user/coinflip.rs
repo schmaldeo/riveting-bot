@@ -14,7 +14,7 @@ impl Coinflip {
 
     async fn slash(ctx: Context, req: SlashRequest) -> CommandResponse {
         let flip = random::<bool>();
-        let flip = if flip { "> Heads" } else { "> Tails" };
+        let flip = if flip { ":coin: Heads" } else { "Tails :coin:" };
 
         ctx.interaction()
             .create_followup(&req.interaction.token)
