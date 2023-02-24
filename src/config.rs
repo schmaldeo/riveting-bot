@@ -8,9 +8,7 @@ use std::path::Path;
 
 use serde::{Deserialize, Serialize};
 use twilight_model::channel::message::ReactionType;
-use twilight_model::id::marker::{
-    ChannelMarker, GuildMarker, MessageMarker, RoleMarker, UserMarker,
-};
+use twilight_model::id::marker::{ChannelMarker, GuildMarker, MessageMarker, RoleMarker};
 use twilight_model::id::Id;
 
 use crate::commands::CommandError;
@@ -38,8 +36,6 @@ pub struct Settings {
     #[serde(default)]
     pub aliases: HashMap<String, String>,
     #[serde(default)]
-    pub perms: HashMap<String, PermissionMap>,
-    #[serde(default)]
     pub reaction_roles: HashMap<String, Vec<ReactionRole>>,
 }
 
@@ -48,75 +44,8 @@ impl Default for Settings {
         Self {
             prefix: default_prefix(),
             aliases: HashMap::new(),
-            perms: HashMap::new(),
             reaction_roles: HashMap::new(),
         }
-    }
-}
-
-/// Contains allowed or disallowed ids.
-#[derive(Debug, Default, Clone, Deserialize, Serialize)]
-pub struct PermissionMap {
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub users: Option<HashMap<Id<UserMarker>, bool>>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub roles: Option<HashMap<Id<RoleMarker>, bool>>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub disabled_channels: Option<HashSet<Id<ChannelMarker>>>,
-}
-
-impl PermissionMap {
-    /// Get a user permission, if exists.
-    pub fn user(&self, user_id: Id<UserMarker>) -> Option<bool> {
-        self.users.as_ref()?.get(&user_id).copied()
-    }
-
-    /// Get a role permission, if exists.
-    pub fn role(&self, role_id: Id<RoleMarker>) -> Option<bool> {
-        self.roles.as_ref()?.get(&role_id).copied()
-    }
-
-    /// Set a permission rule for a user, returns replaced rule if there was any.
-    pub fn set_user(&mut self, user_id: Id<UserMarker>, allow: bool) -> Option<bool> {
-        self.users.get_or_insert_default().insert(user_id, allow)
-    }
-
-    /// Set a permission rule for a role, returns replaced rule if there was any.
-    pub fn set_role(&mut self, role_id: Id<RoleMarker>, allow: bool) -> Option<bool> {
-        self.roles.get_or_insert_default().insert(role_id, allow)
-    }
-
-    /// Remove a permission rule for a user, returns removed rule if there was any.
-    pub fn remove_user(&mut self, user_id: Id<UserMarker>) -> Option<bool> {
-        self.users.as_mut()?.remove(&user_id)
-    }
-
-    /// Remove a permission rule for a role, returns removed rule if there was any.
-    pub fn remove_role(&mut self, role_id: Id<RoleMarker>) -> Option<bool> {
-        self.roles.as_mut()?.remove(&role_id)
-    }
-
-    /// Returns `true` if channel is disabled.
-    pub fn is_channel_disabled(&self, channel_id: Id<ChannelMarker>) -> bool {
-        self.disabled_channels
-            .as_ref()
-            .map(|dc| dc.contains(&channel_id))
-            .unwrap_or(false)
-    }
-
-    /// Add channel to the disabled channels list, returns `true` if it was not yet present.
-    pub fn disable_channel(&mut self, channel_id: Id<ChannelMarker>) -> bool {
-        self.disabled_channels
-            .get_or_insert_default()
-            .insert(channel_id)
-    }
-
-    /// Remove a channel from the disabled channels list, returns `true` if it was found and removed.
-    pub fn enable_channel(&mut self, channel_id: Id<ChannelMarker>) -> bool {
-        self.disabled_channels
-            .as_mut()
-            .map(|dc| dc.remove(&channel_id))
-            .unwrap_or(false)
     }
 }
 
@@ -256,110 +185,6 @@ impl Config {
         self.guild_or_default(guild_id)
             .reaction_roles
             .insert(key, map);
-    }
-
-    pub fn forbid_role(
-        &mut self,
-        guild_id: Id<GuildMarker>,
-        command: String,
-        target: Id<RoleMarker>,
-    ) {
-        self.guild_or_default(guild_id)
-            .perms
-            .entry(command)
-            .or_default()
-            .set_role(target, false);
-    }
-
-    pub fn allow_role(
-        &mut self,
-        guild_id: Id<GuildMarker>,
-        command: String,
-        target: Id<RoleMarker>,
-    ) {
-        self.guild_or_default(guild_id)
-            .perms
-            .entry(command)
-            .or_default()
-            .set_role(target, true);
-    }
-
-    pub fn clear_role(
-        &mut self,
-        guild_id: Id<GuildMarker>,
-        command: String,
-        target: Id<RoleMarker>,
-    ) {
-        self.guild_or_default(guild_id)
-            .perms
-            .entry(command)
-            .or_default()
-            .remove_role(target);
-    }
-
-    pub fn forbid_user(
-        &mut self,
-        guild_id: Id<GuildMarker>,
-        command: String,
-        target: Id<UserMarker>,
-    ) {
-        self.guild_or_default(guild_id)
-            .perms
-            .entry(command)
-            .or_default()
-            .set_user(target, false);
-    }
-
-    pub fn allow_user(
-        &mut self,
-        guild_id: Id<GuildMarker>,
-        command: String,
-        target: Id<UserMarker>,
-    ) {
-        self.guild_or_default(guild_id)
-            .perms
-            .entry(command)
-            .or_default()
-            .set_user(target, true);
-    }
-
-    pub fn clear_user(
-        &mut self,
-        guild_id: Id<GuildMarker>,
-        command: String,
-        target: Id<UserMarker>,
-    ) {
-        self.guild_or_default(guild_id)
-            .perms
-            .entry(command)
-            .or_default()
-            .remove_user(target);
-    }
-
-    pub fn forbid_channel(
-        &mut self,
-        guild_id: Id<GuildMarker>,
-        command: String,
-        target: Id<ChannelMarker>,
-    ) {
-        self.guild_or_default(guild_id)
-            .perms
-            .entry(command)
-            .or_default()
-            .disable_channel(target);
-    }
-
-    pub fn allow_channel(
-        &mut self,
-        guild_id: Id<GuildMarker>,
-        command: String,
-        target: Id<ChannelMarker>,
-    ) {
-        self.guild_or_default(guild_id)
-            .perms
-            .entry(command)
-            .or_default()
-            .enable_channel(target);
     }
 
     /// Look up all guild configurations in `GUILD_CONFIG_DIR` and save them to `self`.
