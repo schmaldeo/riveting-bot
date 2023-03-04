@@ -14,7 +14,7 @@
 use std::sync::{Arc, Mutex};
 use std::{env, fs};
 
-use futures::stream::StreamExt;
+use tokio::runtime::Runtime;
 use tracing::Level;
 use tracing_subscriber::EnvFilter;
 use twilight_cache_inmemory::InMemoryCache;
@@ -52,6 +52,8 @@ mod utils;
 pub struct Context {
     /// Bot configuration.
     config: Arc<Mutex<Config>>,
+    /// Bot commands list.
+    commands: Arc<Commands>,
     /// Application http client.
     http: Arc<Client>,
     /// Application shard manager.
@@ -64,8 +66,8 @@ pub struct Context {
     cache: Arc<InMemoryCache>,
     /// Standby event system.
     standby: Arc<Standby>,
-    /// Bot commands list.
-    commands: Arc<Commands>,
+    /// Async runtime.
+    runtime: Arc<Runtime>,
     /// Shard id associated with the event.
     shard: Option<u64>,
 }
@@ -152,9 +154,17 @@ impl Context {
     }
 }
 
-#[tokio::main]
 #[tracing::instrument]
-async fn main() -> AnyResult<()> {
+fn main() -> AnyResult<()> {
+    let rt = Arc::new(
+        tokio::runtime::Builder::new_multi_thread()
+            .enable_all()
+            .build()?,
+    );
+    rt.block_on(async_main(Arc::clone(&rt)))
+}
+
+async fn async_main(runtime: Arc<Runtime>) -> AnyResult<()> {
     // Load environment variables from `./.env` file, if any exists.
     dotenv::dotenv().ok();
 
@@ -236,19 +246,16 @@ async fn main() -> AnyResult<()> {
 
     let ctx = Context {
         config,
+        commands,
         http,
         cluster,
         application,
         user,
         cache,
         standby,
-        commands,
+        runtime,
         shard: None,
     };
-
-    // TODO: To be implemented.
-    // Spawn community event handler.
-    // tokio::spawn(handle_timer(ctx.clone(), 60 * 5));
 
     // Process each event as they come in.
     while let Some((id, event)) = events.next().await {
