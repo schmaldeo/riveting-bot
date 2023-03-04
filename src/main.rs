@@ -24,7 +24,6 @@ use twilight_http::Client;
 use twilight_model::application::command::permissions::GuildCommandPermissions;
 use twilight_model::application::interaction::{Interaction, InteractionData};
 use twilight_model::channel::{Channel, Message};
-use twilight_model::gateway::event::shard::Connected;
 use twilight_model::gateway::payload::incoming::{
     ChannelUpdate, MessageDelete, MessageDeleteBulk, MessageUpdate, Ready, RoleUpdate,
 };
@@ -276,7 +275,6 @@ async fn async_main(runtime: Arc<Runtime>) -> AnyResult<()> {
 #[tracing::instrument(name = "events", skip_all, fields(event = event.kind().name()))]
 async fn handle_event(ctx: Context, event: Event) -> AnyResult<()> {
     let result = match event {
-        Event::ShardConnected(c) => handle_shard_connected(&ctx, c).await,
         Event::Ready(r) => handle_ready(&ctx, *r).await,
         Event::GuildCreate(g) => handle_guild_create(&ctx, g.0).await,
         Event::InteractionCreate(i) => handle_interaction_create(&ctx, i.0).await,
@@ -292,9 +290,9 @@ async fn handle_event(ctx: Context, event: Event) -> AnyResult<()> {
         },
 
         // Gateway events.
+        Event::GatewayHello(hbi) => handle_hello(&ctx, hbi).await,
         Event::GatewayHeartbeat(_)
         | Event::GatewayHeartbeatAck
-        | Event::GatewayHello(_)
         | Event::GatewayInvalidateSession(_)
         | Event::GatewayReconnect => {
             debug!("Gateway event: {:?}", event.kind());
@@ -328,12 +326,11 @@ async fn handle_event(ctx: Context, event: Event) -> AnyResult<()> {
     Ok(())
 }
 
-async fn handle_shard_connected(_ctx: &Context, connected: Connected) -> AnyResult<()> {
+async fn handle_hello(ctx: &Context, hbi: u64) -> AnyResult<()> {
     info!(
-        "Connected on shard {} with a heartbeat of {}",
-        connected.shard_id, connected.heartbeat_interval
+        "Connected on shard {} with a heartbeat of {hbi}",
+        ctx.shard.ok_or(anyhow::anyhow!("Missing shard id"))?
     );
-
     Ok(())
 }
 
