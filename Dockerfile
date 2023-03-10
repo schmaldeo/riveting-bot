@@ -13,7 +13,7 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
 FROM rust AS builder
 
 # Use sparse registry.
-ARG CARGO_UNSTABLE_SPARSE_REGISTRY=true
+ARG CARGO_REGISTRIES_CRATES_IO_PROTOCOL=sparse
 
 # Create a new empty shell project.
 RUN cargo new --bin app
