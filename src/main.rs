@@ -292,10 +292,18 @@ async fn handle_event(ctx: Context, event: Event) -> AnyResult<()> {
         // Gateway events.
         Event::GatewayHello(hbi) => handle_hello(&ctx, hbi).await,
         Event::GatewayHeartbeat(_)
-        | Event::GatewayHeartbeatAck
         | Event::GatewayInvalidateSession(_)
         | Event::GatewayReconnect => {
             debug!("Gateway event: {:?}", event.kind());
+            Ok(())
+        },
+        Event::GatewayHeartbeatAck => {
+            trace!("Gateway event: {:?}", event.kind());
+            Ok(())
+        },
+
+        Event::PresenceUpdate(p) => {
+            trace!("Presence event: {:?}", p.user.id());
             Ok(())
         },
 
