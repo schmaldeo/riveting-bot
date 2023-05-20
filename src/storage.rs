@@ -1,0 +1,285 @@
+use std::any::{self, Any, TypeId};
+use std::collections::hash_map::Entry;
+use std::collections::{HashMap, HashSet};
+use std::fmt::Debug;
+use std::fs::{self, OpenOptions};
+use std::io::Read;
+use std::path::{Path, PathBuf};
+use std::sync::{Mutex, MutexGuard};
+
+use serde::de::DeserializeOwned;
+use serde::Serialize;
+use twilight_model::id::marker::GuildMarker;
+use twilight_model::id::Id;
+
+use crate::utils::prelude::*;
+
+struct Config;
+
+impl Config {
+    fn write<T>(value: &T, path: impl AsRef<Path>) -> AnyResult<()>
+    where
+        T: Serialize + DeserializeOwned,
+    {
+        let path = path.as_ref();
+
+        let dir = path.parent().with_context(|| {
+            format!(
+                "Config path does not have a valid parent dir: '{}'",
+                path.display()
+            )
+        })?;
+
+        fs::create_dir_all(dir)
+            .with_context(|| format!("Failed to create dir: '{}'", dir.display()))?;
+
+        let config = OpenOptions::new()
+            .write(true)
+            .create(true)
+            .truncate(true)
+            .open(path)
+            .with_context(|| format!("Failed to open file: '{}'", path.display()))?;
+
+        serde_json::to_writer_pretty(config, &value)
+            .with_context(|| format!("Failed to serialize data: '{}'", path.display()))?;
+
+        Ok(())
+    }
+
+    fn read<T>(path: impl AsRef<Path>) -> AnyResult<T>
+    where
+        T: Serialize + DeserializeOwned,
+    {
+        let path = path.as_ref();
+        let mut value = String::new();
+        {
+            let mut config = OpenOptions::new()
+                .read(true)
+                .open(path)
+                .with_context(|| format!("Failed to open path '{}'", path.display()))?;
+            config.read_to_string(&mut value)?;
+        }
+        let value = serde_json::from_str::<T>(&value)?;
+        Ok(value)
+    }
+
+    fn read_or_create<T>(path: impl AsRef<Path>) -> AnyResult<T>
+    where
+        T: Default + Serialize + DeserializeOwned,
+    {
+        let path = path.as_ref();
+        match Self::read::<T>(path) {
+            Ok(value) => Ok(value),
+            Err(e) => {
+                debug!("Could not load config: {}", e);
+                info!("Creating a default config: '{}'", path.display());
+                Self::write(&T::default(), path).context("Failed to create config file")?;
+                Ok(T::default())
+            },
+        }
+    }
+}
+
+pub trait Object = Any + Send + 'static;
+type NameMap = HashMap<TypeId, &'static str>;
+type DataMap = HashMap<TypeId, Box<dyn Object>>;
+type PathMap = HashMap<PathBuf, DataMap>;
+
+/// Configuration data storage.
+#[derive(Debug, Default)]
+pub struct Storage {
+    names: NameMap,
+    data: Mutex<PathMap>,
+}
+
+impl Storage {
+    const GLOBAL: &str = "./data/global/";
+    const GUILDS: &str = "./data/guilds/";
+
+    /// Get global storage.
+    ///
+    /// # Panics
+    /// If something goes wrong with internal mutex.
+    pub fn global(&self) -> Directory {
+        Directory {
+            path: PathBuf::from(Self::GLOBAL),
+            names: &self.names,
+            data: self.data.lock().unwrap(),
+        }
+    }
+
+    /// Get guild storage by id.
+    ///
+    /// # Panics
+    /// If something goes wrong with internal mutex.
+    pub fn by_guild_id(&self, guild_id: Id<GuildMarker>) -> Directory {
+        Directory {
+            path: PathBuf::from(format!("{}{guild_id}/", Self::GUILDS)),
+            names: &self.names,
+            data: self.data.lock().unwrap(),
+        }
+    }
+
+    /// Bind a type to a config name.
+    ///
+    /// # Errors
+    /// If type is already bound to a name.
+    pub fn bind<T: 'static>(&mut self, name: &'static str) -> AnyResult<()> {
+        let id = TypeId::of::<T>();
+        let ty_name = any::type_name::<T>();
+        match self.names.entry(id) {
+            Entry::Occupied(o) => Err(anyhow::anyhow!(
+                "Cannot map config name '{name}' to type '{ty_name}', because the type is already \
+                 mapped with a different name '{other}'",
+                other = o.get()
+            )),
+            Entry::Vacant(v) => {
+                v.insert(name);
+                Ok(())
+            },
+        }
+    }
+
+    /// Returns self as a result of storage bindings validation.
+    pub fn validated(self) -> AnyResult<Self> {
+        let mut seen = HashSet::new();
+        self.names
+            .values()
+            .find(|&n| !seen.insert(n))
+            .map(|n| Err(anyhow::anyhow!("Duplicate config name found '{n}'")))
+            .unwrap_or(Ok(self))
+    }
+}
+
+/// Represents a directory of configs on disk.
+///
+/// # Notes
+/// This holds an internal mutex lock to original storage.
+pub struct Directory<'a> {
+    path: PathBuf,
+    names: &'a NameMap,
+    data: MutexGuard<'a, PathMap>,
+}
+
+impl Directory<'_> {
+    /// Returns a reference to a type from memory, if it exists.
+    pub fn get<T>(&self) -> Option<&T>
+    where
+        T: Object,
+    {
+        let id = TypeId::of::<T>();
+        self.data
+            .get(&self.path)
+            .and_then(|d| d.get(&id))
+            .and_then(|d| d.downcast_ref())
+    }
+
+    /// Returns a mutable reference to a type from memory, if it exists.
+    pub fn get_mut<T>(&mut self) -> Option<&mut T>
+    where
+        T: Object,
+    {
+        let id = TypeId::of::<T>();
+        self.data
+            .get_mut(&self.path)
+            .and_then(|d| d.get_mut(&id))
+            .and_then(|d| d.downcast_mut())
+    }
+
+    /// Get file path of the config, if valid.
+    pub fn path<T>(&self) -> AnyResult<PathBuf>
+    where
+        T: Object,
+    {
+        let id = TypeId::of::<T>();
+        let ty_name = any::type_name::<T>();
+        let name = self
+            .names
+            .get(&id)
+            .with_context(|| format!("Missing config file name for '{ty_name}'"))?;
+        let mut path = self.path.join(name);
+        path.set_extension("json");
+        Ok(path)
+    }
+
+    /// Save a type value and write config.
+    pub fn save<T>(&mut self, value: T) -> AnyResult<()>
+    where
+        T: Serialize + DeserializeOwned + Object,
+    {
+        let path = self.path::<T>()?;
+        Config::write(&value, path)?;
+        let id = TypeId::of::<T>();
+        self.data
+            .entry(self.path.clone())
+            .or_default()
+            .insert(id, Box::new(value));
+        Ok(())
+    }
+
+    /// Write config from memory, if present.
+    pub fn save_from_memory<T>(&self) -> AnyResult<()>
+    where
+        T: Default + Serialize + DeserializeOwned + Object,
+    {
+        let path = self.path::<T>()?;
+        let ty_name = any::type_name::<T>();
+        let value = self
+            .get::<T>()
+            .with_context(|| format!("Value not found for '{ty_name}'"))?;
+        Config::write(value, path)?;
+        Ok(())
+    }
+
+    /// Get a type from memory, otherwise try load from config file.
+    pub fn load<T>(&mut self) -> AnyResult<&T>
+    where
+        T: Serialize + DeserializeOwned + Object,
+    {
+        self.load_with::<T, &T>(|path| Config::read::<T>(path), |s| s.get::<T>())
+    }
+
+    /// Get a type from memory, otherwise try load from config file.
+    /// If not found, create default.
+    pub fn load_or_default<T>(&mut self) -> AnyResult<&T>
+    where
+        T: Default + Serialize + DeserializeOwned + Object,
+    {
+        self.load_with::<T, &T>(|path| Config::read_or_create::<T>(path), |s| s.get::<T>())
+    }
+
+    /// Get a type from memory, otherwise try load from config file.
+    /// If not found, create default.
+    pub fn load_or_default_mut<T>(&mut self) -> AnyResult<&mut T>
+    where
+        T: Default + Serialize + DeserializeOwned + Object,
+    {
+        self.load_with::<T, &mut T>(
+            |path| Config::read_or_create::<T>(path),
+            |s| s.get_mut::<T>(),
+        )
+    }
+
+    /// Load using a function to get the value.
+    fn load_with<'a, T, R>(
+        &'a mut self,
+        reader: impl Fn(PathBuf) -> AnyResult<T>,
+        out: impl Fn(&'a mut Self) -> Option<R>,
+    ) -> AnyResult<R>
+    where
+        T: Object,
+    {
+        if self.get::<T>().is_none() {
+            let path = self.path::<T>()?;
+            let value = reader(path).context("Failed to read config file")?;
+            let id = TypeId::of::<T>();
+            self.data
+                .entry(self.path.clone())
+                .or_default()
+                .insert(id, Box::new(value));
+        }
+
+        let ty_name = any::type_name::<T>();
+        out(self).with_context(|| format!("Value not found for '{ty_name}'"))
+    }
+}
