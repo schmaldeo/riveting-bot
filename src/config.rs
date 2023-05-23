@@ -6,6 +6,7 @@ use std::io::prelude::*;
 use std::mem;
 use std::path::Path;
 
+use derive_more::{Deref, DerefMut};
 use serde::{Deserialize, Serialize};
 use twilight_model::channel::message::ReactionType;
 use twilight_model::id::marker::{ChannelMarker, GuildMarker, MessageMarker, RoleMarker};
@@ -18,43 +19,28 @@ use crate::{config, parser, utils};
 pub const CONFIG_FILE: &str = "./data/bot.json";
 pub const GUILD_CONFIG_DIR: &str = "./data/guilds/";
 
-/// Returns the default command prefix string.
-fn default_prefix() -> String {
-    String::from("!")
-}
-
 /// Returns a key which can be used to access reaction-roles mappings in `Settings`.
 pub fn reaction_roles_key(channel_id: Id<ChannelMarker>, message_id: Id<MessageMarker>) -> String {
     format!("{channel_id}.{message_id}")
 }
 
 /// General settings for the bot.
-#[derive(Deserialize, Serialize, Debug, Clone)]
+#[derive(Deserialize, Serialize, Debug, Default, Clone)]
 pub struct Settings {
     #[serde(default)]
-    pub prefix: String,
+    pub prefix: Prefix,
     #[serde(default)]
     pub aliases: HashMap<String, String>,
     #[serde(default)]
     pub reaction_roles: HashMap<String, Vec<ReactionRole>>,
 }
 
-impl Default for Settings {
-    fn default() -> Self {
-        Self {
-            prefix: default_prefix(),
-            aliases: HashMap::new(),
-            reaction_roles: HashMap::new(),
-        }
-    }
-}
-
 /// Serializable bot configuration.
 #[derive(Deserialize, Serialize, Debug, Default, Clone)]
 pub struct Config {
     /// Global prefix.
-    #[serde(default = "default_prefix")]
-    pub prefix: String,
+    #[serde(default)]
+    pub prefix: Prefix,
 
     /// Whitelisted guilds, disabled if `None`.
     #[serde(default)]
@@ -354,5 +340,15 @@ impl ReactionRole {
 impl PartialEq for ReactionRole {
     fn eq(&self, other: &Self) -> bool {
         utils::reaction_type_eq(&self.emoji, &other.emoji) && self.role == other.role
+    }
+}
+
+/// Bot classic command prefix.
+#[derive(Deserialize, Serialize, Debug, Clone, Deref, DerefMut)]
+pub struct Prefix(String);
+
+impl Default for Prefix {
+    fn default() -> Self {
+        Prefix(String::from("!"))
     }
 }
