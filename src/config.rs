@@ -5,6 +5,7 @@ use std::fs::{self, OpenOptions};
 use std::io::prelude::*;
 use std::mem;
 use std::path::Path;
+use std::sync::Arc;
 
 use derive_more::{Deref, DerefMut};
 use serde::{Deserialize, Serialize};
@@ -13,6 +14,7 @@ use twilight_model::id::marker::{ChannelMarker, GuildMarker, MessageMarker, Role
 use twilight_model::id::Id;
 
 use crate::commands::CommandError;
+use crate::storage::Storage;
 use crate::utils::prelude::*;
 use crate::{config, parser, utils};
 
@@ -351,4 +353,48 @@ impl Default for Prefix {
     fn default() -> Self {
         Prefix(String::from("!"))
     }
+}
+
+/// Serializable bot configuration.
+#[derive(Deserialize, Serialize, Debug, Default, Clone)]
+pub struct BotSettings {
+    /// Global prefix.
+    #[serde(default)]
+    pub prefix: Prefix,
+
+    /// Whitelisted guilds, disabled if `None`.
+    #[serde(default)]
+    pub whitelist: Option<HashSet<Id<GuildMarker>>>,
+}
+
+pub struct BotConfig {
+    storage: Arc<Storage>,
+}
+
+impl BotConfig {
+    /// Save a reaction-role configuration.
+    pub fn save_reaction_roles(
+        &self,
+        guild_id: Id<GuildMarker>,
+        channel_id: Id<ChannelMarker>,
+        message_id: Id<MessageMarker>,
+        map: Vec<ReactionRole>,
+    ) -> AnyResult<()> {
+        let mut guild = self.storage.by_guild_id(guild_id);
+        let settings = guild.load_or_default_mut::<Settings>()?;
+
+        let key = config::reaction_roles_key(channel_id, message_id);
+        settings.reaction_roles.insert(key, map);
+
+        guild.save_from_memory::<Settings>()
+    }
+}
+
+pub(super) fn setup_storage() -> AnyResult<Storage> {
+    let mut storage = Storage::default();
+
+    storage.bind::<Settings>("settings")?;
+    storage.bind::<BotSettings>("bot")?;
+
+    storage.validated()
 }
