@@ -166,6 +166,7 @@ impl Storage {
 ///
 /// # Notes
 /// This holds a mutex lock to the original storage.
+#[derive(Debug)]
 pub struct Directory<'a> {
     dir: PathBuf,
     names: &'a NameMap,

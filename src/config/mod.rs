@@ -4,12 +4,13 @@ use std::collections::hash_map::Entry;
 use std::collections::{HashMap, HashSet};
 use std::fs::{self, OpenOptions};
 use std::io::prelude::*;
-use std::mem;
 use std::path::Path;
+use std::{any, mem};
 
 use derive_more::{Deref, DerefMut};
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
+use thiserror::Error;
 use twilight_model::channel::message::ReactionType;
 use twilight_model::id::marker::{ChannelMarker, GuildMarker, MessageMarker, RoleMarker};
 use twilight_model::id::Id;
@@ -370,9 +371,132 @@ pub struct BotSettings {
     pub whitelist: Option<HashSet<Id<GuildMarker>>>,
 }
 
-#[derive(Deserialize, Serialize, Debug, Default, Clone)]
-pub struct Custom {
-    data: HashMap<String, serde_json::Value>,
+/// Custom data.
+#[derive(Deserialize, Serialize, Debug, Default, Clone, Deref, DerefMut)]
+pub struct Custom(HashMap<String, serde_json::Value>);
+
+/// Error for when data does not match type.
+#[derive(Debug, Error)]
+#[error("Custom data with name '{name}' is not compatible with type '{ty_name}'")]
+struct IncompatibleTypeError {
+    ty_name: &'static str,
+    name: String,
+}
+
+impl IncompatibleTypeError {
+    fn new<T>(name: &str) -> Self {
+        Self {
+            ty_name: any::type_name::<T>(),
+            name: name.to_string(),
+        }
+    }
+}
+
+/// Custom data entry guard.
+#[derive(Debug)]
+pub struct CustomEntry<'a> {
+    dir: Directory<'a>,
+}
+
+impl<'a> CustomEntry<'a> {
+    /// Create a new custom entry guard.
+    pub const fn new(dir: Directory<'a>) -> Self {
+        Self { dir }
+    }
+
+    /// Get custom data, if exists.
+    pub fn get<T>(&self, name: &str) -> AnyResult<T>
+    where
+        T: DeserializeOwned,
+    {
+        self.dir
+            .get::<Custom>()
+            .with_context(|| format!("Custom data with name '{name}' is not loaded"))
+            .and_then(|c| {
+                c.get(name)
+                    .with_context(|| format!("No custom data with name '{name}' found"))
+            })
+            .and_then(|v| serde_json::from_value(v.to_owned()).map_err(Into::into))
+    }
+
+    /// Force save custom data.
+    pub fn overwrite<T>(&mut self, name: String, data: T) -> AnyResult<()>
+    where
+        T: Serialize,
+    {
+        self.save_with(|c| {
+            let value = serde_json::to_value(data)?;
+            c.insert(name, value);
+            Ok(())
+        })
+    }
+
+    /// Save custom data.
+    ///
+    /// # Errors
+    /// If previously saved data is not compatible with the type.
+    pub fn save<T>(&mut self, name: String, data: T) -> AnyResult<()>
+    where
+        T: Serialize + DeserializeOwned,
+    {
+        self.save_with(|c| {
+            if let Some(value) = c.remove(&name) {
+                serde_json::from_value::<T>(value)
+                    .with_context(|| IncompatibleTypeError::new::<T>(&name))?;
+            }
+            let value = serde_json::to_value(data)?;
+            c.insert(name, value);
+            Ok(())
+        })
+    }
+
+    /// Load custom data.
+    pub fn load<T>(&mut self, name: &str) -> AnyResult<T>
+    where
+        T: DeserializeOwned,
+    {
+        self.dir
+            .load::<Custom>()
+            .with_context(|| format!("Could not load custom data with name '{name}'"))
+            .and_then(|c| {
+                c.get(name)
+                    .with_context(|| format!("No custom data with name '{name}' found"))
+            })
+            .and_then(|v| {
+                serde_json::from_value(v.to_owned())
+                    .with_context(|| IncompatibleTypeError::new::<T>(name))
+            })
+    }
+
+    /// Load custom data or create default.
+    ///
+    /// # Errors
+    /// If loaded data is not compatible with the type.
+    pub fn load_or_default<T>(&mut self, name: String) -> AnyResult<T>
+    where
+        T: Default + Serialize + DeserializeOwned,
+    {
+        let value = match self
+            .dir
+            .load_or_default_mut::<Custom>()?
+            .entry(name.to_string())
+        {
+            Entry::Occupied(o) => o.get().to_owned(),
+            Entry::Vacant(v) => {
+                let value = serde_json::to_value(T::default())?;
+                v.insert(value.to_owned());
+                self.dir.save_from_memory::<Custom>()?;
+                value
+            },
+        };
+        serde_json::from_value(value).with_context(|| IncompatibleTypeError::new::<T>(&name))
+    }
+
+    /// Modify custom data with a function.
+    fn save_with(&mut self, f: impl FnOnce(&mut Custom) -> AnyResult<()>) -> AnyResult<()> {
+        self.dir.load_or_default_mut::<Custom>().and_then(f)?;
+        self.dir.save_from_memory::<Custom>()
+    }
 }
 
 #[derive(Debug)]
@@ -395,7 +519,7 @@ impl BotConfig {
     }
 
     /// Return a reference to the inner storage type.
-    pub fn inner(&self) -> &Storage {
+    pub const fn inner(&self) -> &Storage {
         &self.storage
     }
 
@@ -434,45 +558,9 @@ impl BotConfig {
         guild.save_from_memory::<Settings>()
     }
 
-    pub fn save_custom<T>(
-        &self,
-        guild_id: Option<Id<GuildMarker>>,
-        name: String,
-        data: T,
-    ) -> AnyResult<()>
-    where
-        T: Serialize,
-    {
-        self.directory(guild_id)
-            .load_or_default_mut::<Custom>()
-            .and_then(|c| match c.data.entry(name) {
-                Entry::Occupied(o) => {
-                    anyhow::bail!("Custom data name '{}' already in use", o.key())
-                },
-                Entry::Vacant(v) => {
-                    let value = serde_json::to_value(data)?;
-                    v.insert(value);
-                    Ok(())
-                },
-            })
-    }
-
-    pub fn load_custom<T>(
-        &self,
-        guild_id: Option<Id<GuildMarker>>,
-        name: impl AsRef<str>,
-    ) -> AnyResult<T>
-    where
-        T: DeserializeOwned,
-    {
-        self.directory(guild_id)
-            .load::<Custom>()
-            .and_then(|c| {
-                c.data
-                    .get(name.as_ref())
-                    .with_context(|| format!("No custom data with name '{}' found", name.as_ref()))
-            })
-            .and_then(|v| serde_json::from_value(v.to_owned()).map_err(Into::into))
+    /// Access custom data config.
+    pub fn custom_entry(&self, guild_id: Option<Id<GuildMarker>>) -> CustomEntry {
+        CustomEntry::new(self.directory(guild_id))
     }
 
     /// Returns global storage directory if `guild_id` is `None`,
