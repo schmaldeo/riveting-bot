@@ -1,5 +1,6 @@
 #![allow(dead_code)]
 
+use std::collections::hash_map::Entry;
 use std::collections::{HashMap, HashSet};
 use std::fs::{self, OpenOptions};
 use std::io::prelude::*;
@@ -8,13 +9,14 @@ use std::path::Path;
 use std::sync::Arc;
 
 use derive_more::{Deref, DerefMut};
+use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 use twilight_model::channel::message::ReactionType;
 use twilight_model::id::marker::{ChannelMarker, GuildMarker, MessageMarker, RoleMarker};
 use twilight_model::id::Id;
 
 use crate::commands::CommandError;
-use crate::storage::Storage;
+use crate::storage::{Directory, Storage};
 use crate::utils::prelude::*;
 use crate::{config, parser, utils};
 
@@ -358,7 +360,7 @@ impl Default for Prefix {
 /// Serializable bot configuration.
 #[derive(Deserialize, Serialize, Debug, Default, Clone)]
 pub struct BotSettings {
-    /// Global prefix.
+    /// Global classic command prefix.
     #[serde(default)]
     pub prefix: Prefix,
 
@@ -367,11 +369,42 @@ pub struct BotSettings {
     pub whitelist: Option<HashSet<Id<GuildMarker>>>,
 }
 
+#[derive(Deserialize, Serialize, Debug, Default, Clone)]
+pub struct Custom {
+    data: HashMap<String, serde_json::Value>,
+}
+
 pub struct BotConfig {
     storage: Arc<Storage>,
 }
 
 impl BotConfig {
+    pub fn new() -> AnyResult<Self> {
+        Ok(Self {
+            storage: Arc::new(setup_storage()?),
+        })
+    }
+
+    /// Return classic command prefix, either global prefix or a guild specific one.
+    pub fn classic_prefix(&self, guild_id: Option<Id<GuildMarker>>) -> AnyResult<Prefix> {
+        let global_prefix = || {
+            self.storage
+                .global()
+                .load_or_default::<BotSettings>()
+                .map(|s| s.prefix.to_owned())
+        };
+
+        let guild_prefix = |guild_id| {
+            self.storage
+                .by_guild_id(guild_id)
+                .load_or_default::<Settings>()
+                .map(|s| s.prefix.to_owned())
+                .or_else(|_| global_prefix())
+        };
+
+        guild_id.map_or_else(global_prefix, guild_prefix)
+    }
+
     /// Save a reaction-role configuration.
     pub fn save_reaction_roles(
         &self,
@@ -388,13 +421,61 @@ impl BotConfig {
 
         guild.save_from_memory::<Settings>()
     }
+
+    pub fn save_custom<T>(
+        &self,
+        guild_id: Option<Id<GuildMarker>>,
+        name: String,
+        data: T,
+    ) -> AnyResult<()>
+    where
+        T: Serialize,
+    {
+        let mut dir = self.directory(guild_id);
+        let custom = dir.load_or_default_mut::<Custom>()?;
+        match custom.data.entry(name) {
+            Entry::Occupied(o) => anyhow::bail!("Custom data name '{}' already in use", o.key()),
+            Entry::Vacant(v) => {
+                let value = serde_json::to_value(data)?;
+                v.insert(value);
+                Ok(())
+            },
+        }
+    }
+
+    pub fn load_custom<T>(
+        &self,
+        guild_id: Option<Id<GuildMarker>>,
+        name: impl AsRef<str>,
+    ) -> AnyResult<T>
+    where
+        T: DeserializeOwned,
+    {
+        let mut dir = self.directory(guild_id);
+        let custom = dir.load::<Custom>()?;
+        let value = custom
+            .data
+            .get(name.as_ref())
+            .with_context(|| format!("No custom data with name '{}' found", name.as_ref()))?;
+        serde_json::from_value(value.to_owned()).map_err(Into::into)
+    }
+
+    /// Returns global storage directory if `guild_id` is `None`,
+    /// otherwise returns guild storage directory by guild id.
+    fn directory(&self, guild_id: Option<Id<GuildMarker>>) -> Directory {
+        guild_id.map_or_else(
+            || self.storage.global(),
+            |guild_id| self.storage.by_guild_id(guild_id),
+        )
+    }
 }
 
 pub(super) fn setup_storage() -> AnyResult<Storage> {
     let mut storage = Storage::default();
 
-    storage.bind::<Settings>("settings")?;
     storage.bind::<BotSettings>("bot")?;
+    storage.bind::<Settings>("settings")?;
+    storage.bind::<Custom>("custom")?;
 
     storage.validated()
 }
