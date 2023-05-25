@@ -78,6 +78,10 @@ impl Config {
             },
         }
     }
+
+    fn extension() -> &'static str {
+        "json"
+    }
 }
 
 pub trait Object = Any + Send + 'static;
@@ -106,7 +110,7 @@ impl Storage {
     /// If something goes wrong with internal mutex.
     pub fn global(&self) -> Directory {
         Directory {
-            path: PathBuf::from(Self::GLOBAL),
+            dir: PathBuf::from(Self::GLOBAL),
             names: &self.names,
             data: self.data.lock().unwrap(),
         }
@@ -121,7 +125,7 @@ impl Storage {
     /// If something goes wrong with internal mutex.
     pub fn by_guild_id(&self, guild_id: Id<GuildMarker>) -> Directory {
         Directory {
-            path: PathBuf::from(format!("{}{guild_id}/", Self::GUILDS)),
+            dir: PathBuf::from(format!("{}{guild_id}/", Self::GUILDS)),
             names: &self.names,
             data: self.data.lock().unwrap(),
         }
@@ -163,7 +167,7 @@ impl Storage {
 /// # Notes
 /// This holds a mutex lock to the original storage.
 pub struct Directory<'a> {
-    path: PathBuf,
+    dir: PathBuf,
     names: &'a NameMap,
     data: MutexGuard<'a, PathMap>,
 }
@@ -176,7 +180,7 @@ impl Directory<'_> {
     {
         let id = TypeId::of::<T>();
         self.data
-            .get(&self.path)
+            .get(&self.dir)
             .and_then(|d| d.get(&id))
             .and_then(|d| d.downcast_ref())
     }
@@ -188,7 +192,7 @@ impl Directory<'_> {
     {
         let id = TypeId::of::<T>();
         self.data
-            .get_mut(&self.path)
+            .get_mut(&self.dir)
             .and_then(|d| d.get_mut(&id))
             .and_then(|d| d.downcast_mut())
     }
@@ -204,8 +208,8 @@ impl Directory<'_> {
             .names
             .get(&id)
             .with_context(|| format!("Missing config file name for '{ty_name}'"))
-            .map(|name| self.path.join(name))?;
-        path.set_extension("json");
+            .map(|name| self.dir.join(name))?;
+        path.set_extension(Config::extension());
         Ok(path)
     }
 
@@ -218,7 +222,7 @@ impl Directory<'_> {
             .and_then(|path| Config::write(&value, path))?;
         let id = TypeId::of::<T>();
         self.data
-            .entry(self.path.clone())
+            .entry(self.dir.to_owned())
             .or_default()
             .insert(id, Box::new(value));
         Ok(())
@@ -280,7 +284,7 @@ impl Directory<'_> {
             let value = reader(path).context("Failed to read config file")?;
             let id = TypeId::of::<T>();
             self.data
-                .entry(self.path.clone())
+                .entry(self.dir.to_owned())
                 .or_default()
                 .insert(id, Box::new(value));
         }

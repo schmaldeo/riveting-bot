@@ -6,7 +6,6 @@ use std::fs::{self, OpenOptions};
 use std::io::prelude::*;
 use std::mem;
 use std::path::Path;
-use std::sync::Arc;
 
 use derive_more::{Deref, DerefMut};
 use serde::de::DeserializeOwned;
@@ -16,9 +15,11 @@ use twilight_model::id::marker::{ChannelMarker, GuildMarker, MessageMarker, Role
 use twilight_model::id::Id;
 
 use crate::commands::CommandError;
-use crate::storage::{Directory, Storage};
+use crate::config::storage::{Directory, Storage};
 use crate::utils::prelude::*;
 use crate::{config, parser, utils};
+
+pub mod storage;
 
 pub const CONFIG_FILE: &str = "./data/bot.json";
 pub const GUILD_CONFIG_DIR: &str = "./data/guilds/";
@@ -374,15 +375,28 @@ pub struct Custom {
     data: HashMap<String, serde_json::Value>,
 }
 
+#[derive(Debug)]
 pub struct BotConfig {
-    storage: Arc<Storage>,
+    storage: Storage,
 }
 
 impl BotConfig {
+    /// Setup a new configuration.
     pub fn new() -> AnyResult<Self> {
+        let mut storage = Storage::default();
+
+        storage.bind::<BotSettings>("bot")?;
+        storage.bind::<Settings>("settings")?;
+        storage.bind::<Custom>("custom")?;
+
         Ok(Self {
-            storage: Arc::new(setup_storage()?),
+            storage: storage.validated()?,
         })
+    }
+
+    /// Return a reference to the inner storage type.
+    pub fn inner(&self) -> &Storage {
+        &self.storage
     }
 
     /// Return classic command prefix, either global prefix or a guild specific one.
@@ -469,14 +483,4 @@ impl BotConfig {
             |guild_id| self.storage.by_guild_id(guild_id),
         )
     }
-}
-
-pub fn setup_storage() -> AnyResult<Storage> {
-    let mut storage = Storage::default();
-
-    storage.bind::<BotSettings>("bot")?;
-    storage.bind::<Settings>("settings")?;
-    storage.bind::<Custom>("custom")?;
-
-    storage.validated()
 }
