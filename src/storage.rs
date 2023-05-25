@@ -19,7 +19,7 @@ struct Config;
 impl Config {
     fn write<T>(value: &T, path: impl AsRef<Path>) -> AnyResult<()>
     where
-        T: Serialize + DeserializeOwned,
+        T: Serialize,
     {
         let path = path.as_ref();
 
@@ -48,7 +48,7 @@ impl Config {
 
     fn read<T>(path: impl AsRef<Path>) -> AnyResult<T>
     where
-        T: Serialize + DeserializeOwned,
+        T: DeserializeOwned,
     {
         let path = path.as_ref();
         let mut value = String::new();
@@ -81,6 +81,7 @@ impl Config {
 }
 
 pub trait Object = Any + Send + 'static;
+pub trait Storable = Serialize + DeserializeOwned + Object;
 type NameMap = HashMap<TypeId, &'static str>;
 type DataMap = HashMap<TypeId, Box<dyn Object>>;
 type PathMap = HashMap<PathBuf, DataMap>;
@@ -98,6 +99,9 @@ impl Storage {
 
     /// Get global storage.
     ///
+    /// # Notes
+    /// Returned `Directory` holds a mutex lock to `self`.
+    ///
     /// # Panics
     /// If something goes wrong with internal mutex.
     pub fn global(&self) -> Directory {
@@ -108,7 +112,10 @@ impl Storage {
         }
     }
 
-    /// Get guild storage by id.
+    /// Get guild storage by id.  
+    ///
+    /// # Notes
+    /// Returned `Directory` holds a mutex lock to `self`.
     ///
     /// # Panics
     /// If something goes wrong with internal mutex.
@@ -145,7 +152,7 @@ impl Storage {
         let mut seen = HashSet::new();
         self.names
             .values()
-            .find(|&n| !seen.insert(n))
+            .find(|&n| !seen.insert(n.to_lowercase()))
             .map(|n| Err(anyhow::anyhow!("Duplicate config name found '{n}'")))
             .unwrap_or(Ok(self))
     }
@@ -154,7 +161,7 @@ impl Storage {
 /// Represents a directory of configs on disk.
 ///
 /// # Notes
-/// This holds an internal mutex lock to original storage.
+/// This holds a mutex lock to the original storage.
 pub struct Directory<'a> {
     path: PathBuf,
     names: &'a NameMap,
@@ -165,7 +172,7 @@ impl Directory<'_> {
     /// Returns a reference to a type from memory, if it exists.
     pub fn get<T>(&self) -> Option<&T>
     where
-        T: Object,
+        T: Storable,
     {
         let id = TypeId::of::<T>();
         self.data
@@ -177,7 +184,7 @@ impl Directory<'_> {
     /// Returns a mutable reference to a type from memory, if it exists.
     pub fn get_mut<T>(&mut self) -> Option<&mut T>
     where
-        T: Object,
+        T: Storable,
     {
         let id = TypeId::of::<T>();
         self.data
@@ -189,15 +196,15 @@ impl Directory<'_> {
     /// Get file path of the config, if valid.
     pub fn path<T>(&self) -> AnyResult<PathBuf>
     where
-        T: Object,
+        T: Storable,
     {
         let id = TypeId::of::<T>();
         let ty_name = any::type_name::<T>();
-        let name = self
+        let mut path = self
             .names
             .get(&id)
-            .with_context(|| format!("Missing config file name for '{ty_name}'"))?;
-        let mut path = self.path.join(name);
+            .with_context(|| format!("Missing config file name for '{ty_name}'"))
+            .map(|name| self.path.join(name))?;
         path.set_extension("json");
         Ok(path)
     }
@@ -205,10 +212,10 @@ impl Directory<'_> {
     /// Save a type value and write config.
     pub fn save<T>(&mut self, value: T) -> AnyResult<()>
     where
-        T: Serialize + DeserializeOwned + Object,
+        T: Storable,
     {
-        let path = self.path::<T>()?;
-        Config::write(&value, path)?;
+        self.path::<T>()
+            .and_then(|path| Config::write(&value, path))?;
         let id = TypeId::of::<T>();
         self.data
             .entry(self.path.clone())
@@ -220,21 +227,20 @@ impl Directory<'_> {
     /// Write config from memory, if present.
     pub fn save_from_memory<T>(&self) -> AnyResult<()>
     where
-        T: Default + Serialize + DeserializeOwned + Object,
+        T: Default + Storable,
     {
-        let path = self.path::<T>()?;
         let ty_name = any::type_name::<T>();
-        let value = self
-            .get::<T>()
-            .with_context(|| format!("Value not found for '{ty_name}'"))?;
-        Config::write(value, path)?;
-        Ok(())
+        Config::write(
+            self.get::<T>()
+                .with_context(|| format!("Value not found for '{ty_name}'"))?,
+            self.path::<T>()?,
+        )
     }
 
     /// Get a type from memory, otherwise try load from config file.
     pub fn load<T>(&mut self) -> AnyResult<&T>
     where
-        T: Serialize + DeserializeOwned + Object,
+        T: Storable,
     {
         self.load_with::<T, &T>(|path| Config::read::<T>(path), |s| s.get::<T>())
     }
@@ -243,7 +249,7 @@ impl Directory<'_> {
     /// If not found, create default.
     pub fn load_or_default<T>(&mut self) -> AnyResult<&T>
     where
-        T: Default + Serialize + DeserializeOwned + Object,
+        T: Default + Storable,
     {
         self.load_with::<T, &T>(|path| Config::read_or_create::<T>(path), |s| s.get::<T>())
     }
@@ -252,7 +258,7 @@ impl Directory<'_> {
     /// If not found, create default.
     pub fn load_or_default_mut<T>(&mut self) -> AnyResult<&mut T>
     where
-        T: Default + Serialize + DeserializeOwned + Object,
+        T: Default + Storable,
     {
         self.load_with::<T, &mut T>(
             |path| Config::read_or_create::<T>(path),
@@ -267,7 +273,7 @@ impl Directory<'_> {
         out: impl Fn(&'a mut Self) -> Option<R>,
     ) -> AnyResult<R>
     where
-        T: Object,
+        T: Storable,
     {
         if self.get::<T>().is_none() {
             let path = self.path::<T>()?;

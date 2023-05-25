@@ -338,7 +338,8 @@ async fn handle_event(ctx: Context, event: Event) -> AnyResult<()> {
 async fn handle_hello(ctx: &Context, hbi: u64) -> AnyResult<()> {
     info!(
         "Connected on shard {} with a heartbeat of {hbi}",
-        ctx.shard.ok_or(anyhow::anyhow!("Missing shard id"))?
+        ctx.shard
+            .ok_or_else(|| anyhow::anyhow!("Missing shard id"))?
     );
     Ok(())
 }

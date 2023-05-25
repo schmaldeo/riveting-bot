@@ -353,7 +353,7 @@ pub struct Prefix(String);
 
 impl Default for Prefix {
     fn default() -> Self {
-        Prefix(String::from("!"))
+        Self(String::from("!"))
     }
 }
 
@@ -415,10 +415,8 @@ impl BotConfig {
     ) -> AnyResult<()> {
         let mut guild = self.storage.by_guild_id(guild_id);
         let settings = guild.load_or_default_mut::<Settings>()?;
-
         let key = config::reaction_roles_key(channel_id, message_id);
         settings.reaction_roles.insert(key, map);
-
         guild.save_from_memory::<Settings>()
     }
 
@@ -431,16 +429,18 @@ impl BotConfig {
     where
         T: Serialize,
     {
-        let mut dir = self.directory(guild_id);
-        let custom = dir.load_or_default_mut::<Custom>()?;
-        match custom.data.entry(name) {
-            Entry::Occupied(o) => anyhow::bail!("Custom data name '{}' already in use", o.key()),
-            Entry::Vacant(v) => {
-                let value = serde_json::to_value(data)?;
-                v.insert(value);
-                Ok(())
-            },
-        }
+        self.directory(guild_id)
+            .load_or_default_mut::<Custom>()
+            .and_then(|c| match c.data.entry(name) {
+                Entry::Occupied(o) => {
+                    anyhow::bail!("Custom data name '{}' already in use", o.key())
+                },
+                Entry::Vacant(v) => {
+                    let value = serde_json::to_value(data)?;
+                    v.insert(value);
+                    Ok(())
+                },
+            })
     }
 
     pub fn load_custom<T>(
@@ -451,13 +451,14 @@ impl BotConfig {
     where
         T: DeserializeOwned,
     {
-        let mut dir = self.directory(guild_id);
-        let custom = dir.load::<Custom>()?;
-        let value = custom
-            .data
-            .get(name.as_ref())
-            .with_context(|| format!("No custom data with name '{}' found", name.as_ref()))?;
-        serde_json::from_value(value.to_owned()).map_err(Into::into)
+        self.directory(guild_id)
+            .load::<Custom>()
+            .and_then(|c| {
+                c.data
+                    .get(name.as_ref())
+                    .with_context(|| format!("No custom data with name '{}' found", name.as_ref()))
+            })
+            .and_then(|v| serde_json::from_value(v.to_owned()).map_err(Into::into))
     }
 
     /// Returns global storage directory if `guild_id` is `None`,
@@ -470,7 +471,7 @@ impl BotConfig {
     }
 }
 
-pub(super) fn setup_storage() -> AnyResult<Storage> {
+pub fn setup_storage() -> AnyResult<Storage> {
     let mut storage = Storage::default();
 
     storage.bind::<BotSettings>("bot")?;
