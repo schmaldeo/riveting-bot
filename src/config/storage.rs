@@ -9,6 +9,7 @@ use std::sync::{Mutex, MutexGuard};
 
 use serde::de::DeserializeOwned;
 use serde::Serialize;
+use thiserror::Error;
 use twilight_model::id::marker::GuildMarker;
 use twilight_model::id::Id;
 
@@ -79,7 +80,7 @@ impl Config {
         }
     }
 
-    fn extension() -> &'static str {
+    const fn extension() -> &'static str {
         "json"
     }
 }
@@ -162,6 +163,15 @@ impl Storage {
     }
 }
 
+#[derive(Debug, Error)]
+#[error("Value not found for type '{0}'")]
+struct ValueNotFoundError(&'static str);
+impl ValueNotFoundError {
+    fn new<T>() -> Self {
+        Self(any::type_name::<T>())
+    }
+}
+
 /// Represents a directory of configs on disk.
 ///
 /// # Notes
@@ -234,12 +244,30 @@ impl Directory<'_> {
     where
         T: Default + Storable,
     {
-        let ty_name = any::type_name::<T>();
         Config::write(
             self.get::<T>()
-                .with_context(|| format!("Value not found for '{ty_name}'"))?,
+                .with_context(|| ValueNotFoundError::new::<T>())?,
             self.path::<T>()?,
         )
+    }
+
+    /// Modify a type value with a function and write config.
+    pub fn save_with<T, R>(&mut self, f: impl FnOnce(&mut T) -> AnyResult<R>) -> AnyResult<R>
+    where
+        T: Default + Storable,
+    {
+        self.load_or_default_mut::<T>().and_then(f).and_then(|r| {
+            self.save_from_memory::<T>()?;
+            Ok(r)
+        })
+    }
+
+    /// Access a type value with a function.
+    pub fn read_with<T, R>(&mut self, f: impl Fn(&T) -> AnyResult<R>) -> AnyResult<R>
+    where
+        T: Storable,
+    {
+        self.load::<T>().and_then(f)
     }
 
     /// Get a type from memory, otherwise try load from config file.
@@ -289,8 +317,6 @@ impl Directory<'_> {
                 .or_default()
                 .insert(id, Box::new(value));
         }
-
-        let ty_name = any::type_name::<T>();
-        out(self).with_context(|| format!("Value not found for '{ty_name}'"))
+        out(self).with_context(|| ValueNotFoundError::new::<T>())
     }
 }

@@ -359,6 +359,8 @@ impl Default for Prefix {
     }
 }
 
+pub type Whitelist = HashSet<Id<GuildMarker>>;
+
 /// Serializable bot configuration.
 #[derive(Deserialize, Serialize, Debug, Default, Clone)]
 pub struct BotSettings {
@@ -368,7 +370,7 @@ pub struct BotSettings {
 
     /// Whitelisted guilds, disabled if `None`.
     #[serde(default)]
-    pub whitelist: Option<HashSet<Id<GuildMarker>>>,
+    pub whitelist: Option<Whitelist>,
 }
 
 /// Custom data.
@@ -493,9 +495,101 @@ impl<'a> CustomEntry<'a> {
     }
 
     /// Modify custom data with a function.
-    fn save_with(&mut self, f: impl FnOnce(&mut Custom) -> AnyResult<()>) -> AnyResult<()> {
-        self.dir.load_or_default_mut::<Custom>().and_then(f)?;
-        self.dir.save_from_memory::<Custom>()
+    fn save_with<R>(&mut self, f: impl FnOnce(&mut Custom) -> AnyResult<R>) -> AnyResult<R> {
+        self.dir.save_with(f)
+    }
+}
+
+/// Global data entry guard.
+#[derive(Debug)]
+pub struct Global<'a> {
+    dir: Directory<'a>,
+}
+
+impl<'a> Global<'a> {
+    pub const fn new(dir: Directory<'a>) -> Self {
+        Self { dir }
+    }
+
+    pub fn bot_settings(&mut self) -> AnyResult<&BotSettings> {
+        self.dir.load_or_default()
+    }
+
+    pub fn whitelist(&mut self) -> AnyResult<&Option<Whitelist>> {
+        Ok(&self.bot_settings()?.whitelist)
+    }
+
+    pub fn classic_prefix(&mut self) -> AnyResult<&Prefix> {
+        Ok(&self.bot_settings()?.prefix)
+    }
+}
+
+/// Guild data entry guard.
+#[derive(Debug)]
+pub struct Guild<'a> {
+    dir: Directory<'a>,
+    guild_id: Id<GuildMarker>,
+}
+
+impl<'a> Guild<'a> {
+    pub const fn new(dir: Directory<'a>, guild_id: Id<GuildMarker>) -> Self {
+        Self { dir, guild_id }
+    }
+
+    pub fn settings(&mut self) -> AnyResult<&Settings> {
+        self.dir.load_or_default()
+    }
+
+    pub fn classic_prefix(&mut self) -> AnyResult<&Prefix> {
+        Ok(&self.settings()?.prefix)
+    }
+
+    /// Get a reaction-roles configuration.
+    pub fn reaction_roles(
+        &mut self,
+        channel_id: Id<ChannelMarker>,
+        message_id: Id<MessageMarker>,
+    ) -> AnyResult<Vec<ReactionRole>> {
+        self.dir
+            .load::<Settings>()
+            .and_then(|s| {
+                let key = config::reaction_roles_key(channel_id, message_id);
+                s.reaction_roles.get(&key).with_context(|| {
+                    format!(
+                        "No reaction-roles found for guild '{guild_id}' on channel '{channel_id}' \
+                         with message '{message_id}'",
+                        guild_id = self.guild_id
+                    )
+                })
+            })
+            .cloned()
+    }
+
+    /// Add a reaction-role configuration.
+    pub fn add_reaction_roles(
+        &mut self,
+        channel_id: Id<ChannelMarker>,
+        message_id: Id<MessageMarker>,
+        map: Vec<ReactionRole>,
+    ) -> AnyResult<()> {
+        self.dir.save_with::<Settings, _>(|s| {
+            let key = config::reaction_roles_key(channel_id, message_id);
+            s.reaction_roles.insert(key, map);
+            Ok(())
+        })
+    }
+
+    /// Remove a reaction-role configuration.
+    pub fn remove_reaction_roles(
+        &mut self,
+        channel_id: Id<ChannelMarker>,
+        message_id: Id<MessageMarker>,
+    ) -> AnyResult<()> {
+        self.dir.save_with::<Settings, _>(|s| {
+            let key = config::reaction_roles_key(channel_id, message_id);
+            s.reaction_roles.remove(&key);
+            Ok(())
+        })
     }
 }
 
@@ -523,44 +617,55 @@ impl BotConfig {
         &self.storage
     }
 
-    /// Return classic command prefix, either global prefix or a guild specific one.
-    pub fn classic_prefix(&self, guild_id: Option<Id<GuildMarker>>) -> AnyResult<Prefix> {
-        let global_prefix = || {
-            self.storage
-                .global()
-                .load_or_default::<BotSettings>()
-                .map(|s| s.prefix.to_owned())
-        };
-
-        let guild_prefix = |guild_id| {
-            self.storage
-                .by_guild_id(guild_id)
-                .load_or_default::<Settings>()
-                .map(|s| s.prefix.to_owned())
-                .or_else(|_| global_prefix())
-        };
-
-        guild_id.map_or_else(global_prefix, guild_prefix)
+    /// Return general bot configuration directory.
+    pub fn global(&self) -> Global {
+        Global::new(self.storage.global())
     }
 
-    /// Save a reaction-role configuration.
-    pub fn save_reaction_roles(
+    /// Return guild configuration directory.
+    pub fn guild(&self, guild_id: Id<GuildMarker>) -> Guild {
+        Guild::new(self.storage.by_guild_id(guild_id), guild_id)
+    }
+
+    /// Modify global settings with a function.
+    /// This method will save the changes to file and then returns
+    /// with the return type of the closure.
+    pub fn global_settings_with<R>(
+        &self,
+        f: impl Fn(&mut BotSettings) -> AnyResult<R>,
+    ) -> AnyResult<R> {
+        self.storage.global().save_with(f)
+    }
+
+    /// Modify guild settings with a function.
+    /// This method will save the changes to file and then returns
+    /// with the return type of the closure.
+    pub fn guild_settings_with<R>(
         &self,
         guild_id: Id<GuildMarker>,
-        channel_id: Id<ChannelMarker>,
-        message_id: Id<MessageMarker>,
-        map: Vec<ReactionRole>,
-    ) -> AnyResult<()> {
-        let mut guild = self.storage.by_guild_id(guild_id);
-        let settings = guild.load_or_default_mut::<Settings>()?;
-        let key = config::reaction_roles_key(channel_id, message_id);
-        settings.reaction_roles.insert(key, map);
-        guild.save_from_memory::<Settings>()
+        f: impl Fn(&mut Settings) -> AnyResult<R>,
+    ) -> AnyResult<R> {
+        self.storage.by_guild_id(guild_id).save_with(f)
     }
 
     /// Access custom data config.
     pub fn custom_entry(&self, guild_id: Option<Id<GuildMarker>>) -> CustomEntry {
         CustomEntry::new(self.directory(guild_id))
+    }
+
+    /// Return classic command prefix, either global prefix or a guild specific one.
+    pub fn classic_prefix(&self, guild_id: Option<Id<GuildMarker>>) -> AnyResult<Prefix> {
+        let global_prefix = || self.global().classic_prefix().map(ToOwned::to_owned);
+
+        let guild_prefix = |guild_id| {
+            self.guild(guild_id)
+                .classic_prefix()
+                .map(ToOwned::to_owned)
+                .map_err(|e| debug!("{e}"))
+                .or_else(|_| global_prefix())
+        };
+
+        guild_id.map_or_else(global_prefix, guild_prefix)
     }
 
     /// Returns global storage directory if `guild_id` is `None`,
