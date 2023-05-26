@@ -455,10 +455,11 @@ impl<'a> Lookup<'a> {
 }
 
 /// Execute tasks.
-async fn execute<F, R>(ctx: &Context, funcs: impl Iterator<Item = F>, req: R) -> CommandResult<()>
+async fn execute<I, F, R>(ctx: &Context, funcs: I, req: R) -> CommandResult<()>
 where
+    I: Iterator<Item = F> + Send,
     F: Callable<R>,
-    R: Clone,
+    R: Clone + Send,
 {
     let mut set = JoinSet::new();
     let mut results = Vec::new();
