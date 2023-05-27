@@ -7,7 +7,7 @@ use std::io::prelude::*;
 use std::path::Path;
 use std::{any, mem};
 
-use derive_more::{Deref, DerefMut};
+use derive_more::{Deref, DerefMut, Display};
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
@@ -350,12 +350,24 @@ impl PartialEq for ReactionRole {
 }
 
 /// Bot classic command prefix.
-#[derive(Deserialize, Serialize, Debug, Clone, Deref, DerefMut)]
+#[derive(Deserialize, Serialize, Debug, Clone, Deref, DerefMut, Display)]
 pub struct Prefix(String);
+
+impl Prefix {
+    pub fn into_inner(self) -> String {
+        self.0
+    }
+}
 
 impl Default for Prefix {
     fn default() -> Self {
         Self(String::from("!"))
+    }
+}
+
+impl AsRef<str> for Prefix {
+    fn as_ref(&self) -> &str {
+        self
     }
 }
 
