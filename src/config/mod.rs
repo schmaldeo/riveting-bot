@@ -524,7 +524,9 @@ impl<'a> Global<'a> {
     }
 
     pub fn bot_settings(&mut self) -> AnyResult<&BotSettings> {
-        self.dir.load_or_default()
+        self.dir
+            .load_or_default()
+            .context("Failed to load bot settings")
     }
 
     pub fn whitelist(&mut self) -> AnyResult<&Option<Whitelist>> {
@@ -549,7 +551,9 @@ impl<'a> Guild<'a> {
     }
 
     pub fn settings(&mut self) -> AnyResult<&Settings> {
-        self.dir.load_or_default()
+        self.dir
+            .load_or_default()
+            .context("Failed to load settings")
     }
 
     pub fn classic_prefix(&mut self) -> AnyResult<&Prefix> {

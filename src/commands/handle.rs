@@ -227,7 +227,7 @@ async fn ephemeral_acknowledge(ctx: &Context, inter: &Interaction) -> AnyResult<
 /// Parse message and execute command functions.
 pub async fn classic_command(ctx: &Context, msg: Arc<Message>) -> CommandResult<()> {
     // Unprefix the message contents.
-    let prefix = ctx.classic_prefix(msg.guild_id);
+    let prefix = ctx.config.classic_prefix(msg.guild_id)?;
     let Some((_, unprefixed)) =  parser::unprefix_with([prefix], &msg.content) else {
         return Err(CommandError::NotPrefixed);
     };

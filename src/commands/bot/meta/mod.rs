@@ -63,7 +63,7 @@ impl About {
             My current version *(allegedly)* is `{version}`.
             My source is available at <{link}>
             ",
-            prefix = ctx.classic_prefix(self.guild_id),
+            prefix = ctx.config.classic_prefix(self.guild_id).unwrap_or_default(),
             version = env!("CARGO_PKG_VERSION"),
             link = env!("CARGO_PKG_REPOSITORY"),
         )
@@ -134,7 +134,7 @@ impl Help {
                 Commands:
                 {commands}
                 ```",
-            prefix = ctx.classic_prefix(self.guild_id),
+            prefix = ctx.config.classic_prefix(self.guild_id).unwrap_or_default(),
             commands = ctx.commands
         )
     }

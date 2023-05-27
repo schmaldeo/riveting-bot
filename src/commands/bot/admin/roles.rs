@@ -19,8 +19,8 @@ use twilight_util::builder::InteractionResponseDataBuilder;
 
 use crate::commands::prelude::*;
 use crate::config::ReactionRole;
+use crate::utils;
 use crate::utils::prelude::*;
-use crate::{config, utils};
 
 /// Command: Manage reaction-roles.
 pub struct Roles;
@@ -136,26 +136,18 @@ impl Edit {
             ));
         }
 
-        let reaction_roles = {
-            let lock = ctx.config.lock().unwrap();
-            lock.guild(guild_id)
-                .and_then(|s| {
-                    let key = config::reaction_roles_key(replied.channel_id, replied.id);
-                    s.reaction_roles.get(&key)
-                })
-                .cloned()
-        };
-
-        if reaction_roles.is_none() {
-            return Err(CommandError::UnexpectedArgs(
-                "Message is not a reaction-roles post".to_string(),
-            ));
-        }
+        let reaction_roles = ctx
+            .config
+            .guild(guild_id)
+            .reaction_roles(replied.channel_id, replied.id)
+            .with_context(|| {
+                CommandError::UnexpectedArgs("Message is not a reaction-roles post".to_string())
+            })?;
 
         let author_id = req.message.author.id;
         let channel_id = req.message.channel_id;
 
-        let Some(mappings) = roles_setup_process(&ctx, guild_id, channel_id, author_id, reaction_roles).await? else {
+        let Some(mappings) = roles_setup_process(&ctx, guild_id, channel_id, author_id, Some(reaction_roles)).await? else {
             return Ok(()) // Canceled or whatever.
         };
 
@@ -206,9 +198,9 @@ fn register_reaction_roles(
     message_id: Id<MessageMarker>,
     mappings: Vec<ReactionRole>,
 ) -> AnyResult<()> {
-    let mut lock = ctx.config.lock().unwrap();
-    lock.add_reaction_roles(guild_id, channel_id, message_id, mappings);
-    lock.write_guild(guild_id)
+    ctx.config
+        .guild(guild_id)
+        .add_reaction_roles(channel_id, message_id, mappings)
 }
 
 /// Cognitive overload.
@@ -426,7 +418,7 @@ async fn roles_setup_process(
                 .content(format!(
                     "Done; You can use `{prefix}bot edit` command to edit the message content, or \
                      `{prefix}roles edit` command to edit the role mappings.",
-                    prefix = ctx.classic_prefix(Some(guild_id))
+                    prefix = ctx.config.classic_prefix(Some(guild_id))?
                 ))
                 .build(),
         ),

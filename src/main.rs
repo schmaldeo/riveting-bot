@@ -37,7 +37,7 @@ use twilight_model::voice::VoiceState;
 use twilight_standby::Standby;
 
 use crate::commands::{CommandError, Commands};
-use crate::config::Config;
+use crate::config::BotConfig;
 use crate::utils::prelude::*;
 
 mod commands;
@@ -50,7 +50,7 @@ mod utils;
 #[derive(Debug, Clone)]
 pub struct Context {
     /// Bot configuration.
-    config: Arc<Mutex<Config>>,
+    config: Arc<BotConfig>,
     /// Bot commands list.
     commands: Arc<Commands>,
     /// Application http client.
@@ -81,19 +81,6 @@ impl Context {
     /// Shortcut for `self.http.interaction(self.application.id)`.
     pub fn interaction(&self) -> InteractionClient {
         self.http.interaction(self.application.id)
-    }
-
-    /// Return currently active classic command prefix, either global prefix or a guild specific one.
-    pub fn classic_prefix(&self, guild_id: Option<Id<GuildMarker>>) -> String {
-        let lock = self.config.lock().unwrap();
-
-        guild_id.map_or_else(
-            || lock.prefix.to_string(),
-            |guild_id| {
-                lock.guild(guild_id)
-                    .map_or_else(|| lock.prefix.to_string(), |data| data.prefix.to_string())
-            },
-        )
     }
 
     /// Get role objects with `ids` from cache or fetch from client.
@@ -187,8 +174,8 @@ async fn async_main(runtime: Arc<Runtime>) -> AnyResult<()> {
         .compact()
         .init();
 
-    // Load bot configuration file.
-    let config = Arc::new(Mutex::new(Config::load()?));
+    // Setup bot configuration files.
+    let config = Arc::new(BotConfig::new()?);
 
     // Get discord bot token from environment variable.
     let token = env::var("DISCORD_TOKEN").expect("Expected a token in the environment");
@@ -365,7 +352,7 @@ async fn handle_guild_create(ctx: &Context, guild: Guild) -> AnyResult<()> {
     println!("Guild: {}", guild.name);
     info!("Guild: '{}'", guild.name);
 
-    let whitelist = ctx.config.lock().unwrap().whitelist.clone();
+    let whitelist = ctx.config.global().whitelist()?.to_owned();
 
     // If whitelist is enabled, check if this guild is in it.
     if let Some(whitelist) = whitelist {
@@ -437,7 +424,7 @@ async fn handle_message_create(ctx: &Context, msg: Message) -> AnyResult<()> {
                 let about_msg = format!(
                     "Try `/about` or `{prefix}about` for general info, or `/help` or \
                      `{prefix}help` for commands.",
-                    prefix = ctx.classic_prefix(msg.guild_id),
+                    prefix = ctx.config.classic_prefix(msg.guild_id)?,
                 );
 
                 ctx.http
@@ -483,17 +470,10 @@ async fn handle_message_delete(ctx: &Context, md: MessageDelete) -> AnyResult<()
         return Ok(());
     };
 
-    let mut lock = ctx.config.lock().unwrap();
-
-    let Some(settings) = lock.guild_mut(guild_id) else {
-        return Ok(());
-    };
-
     // Remove reaction roles mappping, if deleted message was one.
-    let key = config::reaction_roles_key(md.channel_id, md.id);
-    settings.reaction_roles.remove(&key);
-
-    lock.write_guild(guild_id)?;
+    ctx.config
+        .guild(guild_id)
+        .remove_reaction_roles(md.channel_id, md.id)?;
 
     Ok(())
 }
@@ -539,34 +519,31 @@ async fn handle_reaction_add(ctx: &Context, reaction: GatewayReaction) -> AnyRes
         }
     }
 
-    let add_roles = {
-        let lock = ctx.config.lock().unwrap();
-
-        let Some(settings) = lock.guild(guild_id) else {
-            return Ok(());
-        };
-
-        let key = config::reaction_roles_key(reaction.channel_id, reaction.message_id);
-
-        let Some(map) = settings.reaction_roles.get(&key) else {
-            return Ok(());
-        };
-
-        map.iter()
+    let add_roles = match ctx
+        .config
+        .guild(guild_id)
+        .reaction_roles(reaction.channel_id, reaction.message_id)
+    {
+        Ok(map) => map
+            .iter()
             .filter(|rr| utils::reaction_type_eq(&rr.emoji, &reaction.emoji))
             .map(|rr| rr.role)
-            .collect::<Vec<_>>()
+            .collect::<Vec<_>>(),
+        Err(e) => {
+            debug!("{e}");
+            return Ok(());
+        },
     };
 
-    info!("Adding roles for '{}'", user.name);
     if add_roles.is_empty() {
-        return Err(anyhow::anyhow!("List of roles should not be empty"));
-    }
-
-    for role_id in add_roles {
-        ctx.http
-            .add_guild_member_role(guild_id, reaction.user_id, role_id)
-            .await?;
+        info!("No roles to add for '{}'", user.name);
+    } else {
+        info!("Adding roles for '{}'", user.name);
+        for role_id in add_roles {
+            ctx.http
+                .add_guild_member_role(guild_id, reaction.user_id, role_id)
+                .await?;
+        }
     }
 
     Ok(())
@@ -598,35 +575,31 @@ async fn handle_reaction_remove(ctx: &Context, reaction: GatewayReaction) -> Any
         }
     }
 
-    let remove_roles = {
-        let lock = ctx.config.lock().unwrap();
-
-        let Some(settings) = lock.guild(guild_id) else {
-            return Ok(());
-        };
-
-        let key = config::reaction_roles_key(reaction.channel_id, reaction.message_id);
-
-        let Some(map) = settings.reaction_roles.get(&key) else {
-            trace!("No reaction-roles config for key '{key}'");
-            return Ok(());
-        };
-
-        map.iter()
+    let remove_roles = match ctx
+        .config
+        .guild(guild_id)
+        .reaction_roles(reaction.channel_id, reaction.message_id)
+    {
+        Ok(map) => map
+            .iter()
             .filter(|rr| utils::reaction_type_eq(&rr.emoji, &reaction.emoji))
             .map(|rr| rr.role)
-            .collect::<Vec<_>>()
+            .collect::<Vec<_>>(),
+        Err(e) => {
+            debug!("{e}");
+            return Ok(());
+        },
     };
 
-    info!("Removing roles for '{}'", user.name);
     if remove_roles.is_empty() {
-        return Err(anyhow::anyhow!("List of roles should not be empty"));
-    }
-
-    for role_id in remove_roles {
-        ctx.http
-            .remove_guild_member_role(guild_id, reaction.user_id, role_id)
-            .await?;
+        info!("No roles to remove for '{}'", user.name);
+    } else {
+        info!("Removing roles for '{}'", user.name);
+        for role_id in remove_roles {
+            ctx.http
+                .remove_guild_member_role(guild_id, reaction.user_id, role_id)
+                .await?;
+        }
     }
 
     Ok(())
