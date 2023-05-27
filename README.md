@@ -18,13 +18,12 @@ or any other environment variables for the bot.
 - Have [rust-lang] installed with latest nightly toolchain.
 - _a)_ To just build it, run `cargo build` _(for debug build)_ or `cargo build --release` _(for optimized build)_.
 - _b)_ Or to build and run: `cargo run` or `cargo run --release`.
-- _(Optional)_ If you want to enable extra features, specify them with `--features` option.
-- _(Optional)_ You can disable default features with `--no-default-features` option.
+- _(Optional)_ You can use `cargo` options `--features` and `--no-default-features` to build with other features.
 - _(Optional)_ You can run the executable directly, once built. By default, found in `./target/<build>/`.
 
 #### Example
 
-`cargo run --release --no-default-features --features=bulk-delete,owner,voice`
+`cargo run --release --features=debug,voice`
 
 ## Build with Docker
 
@@ -47,21 +46,17 @@ or any other environment variables for the bot.
 
 # Contributing
 
-Yes.
-
 - The best place to search docs for the many crates of `twilight` is probably their [documentation][twilight-docs].
 
 # Notes
 
 - All of bot's data is located in `./data` folder, which will be created if it doesn't exist yet.
   It will contain logs and configs.
-- If there is no `./data/bot.json` config file, a default one will be created on the first run.
-  Any manual changes to that file while the bot is running _may_ be lost.
+- Any manual changes to configs while the bot is running _may_ be lost.
 - To control what is logged to a log file, the bot uses `RUST_LOG` environment variable.
-  eg. `RUST_LOG=info,twilight=debug,riveting_bot=debug` will set everything on `info` level,
-  except for `twilight*` and `riveting_bot` sources, which will be logging `debug` level messages.
+  eg. `RUST_LOG=warn,twilight=info,riveting_bot=debug` which will log `warn` messages,
+  `info` for `twilight*`, and `debug` for `riveting_bot` sources.
 - Why `twilight` and not `serenity` or something? Because, yes.
-- Please bear in mind that this is still at a very early stage, so there is a bunch of messy stuff going on.
 
 [rust-lang]: https://www.rust-lang.org/
 [twilight]: https://twilight.rs/
