@@ -23,7 +23,8 @@ or any other environment variables for the bot.
 
 #### Example
 
-`cargo run --release --features=debug,voice`
+`cargo build --features=debug`<br>
+`cargo run --release --no-default-features --features=admin,bulk-delete`
 
 ## Build with Docker
 
