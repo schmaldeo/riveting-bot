@@ -18,12 +18,10 @@ use crate::utils::prelude::*;
 struct Config;
 
 impl Config {
-    fn write<T>(value: &T, path: impl AsRef<Path>) -> AnyResult<()>
+    fn write<T>(value: &T, path: &Path) -> AnyResult<()>
     where
         T: Serialize,
     {
-        let path = path.as_ref();
-
         let dir = path.parent().with_context(|| {
             format!(
                 "Config path does not have a valid parent dir: '{}'",
@@ -47,11 +45,10 @@ impl Config {
         Ok(())
     }
 
-    fn read<T>(path: impl AsRef<Path>) -> AnyResult<T>
+    fn read<T>(path: &Path) -> AnyResult<T>
     where
         T: DeserializeOwned,
     {
-        let path = path.as_ref();
         let mut value = String::new();
         {
             let mut config = OpenOptions::new()
@@ -64,11 +61,10 @@ impl Config {
         Ok(value)
     }
 
-    fn read_or_create<T>(path: impl AsRef<Path>) -> AnyResult<T>
+    fn read_or_create<T>(path: &Path) -> AnyResult<T>
     where
         T: Default + Serialize + DeserializeOwned,
     {
-        let path = path.as_ref();
         match Self::read::<T>(path) {
             Ok(value) => Ok(value),
             Err(e) => {
@@ -87,6 +83,7 @@ impl Config {
 
 pub trait Object = Any + Send + 'static;
 pub trait Storable = Serialize + DeserializeOwned + Object;
+
 type NameMap = HashMap<TypeId, &'static str>;
 type DataMap = HashMap<TypeId, Box<dyn Object>>;
 type PathMap = HashMap<PathBuf, DataMap>;
@@ -230,7 +227,7 @@ impl Directory<'_> {
         T: Storable,
     {
         self.path::<T>()
-            .and_then(|path| Config::write(&value, path))?;
+            .and_then(|path| Config::write(&value, &path))?;
         let id = TypeId::of::<T>();
         self.data
             .entry(self.dir.to_owned())
@@ -247,7 +244,7 @@ impl Directory<'_> {
         Config::write(
             self.get::<T>()
                 .with_context(|| ValueNotFoundError::new::<T>())?,
-            self.path::<T>()?,
+            &self.path::<T>()?,
         )
     }
 
@@ -275,7 +272,7 @@ impl Directory<'_> {
     where
         T: Storable,
     {
-        self.load_with::<T, &T>(|path| Config::read::<T>(path), |s| s.get::<T>())
+        self.load_with::<T, &T>(|path| Config::read::<T>(&path), |s| s.get::<T>())
     }
 
     /// Get a type from memory, otherwise try load from config file.
@@ -284,7 +281,7 @@ impl Directory<'_> {
     where
         T: Default + Storable,
     {
-        self.load_with::<T, &T>(|path| Config::read_or_create::<T>(path), |s| s.get::<T>())
+        self.load_with::<T, &T>(|path| Config::read_or_create::<T>(&path), |s| s.get::<T>())
     }
 
     /// Get a type from memory, otherwise try load from config file.
@@ -294,7 +291,7 @@ impl Directory<'_> {
         T: Default + Storable,
     {
         self.load_with::<T, &mut T>(
-            |path| Config::read_or_create::<T>(path),
+            |path| Config::read_or_create::<T>(&path),
             |s| s.get_mut::<T>(),
         )
     }

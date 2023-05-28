@@ -4,7 +4,7 @@ use std::any;
 use std::collections::hash_map::Entry;
 use std::collections::{HashMap, HashSet};
 
-use derive_more::{Deref, DerefMut, Display};
+use derive_more::{Deref, Display};
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
@@ -30,7 +30,7 @@ pub type Custom = HashMap<String, serde_json::Value>;
 pub type Whitelist = HashSet<Id<GuildMarker>>;
 
 /// Global bot settings.
-#[derive(Deserialize, Serialize, Debug, Default, Clone)]
+#[derive(Debug, Default, Clone, Serialize, Deserialize)]
 pub struct GlobalSettings {
     /// Global classic command prefix.
     #[serde(default)]
@@ -42,7 +42,7 @@ pub struct GlobalSettings {
 }
 
 /// General guild settings.
-#[derive(Deserialize, Serialize, Debug, Default, Clone)]
+#[derive(Debug, Default, Clone, Serialize, Deserialize)]
 pub struct GuildSettings {
     /// Guild specific classic command prefix.
     #[serde(default)]
@@ -370,7 +370,7 @@ impl<'a> CustomEntry<'a> {
 }
 
 /// Bot classic command prefix.
-#[derive(Deserialize, Serialize, Debug, Clone, Deref, DerefMut, Display)]
+#[derive(Debug, Clone, Deref, Display, Serialize, Deserialize)]
 pub struct Prefix(String);
 
 impl Prefix {
@@ -392,7 +392,7 @@ impl AsRef<str> for Prefix {
 }
 
 /// Reaction-role mapping with the reaction type and role id.
-#[derive(Debug, Clone, Deserialize, Serialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ReactionRole {
     pub emoji: ReactionType,
     pub role: Id<RoleMarker>,
