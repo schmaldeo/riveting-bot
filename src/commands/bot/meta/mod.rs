@@ -123,20 +123,23 @@ impl Help {
     }
 
     fn uber(self, ctx: &Context) -> String {
-        if let Ok(_value) = self.args.string("command") {
-            // TODO: If "command" argument exists, show help on that command instead.
-            todo!("get rekt");
-        }
-
-        formatdoc!(
-            "```yaml
+        if let Ok(value) = self.args.string("command") {
+            if let Some(cmd) = ctx.commands.get(&value) {
+                cmd.generate_help()
+            } else {
+                format!("Command `{value}` not found :|")
+            }
+        } else {
+            formatdoc! {"
+                ```yaml
                 Prefix: '/' or '{prefix}'
                 Commands:
                 {commands}
                 ```",
-            prefix = ctx.config.classic_prefix(self.guild_id).unwrap_or_default(),
-            commands = ctx.commands
-        )
+                prefix = ctx.config.classic_prefix(self.guild_id).unwrap_or_default(),
+                commands = ctx.commands
+            }
+        }
     }
 
     async fn classic(ctx: Context, req: ClassicRequest) -> CommandResponse {

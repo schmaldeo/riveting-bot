@@ -376,6 +376,43 @@ impl BaseCommand {
             .map_err(Into::into)
     }
 
+    /// Generate usage help text.
+    pub fn generate_help(&self) -> String {
+        let types = {
+            let mut types = Vec::with_capacity(4);
+            if self.command.has_classic() {
+                types.push("Classic");
+            }
+            if self.command.has_slash() {
+                types.push("Slash");
+            }
+            if self.command.has_message() {
+                types.push("Message");
+            }
+            if self.command.has_user() {
+                types.push("User");
+            }
+            types.join(", ")
+        };
+        let dm = if self.dm_enabled { "Yes" } else { "No" };
+        let perms = match self.member_permissions {
+            Some(mp) => format!("{mp:?}"),
+            None => "None".to_string(),
+        };
+        let text = indoc::formatdoc! {"
+            ```yaml
+            {cmd}
+
+            Permissions required: {perms}
+            Enabled in DMs: {dm}
+            Types: {types}
+            ```",
+            cmd = self.command.generate_help(0),
+        };
+
+        text
+    }
+
     /// Checks that the base command contains all function types that are present in subcommands.
     /// This only emits warnings if a faulty structure is found.
     fn check_missing_functions(&self) {
@@ -536,6 +573,17 @@ impl CommandFunction {
     pub fn args(&self) -> impl Iterator<Item = &ArgDesc> {
         self.options.iter().filter_map(|o| o.arg())
     }
+
+    /// Generate usage help text.
+    fn generate_help(&self, indent: usize) -> String {
+        let mut opt_help = String::new();
+        for opt in self.options.iter() {
+            opt_help.push('\n');
+            opt_help.push_str(&"\t".repeat(indent + 1));
+            opt_help.push_str(&opt.generate_help(indent + 1));
+        }
+        format!("{:<16} {}{opt_help}", self.name, self.description)
+    }
 }
 
 impl From<CommandFunctionBuilder> for CommandFunction {
@@ -655,11 +703,25 @@ impl CommandOption {
         pub fn group(&self: Group(val)) -> &CommandGroup;
     );
 
+    /// Get the option name.
     pub const fn name(&self) -> &str {
         match self {
             Self::Arg(a) => a.name,
             Self::Sub(s) => s.name,
             Self::Group(g) => g.name,
+        }
+    }
+
+    /// Generate usage help text.
+    fn generate_help(&self, indent: usize) -> String {
+        match self {
+            Self::Arg(a) => {
+                let brackets = if a.required { ['<', '>'] } else { ['[', ']'] };
+                let name = format!("{}{}{}", brackets[0], a.name, brackets[1]);
+                format!("{name:<16} {}", a.description)
+            },
+            Self::Sub(s) => s.generate_help(indent),
+            Self::Group(g) => format!("{:<16} {}", g.name, g.description), // TODO: This does not dig into the group.
         }
     }
 }
