@@ -20,7 +20,7 @@ impl Joke {
     pub fn command() -> impl Into<BaseCommand> {
         use crate::commands::builder::*;
 
-        command("joke", "Send a bad joke.").attach(Self::slash)
+        command("joke", "Send a bad joke.").attach(Self::slash).dm()
     }
 
     async fn slash(ctx: Context, req: SlashRequest) -> CommandResponse {

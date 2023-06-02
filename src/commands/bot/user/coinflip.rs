@@ -9,7 +9,7 @@ impl Coinflip {
     pub fn command() -> impl Into<BaseCommand> {
         use crate::commands::builder::*;
 
-        command("coinflip", "Flip a coin.").attach(Self::slash)
+        command("coinflip", "Flip a coin.").attach(Self::slash).dm()
     }
 
     async fn slash(ctx: Context, req: SlashRequest) -> CommandResponse {
