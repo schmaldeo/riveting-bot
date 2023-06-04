@@ -401,11 +401,17 @@ impl BaseCommand {
             }
             types.join(", ")
         };
+
         let dm = if self.dm_enabled { "Yes" } else { "No" };
+
         let perms = match self.member_permissions {
-            Some(mp) => format!("{mp:?}"),
             None => "None".to_string(),
+            Some(mp) if mp.contains(Permissions::ADMINISTRATOR) || mp.is_empty() => {
+                "Administrator".to_string()
+            },
+            Some(mp) => format!("{mp:?}"),
         };
+
         let text = indoc::formatdoc! {"
             ```yaml
             {cmd}
@@ -728,7 +734,15 @@ impl CommandOption {
                 format!("{name:<16} {}", a.description)
             },
             Self::Sub(s) => s.generate_help(indent),
-            Self::Group(g) => format!("{:<16} {}", g.name, g.description), // TODO: This does not dig into the group.
+            Self::Group(g) => {
+                let mut sub_help = format!("{:<16} {}", g.name, g.description);
+                for sub in g.subs.iter() {
+                    sub_help.push('\n');
+                    sub_help.push_str(&"\t".repeat(indent + 1));
+                    sub_help.push_str(&sub.generate_help(indent + 1));
+                }
+                sub_help
+            },
         }
     }
 }
