@@ -337,11 +337,18 @@ impl ArgDesc {
     }
 }
 
-/// Base command type.
+/// Base command type, contains meta information with the command itself.
 #[derive(Debug, Clone)]
 pub struct BaseCommand {
+    /// The command structure.
     pub command: CommandFunction,
+    /// If the command can be used in DMs.
     pub dm_enabled: bool,
+    /// Default guild member permissions for the command.
+    /// - `None`: Anyone,
+    /// - `Some(Permissions::empty())`: Administrator,
+    /// - `Some(Permissions::all())`: Administrator,
+    /// - `Some(perms)`: User must satisfy all contained perms,
     pub member_permissions: Option<Permissions>,
 }
 
