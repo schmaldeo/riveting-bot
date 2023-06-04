@@ -28,6 +28,7 @@ use std::collections::HashSet;
 use std::sync::Arc;
 
 use derive_more::{Display, IsVariant, Unwrap};
+use thiserror::Error;
 pub use twilight_model::channel::ChannelType;
 pub use twilight_model::guild::Permissions;
 
@@ -337,6 +338,26 @@ impl ArgDesc {
     }
 }
 
+/// This error type contains a collection of missing function errors found in a command.
+#[derive(Debug, Error)]
+struct MissingFunctionsError {
+    errors: Vec<anyhow::Error>,
+}
+
+impl std::fmt::Display for MissingFunctionsError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "{}",
+            self.errors
+                .iter()
+                .map(|e| e.to_string())
+                .collect::<Vec<_>>()
+                .join("; ")
+        )
+    }
+}
+
 /// Base command type, contains meta information with the command itself.
 #[derive(Debug, Clone)]
 pub struct BaseCommand {
@@ -373,8 +394,8 @@ impl BaseCommand {
     }
 
     /// Validate the command.
-    pub fn validate(&self) -> Result<(), CommandValidationError> {
-        self.check_missing_functions();
+    pub fn validate(&self) -> AnyResult<()> {
+        self.check_missing_functions()?;
 
         // HACK: Mostly waste of cpu cycles.
         self.twilight_commands()
@@ -427,34 +448,42 @@ impl BaseCommand {
     }
 
     /// Checks that the base command contains all function types that are present in subcommands.
-    /// This only emits warnings if a faulty structure is found.
-    fn check_missing_functions(&self) {
-        fn check_sub(base_name: &str, base: &[FunctionKind], sub: &CommandFunction) {
+    fn check_missing_functions(&self) -> Result<(), MissingFunctionsError> {
+        fn check_sub(
+            errors: &mut Vec<anyhow::Error>,
+            base_name: &str,
+            base: &[FunctionKind],
+            sub: &CommandFunction,
+        ) {
             for kind in sub.functions.iter().map(|f| f.kind()) {
                 if !base.contains(&kind) {
-                    // Emit warning.
-                    let msg = format!(
+                    errors.push(anyhow::anyhow!(
                         "Base command '{base_name}' does not map to a function of a kind \
                          '{kind:?}', but the subcommand '{sub_name}' does",
                         sub_name = sub.name
-                    );
-                    eprintln!("Warning: {msg}");
-                    warn!("{msg}");
+                    ));
                 }
             }
         }
 
         let base_funcs: Vec<_> = self.command.functions.iter().map(|f| f.kind()).collect();
+        let mut errors = Vec::new();
 
         for opt in self.command.options.iter() {
             match opt {
                 CommandOption::Arg(_) => break,
-                CommandOption::Sub(s) => check_sub(self.command.name, &base_funcs, s),
+                CommandOption::Sub(s) => check_sub(&mut errors, self.command.name, &base_funcs, s),
                 CommandOption::Group(g) => g
                     .subs
                     .iter()
-                    .for_each(|s| check_sub(self.command.name, &base_funcs, s)),
+                    .for_each(|s| check_sub(&mut errors, self.command.name, &base_funcs, s)),
             }
+        }
+
+        if errors.is_empty() {
+            Ok(())
+        } else {
+            Err(MissingFunctionsError { errors })
         }
     }
 }
@@ -509,9 +538,8 @@ impl BaseCommandBuilder {
     }
 
     /// Validate the command.
-    pub fn validate(self) -> Result<Self, CommandValidationError> {
-        self.0.validate()?;
-        Ok(self)
+    pub fn validate(&self) -> AnyResult<()> {
+        self.0.validate()
     }
 
     /// Finalize the command.
@@ -806,121 +834,141 @@ mod tests {
     use super::*;
     use crate::commands::function::mock;
 
+    static COMMANDS: std::sync::OnceLock<Vec<BaseCommand>> = std::sync::OnceLock::new();
+
+    fn commands() -> &'static [BaseCommand] {
+        COMMANDS.get_or_init(|| {
+            let mut commands = Vec::with_capacity(8);
+
+            commands.push(
+                command("message", "test")
+                    .attach(mock::classic)
+                    .attach(mock::slash)
+                    .attach(mock::message)
+                    .attach(mock::user)
+                    .dm()
+                    .option(message("message", "description")),
+            );
+
+            commands.push(command("a", "description"));
+
+            commands.push(
+                command("b", "description")
+                    .attach(mock::message)
+                    .attach(mock::user),
+            );
+
+            commands.push(
+                command("c", "description")
+                    .attach(mock::classic)
+                    .permissions(Permissions::SEND_MESSAGES)
+                    .option(bool("ca", "description").required())
+                    .option(bool("cb", "description")),
+            );
+
+            commands.push(
+                command("d", "")
+                    .attach(mock::classic)
+                    .attach(mock::slash)
+                    .attach(mock::message)
+                    .attach(mock::user)
+                    .permissions(Permissions::empty())
+                    .option(
+                        number("da", "description")
+                            .required()
+                            .min(0.0)
+                            .max(100.0)
+                            .choices([("daa", 24.0), ("dab", 42.0)]),
+                    )
+                    .option(
+                        integer("db", "description")
+                            .required()
+                            .min(0)
+                            .max(100)
+                            .choices([("dba", 24), ("dbb", 42)]),
+                    )
+                    .option(
+                        string("dc", "description")
+                            .required()
+                            .choices([("dca", 1234.to_string())]),
+                    )
+                    .option(
+                        channel("dd", "description")
+                            .required()
+                            .types([ChannelType::GuildText]),
+                    )
+                    .option(bool("de", "description").required())
+                    .option(user("df", "description").required())
+                    .option(role("dg", "description").required())
+                    .option(message("dh", "description").required())
+                    .option(mention("di", "description").required())
+                    .option(attachment("dj", "description")),
+            );
+
+            commands.push(
+                command("e", "description")
+                    .attach(mock::classic)
+                    .attach(mock::slash)
+                    .attach(mock::message)
+                    .attach(mock::user)
+                    .dm()
+                    .permissions(Permissions::all())
+                    .option(sub("ea", "description"))
+                    .option(
+                        sub("eb", "description")
+                            .attach(mock::classic)
+                            .attach(mock::slash)
+                            .option(
+                                number("eaa", "description")
+                                    .min(0.0)
+                                    .max(100.0)
+                                    .choices([("eaaa", 24.0), ("eaab", 42.0)]),
+                            )
+                            .option(
+                                integer("eab", "description")
+                                    .min(0)
+                                    .max(100)
+                                    .choices([("eaba", 24), ("eabb", 42)]),
+                            )
+                            .option(string("eac", "description").choices([("foo", "bar")]))
+                            .option(channel("ead", "description").types([ChannelType::GuildText]))
+                            .option(bool("eae", "description"))
+                            .option(user("eaf", "description"))
+                            .option(role("eag", "description"))
+                            .option(message("eah", "description"))
+                            .option(mention("eai", "description"))
+                            .option(attachment("eaj", "description")),
+                    )
+                    .option(
+                        group("ec", "description")
+                            .option(sub("eca", "description"))
+                            .option(
+                                sub("ecb", "description")
+                                    .attach(mock::classic)
+                                    .attach(mock::slash)
+                                    .option(bool("ecba", "description").required())
+                                    .option(bool("ecbb", "description")),
+                            ),
+                    ),
+            );
+
+            commands.into_iter().map(|c| c.build()).collect::<Vec<_>>()
+        })
+    }
+
     #[test]
     fn valid_commands() {
         // FIXME: Numerical choices must be in range of min and max, this should give some warning at least
+        commands()
+            .iter()
+            .filter_map(|c| Some((c.validate().err()?, c)))
+            .for_each(|(e, c)| panic!("\n{c:#?}\n\n{e}"));
+    }
 
-        fn assert_valid(c: BaseCommandBuilder) {
-            println!("{c:#?}");
-            c.validate().unwrap();
-        }
-
-        assert_valid(
-            command("message", "test")
-                .attach(mock::classic)
-                .attach(mock::slash)
-                .attach(mock::message)
-                .attach(mock::user)
-                .dm()
-                .option(message("message", "description")),
-        );
-
-        assert_valid(command("a", "description"));
-
-        assert_valid(
-            command("b", "description")
-                .attach(mock::message)
-                .attach(mock::user),
-        );
-
-        assert_valid(
-            command("c", "description")
-                .attach(mock::classic)
-                .option(bool("ca", "description").required())
-                .option(bool("cb", "description")),
-        );
-
-        assert_valid(
-            command("d", "")
-                .attach(mock::classic)
-                .attach(mock::slash)
-                .attach(mock::message)
-                .attach(mock::user)
-                .option(
-                    number("da", "description")
-                        .required()
-                        .min(0.0)
-                        .max(100.0)
-                        .choices([("daa", 24.0), ("dab", 42.0)]),
-                )
-                .option(
-                    integer("db", "description")
-                        .required()
-                        .min(0)
-                        .max(100)
-                        .choices([("dba", 24), ("dbb", 42)]),
-                )
-                .option(
-                    string("dc", "description")
-                        .required()
-                        .choices([("dca", 1234.to_string())]),
-                )
-                .option(
-                    channel("dd", "description")
-                        .required()
-                        .types([ChannelType::GuildText]),
-                )
-                .option(bool("de", "description").required())
-                .option(user("df", "description").required())
-                .option(role("dg", "description").required())
-                .option(message("dh", "description").required())
-                .option(mention("di", "description").required())
-                .option(attachment("dj", "description")),
-        );
-
-        assert_valid(
-            command("e", "description")
-                .attach(mock::classic)
-                .attach(mock::slash)
-                .attach(mock::message)
-                .attach(mock::user)
-                .dm()
-                .permissions(Permissions::all())
-                .option(sub("ea", "description"))
-                .option(
-                    sub("eb", "description")
-                        .attach(mock::classic)
-                        .attach(mock::slash)
-                        .option(
-                            number("eaa", "description")
-                                .min(0.0)
-                                .max(100.0)
-                                .choices([("eaaa", 24.0), ("eaab", 42.0)]),
-                        )
-                        .option(
-                            integer("eab", "description")
-                                .min(0)
-                                .max(100)
-                                .choices([("eaba", 24), ("eabb", 42)]),
-                        )
-                        .option(string("eac", "description").choices([("foo", "bar")]))
-                        .option(channel("ead", "description").types([ChannelType::GuildText]))
-                        .option(bool("eae", "description"))
-                        .option(user("eaf", "description"))
-                        .option(role("eag", "description"))
-                        .option(message("eah", "description"))
-                        .option(mention("eai", "description"))
-                        .option(attachment("eaj", "description")),
-                )
-                .option(
-                    group("ec", "description")
-                        .option(sub("eca", "description"))
-                        .option(
-                            sub("ecb", "description")
-                                .attach(mock::classic)
-                                .attach(mock::slash),
-                        ),
-                ),
-        );
+    #[test]
+    fn commands_help() {
+        commands()
+            .iter()
+            .for_each(|c| println!("{}\n", c.generate_help()))
     }
 }
