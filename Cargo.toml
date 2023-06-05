@@ -23,17 +23,17 @@ serde = "1.0"
 serde_json = "1.0"
 thiserror = "1.0"
 tracing = "0.1"
-twilight-cache-inmemory = "0.14"
-twilight-gateway = "0.14"
-twilight-http = "0.14"
-twilight-mention = "0.14"
-twilight-model = "0.14"
-twilight-standby = "0.14"
-twilight-validate = "0.14"
+twilight-cache-inmemory = "0.15"
+twilight-gateway = "0.15"
+twilight-http = "0.15"
+twilight-mention = "0.15"
+twilight-model = "0.15"
+twilight-standby = "0.15"
+twilight-validate = "0.15"
 
 [dependencies.twilight-util]
 features = ["full"]
-version = "0.14"
+version = "0.15"
 
 [dependencies.reqwest]
 default-features = false

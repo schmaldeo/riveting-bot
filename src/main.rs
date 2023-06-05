@@ -15,18 +15,22 @@ use std::sync::{Arc, Mutex};
 use std::{env, fs};
 
 use tokio::runtime::Runtime;
+use tokio::sync::mpsc::{self, UnboundedSender};
 use tracing::Level;
 use tracing_subscriber::EnvFilter;
 use twilight_cache_inmemory::InMemoryCache;
-use twilight_gateway::{Cluster, Event};
+use twilight_gateway::stream::ShardEventStream;
+use twilight_gateway::{stream, CloseFrame, ConfigBuilder, Event, EventTypeFlags, ShardId};
 use twilight_http::client::InteractionClient;
 use twilight_http::Client;
 use twilight_model::application::command::permissions::GuildCommandPermissions;
 use twilight_model::application::interaction::{Interaction, InteractionData};
 use twilight_model::channel::{Channel, Message};
 use twilight_model::gateway::payload::incoming::{
-    ChannelUpdate, MessageDelete, MessageDeleteBulk, MessageUpdate, Ready, RoleUpdate,
+    ChannelUpdate, Hello, MessageDelete, MessageDeleteBulk, MessageUpdate, Ready, RoleUpdate,
 };
+use twilight_model::gateway::payload::outgoing::update_presence::UpdatePresencePayload;
+use twilight_model::gateway::presence::{ActivityType, MinimalActivity, Status};
 use twilight_model::gateway::{GatewayReaction, Intents};
 use twilight_model::guild::{Guild, Role};
 use twilight_model::id::marker::{ChannelMarker, GuildMarker, RoleMarker};
@@ -53,10 +57,10 @@ pub struct Context {
     config: Arc<BotConfig>,
     /// Bot commands list.
     commands: Arc<Commands>,
+    /// Bot events channel.
+    events_tx: UnboundedSender<BotEvent>,
     /// Application http client.
     http: Arc<Client>,
-    /// Application shard manager.
-    cluster: Arc<Cluster>,
     /// Application information.
     application: Arc<Application>,
     /// Application bot user.
@@ -68,12 +72,12 @@ pub struct Context {
     /// Async runtime.
     runtime: Arc<Runtime>,
     /// Shard id associated with the event.
-    shard: Option<u64>,
+    shard: Option<ShardId>,
 }
 
 impl Context {
     /// This context with the provided shard id.
-    const fn with_shard(mut self, id: u64) -> Self {
+    const fn with_shard(mut self, id: ShardId) -> Self {
         self.shard = Some(id);
         self
     }
@@ -140,6 +144,11 @@ impl Context {
     }
 }
 
+#[derive(Debug)]
+pub enum BotEvent {
+    Shutdown,
+}
+
 #[tracing::instrument]
 fn main() -> AnyResult<()> {
     let rt = Arc::new(
@@ -177,43 +186,20 @@ async fn async_main(runtime: Arc<Runtime>) -> AnyResult<()> {
     // Setup bot configuration files.
     let config = Arc::new(BotConfig::new()?);
 
+    // Initialize chat and interaction commands.
+    let commands = Arc::new(commands::bot::create_commands()?);
+
+    // Bot events channel.
+    let (events_tx, mut events_rx) = mpsc::unbounded_channel();
+
+    // Spawn ctrl-c shutdown task.
+    tokio::spawn(shutdown_task(events_tx.clone()));
+
     // Get discord bot token from environment variable.
     let token = env::var("DISCORD_TOKEN").expect("Expected a token in the environment");
 
     // Create an http client.
     let http = Arc::new(Client::new(token.to_owned()));
-
-    // Start a gateway connection, technically even a single shard would be enough for this, but hey.
-    let (cluster, mut events) = Cluster::builder(token, intents())
-        .http_client(Arc::clone(&http))
-        .build()
-        .await?;
-    let cluster = Arc::new(cluster);
-
-    // Start up the cluster.
-    {
-        let cluster = Arc::clone(&cluster);
-        tokio::spawn(async move {
-            cluster.up().await;
-        });
-    }
-
-    // Spawn ctrl-c shutdown task.
-    {
-        let cluster = Arc::clone(&cluster);
-        tokio::spawn(async move {
-            tokio::signal::ctrl_c()
-                .await
-                .expect("Could not register ctrl+c handler");
-
-            info!("Shutting down by ctrl-c");
-
-            // cluster.down_resumable();
-            cluster.down();
-
-            println!("Ctrl-C");
-        });
-    }
 
     // Get the application info, such as its id and owner.
     let application = Arc::new(http.current_user_application().send().await?);
@@ -227,14 +213,35 @@ async fn async_main(runtime: Arc<Runtime>) -> AnyResult<()> {
     // Create a standby instance.
     let standby = Arc::new(Standby::new());
 
-    // Initialize chat commands.
-    let commands = Arc::new(commands::bot::create_commands()?);
+    // Create the shards.
+    let mut shards = stream::create_recommended(
+        &http,
+        ConfigBuilder::new(token, intents())
+            .event_types(EventTypeFlags::all())
+            .presence(UpdatePresencePayload::new(
+                vec![
+                    MinimalActivity {
+                        kind: ActivityType::Watching,
+                        name: "you".into(),
+                        url: None,
+                    }
+                    .into(),
+                ],
+                false,
+                None,
+                Status::Online,
+            )?)
+            .build(),
+        |_, builder| builder.build(),
+    )
+    .await?
+    .collect::<Vec<_>>();
 
     let ctx = Context {
         config,
         commands,
+        events_tx,
         http,
-        cluster,
         application,
         user,
         cache,
@@ -243,8 +250,31 @@ async fn async_main(runtime: Arc<Runtime>) -> AnyResult<()> {
         shard: None,
     };
 
-    // Process each event as they come in.
-    while let Some((id, event)) = events.next().await {
+    // Create an infinite stream over the shards' events.
+    let mut stream = ShardEventStream::new(shards.iter_mut());
+
+    loop {
+        let (shard, event) = tokio::select! {
+            Some(twilight_event) = stream.next() => twilight_event,
+            Some(BotEvent::Shutdown) = events_rx.recv() => break,
+            else => break,
+        };
+
+        // Process each event as they come in.
+        let event = match event {
+            Ok(event) => event,
+            Err(source) => {
+                eprintln!("Error receiving event: {:?}", source);
+                if source.is_fatal() {
+                    error!(?source, "Error receiving event");
+                    break;
+                } else {
+                    warn!(?source, "Error receiving event");
+                    continue;
+                }
+            },
+        };
+
         // Update the cache with the event.
         ctx.cache.update(&event);
 
@@ -252,9 +282,30 @@ async fn async_main(runtime: Arc<Runtime>) -> AnyResult<()> {
         let processed = ctx.standby.process(&event);
         log_processed(processed);
 
-        tokio::spawn(handle_event(ctx.clone().with_shard(id), event));
+        // Handle event.
+        tokio::spawn(handle_event(ctx.clone().with_shard(shard.id()), event));
     }
 
+    drop(stream);
+
+    for shard in shards.iter_mut() {
+        let _ = shard
+            .close(CloseFrame::NORMAL)
+            .await
+            .map_err(|e| warn!("{e}"));
+    }
+
+    Ok(())
+}
+
+/// Ctrl-C shutdown task.
+async fn shutdown_task(events_tx: UnboundedSender<BotEvent>) -> AnyResult<()> {
+    tokio::signal::ctrl_c()
+        .await
+        .expect("Could not register ctrl+c handler");
+    info!("Shutting down by ctrl-c");
+    events_tx.send(BotEvent::Shutdown)?;
+    println!("Ctrl-C");
     Ok(())
 }
 
@@ -277,7 +328,7 @@ async fn handle_event(ctx: Context, event: Event) -> AnyResult<()> {
         },
 
         // Gateway events.
-        Event::GatewayHello(hbi) => handle_hello(&ctx, hbi).await,
+        Event::GatewayHello(h) => handle_hello(&ctx, h).await,
         Event::GatewayHeartbeat(_)
         | Event::GatewayInvalidateSession(_)
         | Event::GatewayReconnect => {
@@ -321,11 +372,12 @@ async fn handle_event(ctx: Context, event: Event) -> AnyResult<()> {
     Ok(())
 }
 
-async fn handle_hello(ctx: &Context, hbi: u64) -> AnyResult<()> {
+async fn handle_hello(ctx: &Context, h: Hello) -> AnyResult<()> {
     info!(
-        "Connected on shard {} with a heartbeat of {hbi}",
+        "Connected on shard {} with a heartbeat of {}",
         ctx.shard
-            .ok_or_else(|| anyhow::anyhow!("Missing shard id"))?
+            .ok_or_else(|| anyhow::anyhow!("Missing shard id"))?,
+        h.heartbeat_interval
     );
     Ok(())
 }

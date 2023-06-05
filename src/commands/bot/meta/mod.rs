@@ -89,7 +89,7 @@ impl About {
     async fn slash(ctx: Context, req: SlashRequest) -> CommandResponse {
         let about_msg = Self {
             guild_id: req.interaction.guild_id,
-            channel_id: req.interaction.channel_id,
+            channel_id: req.interaction.channel.as_ref().map(|c| c.id),
             message_id: None,
         }
         .uber(&ctx);
@@ -124,11 +124,10 @@ impl Help {
 
     fn uber(self, ctx: &Context) -> String {
         if let Ok(value) = self.args.string("command") {
-            if let Some(cmd) = ctx.commands.get(&value) {
-                cmd.generate_help()
-            } else {
-                format!("Command `{value}` not found :|")
-            }
+            ctx.commands.get(&value).map_or_else(
+                || format!("Command `{value}` not found :|"),
+                |cmd| cmd.generate_help(),
+            )
         } else {
             formatdoc! {"
                 ```yaml
@@ -164,7 +163,7 @@ impl Help {
         let help_msg = Self {
             args: req.args,
             guild_id: req.interaction.guild_id,
-            channel_id: req.interaction.channel_id,
+            channel_id: req.interaction.channel.as_ref().map(|c| c.id),
             message_id: None,
         }
         .uber(&ctx);

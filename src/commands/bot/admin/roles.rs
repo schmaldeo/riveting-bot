@@ -100,7 +100,7 @@ impl Setup {
             return Err(CommandError::Disabled)
         };
 
-        let Some(channel_id) = req.interaction.channel_id else {
+        let Some(channel) = req.interaction.channel.as_ref() else {
             return Err(CommandError::Disabled)
         };
 
@@ -110,7 +110,7 @@ impl Setup {
 
         req.clear(&ctx).await?;
 
-        Self::uber(ctx, guild_id, channel_id, author_id)
+        Self::uber(ctx, guild_id, channel.id, author_id)
             .await
             .map(|_| Response::none())
     }

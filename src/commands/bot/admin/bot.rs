@@ -81,11 +81,11 @@ impl Say {
     }
 
     async fn slash(ctx: Context, req: SlashRequest) -> CommandResponse {
-        let Some(channel_id) = req.interaction.channel_id else {
+        let Some(channel) = req.interaction.channel.as_ref() else {
             return Err(CommandError::MissingArgs);
         };
 
-        Self::uber(&ctx, &req.args, req.interaction.guild_id, channel_id).await?;
+        Self::uber(&ctx, &req.args, req.interaction.guild_id, channel.id).await?;
 
         Ok(Response::clear(ctx, req))
     }
