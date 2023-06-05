@@ -93,7 +93,10 @@ pub mod bulk {
             // Delete the messages.
             if msgs.len() > 1 {
                 // Bulk delete must have 2 to 100 messages.
-                ctx.http.delete_messages(channel_id, &msgs).await?;
+                let _ = ctx
+                    .http
+                    .delete_messages(channel_id, &msgs)
+                    .context("Failed to delete multiple messages")?;
             } else if let Some(msg) = msgs.first() {
                 ctx.http.delete_message(channel_id, *msg).await?;
             }
@@ -119,7 +122,7 @@ pub mod bulk {
                 &ctx,
                 &req.args,
                 chrono::Utc::now().timestamp(),
-                req.interaction.channel_id,
+                req.interaction.channel.as_ref().map(|c| c.id),
                 None,
             )
             .await?;
