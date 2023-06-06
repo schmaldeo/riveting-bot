@@ -1,6 +1,4 @@
 use chrono::{DateTime, FixedOffset, Utc};
-use htp::parser::ParseError;
-use htp::HTPError;
 use twilight_mention::timestamp::{Timestamp, TimestampStyle};
 use twilight_mention::Mention;
 use twilight_model::channel::message::Embed;
@@ -9,15 +7,36 @@ use twilight_util::builder::embed::{self, EmbedFieldBuilder, EmbedFooterBuilder}
 use crate::commands::prelude::*;
 use crate::utils::prelude::*;
 
-/*
-// TODO Try `event_parser / date_time_parser`.
 // TODO Show these examples somewhere as help text.
-HTP examples:
-    * 4 min ago, 4 h ago, 1 week ago, in 2 hours, in 1 month
-    * last friday at 19, monday at 6 am
-    * 7, 7am, 7pm, 7:30, 19:43:00
-    * now, yesterday, today, friday
-    * 2020-12-25T19:43:00
+/*
+dateparser examples:
+    https://github.com/waltzofpearls/dateparser#accepted-date-formats
+
+    * unix timestamp
+    * rfc3339, rfc2822
+    * postgres yyyy-mm-dd hh:mm:ss z
+    * yyyy-mm-dd hh:mm:ss
+    * yyyy-mm-dd hh:mm:ss z
+    * yyyy-mm-dd
+    * yyyy-mm-dd z
+    * hh:mm:ss
+    * hh:mm:ss z
+    * Mon dd hh:mm:ss
+    * Mon dd, yyyy, hh:mm:ss
+    * Mon dd, yyyy hh:mm:ss z
+    * yyyy-mon-dd
+    * Mon dd, yyyy
+    * dd Mon yyyy hh:mm:ss
+    * dd Mon yyyy
+    * mm/dd/yyyy hh:mm:ss
+    * mm/dd/yyyy
+    * yyyy/mm/dd hh:mm:ss
+    * yyyy/mm/dd
+    * mm.dd.yyyy
+    * yyyy.mm.dd
+    * yymmdd hh:mm:ss mysql log
+    * chinese yyyy mm dd hh mm ss
+    * chinese yyyy mm dd
 */
 
 /// If your timezone is something else, unlucky.
@@ -59,27 +78,31 @@ impl Time {
             .attach(Self::classic)
             .attach(Self::slash)
             .option(string("expression", "Time expression to evaluate."))
-            .option(string("timezone", "Your timezone offset.").choices(TIMEZONES))
+            .option(
+                string(
+                    "timezone",
+                    "Your timezone offset (ignored if tz in expression).",
+                )
+                .choices(TIMEZONES),
+            )
             .dm()
     }
 
     async fn uber(args: Args) -> CommandResult<Embed> {
-        let expr = args
-            .string("expression")
-            .unwrap_or_else(|_| "now".to_string().into_boxed_str());
+        let expr = args.string("expression").unwrap_or_default();
 
         let now = args
             .string("timezone")
             .and_then(|val| Ok(timezone(&val)?))
             .unwrap_or_else(|_| Utc::now().into());
 
-        let parsed = htp::parse_time_clue(expr.trim(), now, true).map_err(|e| {
-            if let HTPError::ParseError(ParseError::PestError(_)) = e {
-                CommandError::ParseError("Failed to parse datetime".to_string())
-            } else {
-                CommandError::ParseError(format!("Failed to parse datetime: {e}"))
-            }
-        })?;
+        let parsed = if expr.trim().is_empty() {
+            now
+        } else {
+            dateparser::parse_with(expr.trim(), &now.timezone(), now.time())
+                .with_context(|| format!("Time expression '{}' is not valid", expr.trim()))?
+                .fixed_offset()
+        };
 
         let unix = parsed.timestamp() as _;
         let long = Timestamp::new(unix, Some(TimestampStyle::LongDateTime));
@@ -123,6 +146,6 @@ fn timezone(zone: &str) -> AnyResult<DateTime<FixedOffset>> {
     let offset = hour * zone.trim().parse::<i32>()?;
     let offset = FixedOffset::east_opt(offset)
         .or_else(|| FixedOffset::west_opt(offset))
-        .ok_or_else(|| anyhow::anyhow!("Invalid timezone offset"))?;
+        .context("Invalid timezone offset")?;
     Ok(Utc::now().with_timezone(&offset))
 }
