@@ -363,6 +363,8 @@ impl std::fmt::Display for MissingFunctionsError {
 pub struct BaseCommand {
     /// The command structure.
     pub command: CommandFunction,
+    /// Additional help for using the command. (not full usage help)
+    pub help: String,
     /// If the command can be used in DMs.
     pub dm_enabled: bool,
     /// Default guild member permissions for the command.
@@ -433,15 +435,18 @@ impl BaseCommand {
             Some(mp) => format!("{mp:?}"),
         };
 
+        let help_spacer = if self.help.is_empty() { "" } else { "\n" };
+
         let text = indoc::formatdoc! {"
             ```yaml
             {cmd}
-
+            {help_spacer}{help}
             Permissions required: {perms}
             Enabled in DMs: {dm}
             Types: {types}
             ```",
             cmd = self.command.generate_help(0),
+            help = self.help,
         };
 
         text
@@ -501,9 +506,16 @@ impl BaseCommandBuilder {
     pub fn new(name: &'static str, description: &'static str) -> Self {
         Self(BaseCommand {
             command: CommandFunctionBuilder::new(name, description).into(),
+            help: String::new(),
             dm_enabled: false,
             member_permissions: None,
         })
+    }
+
+    /// Additional help to show with usage.
+    pub fn help(mut self, text: String) -> Self {
+        self.0.help = text;
+        self
     }
 
     /// Set command to be available in DMs.
