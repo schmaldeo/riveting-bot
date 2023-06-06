@@ -51,6 +51,8 @@ mod config;
 mod parser;
 mod utils;
 
+pub type BotEventSender = UnboundedSender<BotEvent>;
+
 #[derive(Debug, Clone)]
 pub struct Context {
     /// Bot configuration.
@@ -58,7 +60,7 @@ pub struct Context {
     /// Bot commands list.
     commands: Arc<Commands>,
     /// Bot events channel.
-    events_tx: UnboundedSender<BotEvent>,
+    events_tx: BotEventSender,
     /// Application http client.
     http: Arc<Client>,
     /// Application information.
@@ -299,7 +301,7 @@ async fn async_main(runtime: Arc<Runtime>) -> AnyResult<()> {
 }
 
 /// Ctrl-C shutdown task.
-async fn shutdown_task(events_tx: UnboundedSender<BotEvent>) -> AnyResult<()> {
+async fn shutdown_task(events_tx: BotEventSender) -> AnyResult<()> {
     tokio::signal::ctrl_c()
         .await
         .expect("Could not register ctrl+c handler");
