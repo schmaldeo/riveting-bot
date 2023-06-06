@@ -7,37 +7,7 @@ use twilight_util::builder::embed::{self, EmbedFieldBuilder, EmbedFooterBuilder}
 use crate::commands::prelude::*;
 use crate::utils::prelude::*;
 
-// TODO Show these examples somewhere as help text.
-/*
-dateparser examples:
-    https://github.com/waltzofpearls/dateparser#accepted-date-formats
-
-    * unix timestamp
-    * rfc3339, rfc2822
-    * postgres yyyy-mm-dd hh:mm:ss z
-    * yyyy-mm-dd hh:mm:ss
-    * yyyy-mm-dd hh:mm:ss z
-    * yyyy-mm-dd
-    * yyyy-mm-dd z
-    * hh:mm:ss
-    * hh:mm:ss z
-    * Mon dd hh:mm:ss
-    * Mon dd, yyyy, hh:mm:ss
-    * Mon dd, yyyy hh:mm:ss z
-    * yyyy-mon-dd
-    * Mon dd, yyyy
-    * dd Mon yyyy hh:mm:ss
-    * dd Mon yyyy
-    * mm/dd/yyyy hh:mm:ss
-    * mm/dd/yyyy
-    * yyyy/mm/dd hh:mm:ss
-    * yyyy/mm/dd
-    * mm.dd.yyyy
-    * yyyy.mm.dd
-    * yymmdd hh:mm:ss mysql log
-    * chinese yyyy mm dd hh mm ss
-    * chinese yyyy mm dd
-*/
+// dateparser examples: https://github.com/waltzofpearls/dateparser#accepted-date-formats
 
 /// If your timezone is something else, unlucky.
 const TIMEZONES: [(&str, &str); 24] = [
@@ -86,6 +56,17 @@ impl Time {
                 .choices(TIMEZONES),
             )
             .dm()
+            .help(indoc::formatdoc! {"
+                Format examples: https://github.com/waltzofpearls/dateparser#accepted-date-formats
+                    yyyy-mm-dd hh:mm:ss z   Mon dd, yyyy, hh:mm:ss      mm/dd/yyyy hh:mm:ss
+                    yyyy-mm-dd hh:mm:ss     Mon dd, yyyy hh:mm:ss z     mm/dd/yyyy
+                    yyyy-mm-dd z            Mon dd, yyyy                yyyy/mm/dd hh:mm:ss
+                    yyyy-mm-dd              Mon dd hh:mm:ss             yyyy/mm/dd
+                    hh:mm:ss z              dd Mon yyyy hh:mm:ss        mm.dd.yyyy
+                    hh:mm:ss                dd Mon yyyy                 yyyy.mm.dd
+                    yyyy-mon-dd             rfc3339, rfc2822, unix timestamp                    
+                "
+            })
     }
 
     async fn uber(args: Args) -> CommandResult<Embed> {
