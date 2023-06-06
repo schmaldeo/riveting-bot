@@ -219,7 +219,7 @@ async fn async_main(runtime: Arc<Runtime>) -> AnyResult<()> {
     let mut shards = stream::create_recommended(
         &http,
         ConfigBuilder::new(token, intents())
-            .event_types(EventTypeFlags::all())
+            .event_types(event_type_flags())
             .presence(UpdatePresencePayload::new(
                 vec![
                     MinimalActivity {
@@ -696,6 +696,13 @@ fn intents() -> Intents {
             | Intents::DIRECT_MESSAGES
             | Intents::DIRECT_MESSAGE_REACTIONS
     }
+}
+
+fn event_type_flags() -> EventTypeFlags {
+    EventTypeFlags::all()
+        - EventTypeFlags::TYPING_START
+        - EventTypeFlags::DIRECT_MESSAGE_TYPING
+        - EventTypeFlags::GUILD_MESSAGE_TYPING
 }
 
 fn log_processed(p: twilight_standby::ProcessResults) {
