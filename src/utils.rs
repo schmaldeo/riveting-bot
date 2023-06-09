@@ -35,14 +35,6 @@ pub mod prelude {
     pub use anyhow::{Context as _, Result as AnyResult};
     // Async extras.
     pub use async_trait::async_trait;
-    // pub use futures::Sink as _;
-    // pub use futures::SinkExt as _;
-    pub use futures::{
-        AsyncBufRead as _, AsyncBufReadExt as _, AsyncRead as _, AsyncReadExt as _, AsyncSeek as _,
-        AsyncSeekExt as _, AsyncWrite as _, AsyncWriteExt as _, Future as _, FutureExt as _,
-        Stream as _, StreamExt as _, TryFuture as _, TryFutureExt as _, TryStream as _,
-        TryStreamExt as _,
-    };
     // Logging macros.
     pub use tracing::{debug, error, info, trace, warn};
 

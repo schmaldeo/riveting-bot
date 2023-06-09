@@ -256,6 +256,8 @@ async fn async_main(runtime: Arc<Runtime>) -> AnyResult<()> {
     let mut stream = ShardEventStream::new(shards.iter_mut());
 
     loop {
+        use futures::prelude::*;
+
         let (shard, event) = tokio::select! {
             Some(twilight_event) = stream.next() => twilight_event,
             Some(BotEvent::Shutdown) = events_rx.recv() => break,

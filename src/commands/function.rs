@@ -3,7 +3,7 @@ use std::sync::Arc;
 use derive_more::{IsVariant, Unwrap};
 
 use crate::commands::prelude::*;
-use crate::utils::prelude::*;
+// use crate::utils::prelude::*;
 use crate::Context;
 
 pub mod mock {
@@ -38,6 +38,7 @@ macro_rules! function_trait {
             Fut: ResponseFuture + 'static,
         {
             fn call(&self, ctx: Context, req: $request) -> CallFuture {
+                use futures::TryFutureExt;
                 Box::pin((self)(ctx, req).and_then(|x| x))
             }
         }
