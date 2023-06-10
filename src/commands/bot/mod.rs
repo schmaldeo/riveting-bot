@@ -69,8 +69,8 @@ pub fn create_commands() -> AnyResult<Commands> {
         .bind(user::coinflip::Coinflip::command())
         .bind(user::user_info::UserInfo::command());
 
-    // #[cfg(feature = "voice")]
-    // commands.bind(user::voice::Voice::command()); // WIP
+    #[cfg(feature = "voice")]
+    commands.bind(user::voice::Voice::command()); // WIP
 
     // Moderation functionality.
     #[cfg(feature = "admin")]

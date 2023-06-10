@@ -142,6 +142,7 @@ impl_into_command_error!(Other; std::fmt::Error);
 impl_into_command_error!(Other; reqwest::Error);
 impl_into_command_error!(Other; serde_json::Error);
 impl_into_command_error!(Other; tokio::sync::mpsc::error::SendError<BotEvent>);
+impl_into_command_error!(Other; twilight_gateway::error::SendError);
 impl_into_command_error!(Other; twilight_http::Error);
 impl_into_command_error!(Other; twilight_http::response::DeserializeBodyError);
 impl_into_command_error!(Other; twilight_standby::future::Canceled);
