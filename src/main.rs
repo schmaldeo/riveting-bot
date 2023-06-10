@@ -20,7 +20,9 @@ use tracing::Level;
 use tracing_subscriber::EnvFilter;
 use twilight_cache_inmemory::InMemoryCache;
 use twilight_gateway::stream::ShardEventStream;
-use twilight_gateway::{stream, CloseFrame, ConfigBuilder, Event, EventTypeFlags, ShardId};
+use twilight_gateway::{
+    stream, CloseFrame, ConfigBuilder, Event, EventTypeFlags, MessageSender, ShardId,
+};
 use twilight_http::client::InteractionClient;
 use twilight_http::Client;
 use twilight_model::application::command::permissions::GuildCommandPermissions;
@@ -53,6 +55,13 @@ mod utils;
 
 pub type BotEventSender = UnboundedSender<BotEvent>;
 
+/// Shard id and channel.
+#[derive(Debug, Clone)]
+pub struct PartialShard {
+    id: ShardId,
+    sender: MessageSender,
+}
+
 #[derive(Debug, Clone)]
 pub struct Context {
     /// Bot configuration.
@@ -73,17 +82,11 @@ pub struct Context {
     standby: Arc<Standby>,
     /// Async runtime.
     runtime: Arc<Runtime>,
-    /// Shard id associated with the event.
-    shard: Option<ShardId>,
+    /// Shard associated with the event.
+    shard: Option<PartialShard>,
 }
 
 impl Context {
-    /// This context with the provided shard id.
-    const fn with_shard(mut self, id: ShardId) -> Self {
-        self.shard = Some(id);
-        self
-    }
-
     /// Shortcut for `self.http.interaction(self.application.id)`.
     pub fn interaction(&self) -> InteractionClient {
         self.http.interaction(self.application.id)
@@ -143,6 +146,12 @@ impl Context {
                 Ok(chan)
             },
         }
+    }
+
+    /// This context with the provided shard id.
+    fn with_shard(mut self, id: ShardId, sender: MessageSender) -> Self {
+        self.shard = Some(PartialShard { id, sender });
+        self
     }
 }
 
@@ -287,7 +296,10 @@ async fn async_main(runtime: Arc<Runtime>) -> AnyResult<()> {
         log_processed(processed);
 
         // Handle event.
-        tokio::spawn(handle_event(ctx.clone().with_shard(shard.id()), event));
+        tokio::spawn(handle_event(
+            ctx.clone().with_shard(shard.id(), shard.sender()),
+            event,
+        ));
     }
 
     drop(stream);
@@ -380,6 +392,8 @@ async fn handle_hello(ctx: &Context, h: Hello) -> AnyResult<()> {
     info!(
         "Connected on shard {} with a heartbeat of {}",
         ctx.shard
+            .as_ref()
+            .map(|s| s.id)
             .ok_or_else(|| anyhow::anyhow!("Missing shard id"))?,
         h.heartbeat_interval
     );
