@@ -55,10 +55,11 @@ version = "1.17"
 
 [dependencies.songbird]
 default-features = false
-features = ["driver", "twilight-rustls", "zlib-stock"]
+features = ["driver", "gateway", "twilight", "rustls"]
+git = "https://github.com/serenity-rs/songbird"
 optional = true
+rev = "4fe23788e859a44a3f29987bff26c2612e74dcc5"
 version = "0.3"
-# git = "https://github.com/serenity-rs/songbird"
 # branch = "next"
 
 [features]
@@ -68,11 +69,14 @@ default = ["user", "admin", "owner"]
 debug = ["all-intents", "bulk-delete"]
 # Full set of features
 full = ["user", "admin", "owner", "debug", "voice", "ban-at-everyone"]
-#
+
+# Defaults
 admin = []
-all-intents = []
-ban-at-everyone = []
-bulk-delete = ["admin"]
 owner = []
 user = []
-voice = ["dep:songbird", "user"]
+
+# Extras
+all-intents = []
+ban-at-everyone = []
+bulk-delete = []
+voice = ["dep:songbird"]
