@@ -35,6 +35,9 @@ jobs:
       - name: Cargo build
         run: cargo +nightly build --verbose
 
+      - name: Cargo check no features
+        run: cargo +nightly check --no-default-features --verbose
+
       - name: Cargo check all features
         run: cargo +nightly check --all-features --verbose
 
