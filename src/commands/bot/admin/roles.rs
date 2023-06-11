@@ -212,14 +212,14 @@ async fn roles_setup_process(
     preset: Option<Vec<ReactionRole>>,
 ) -> Result<Option<Vec<ReactionRole>>, CommandError> {
     let info_text = indoc::formatdoc! {"
-    **Reaction-roles setup**
-    
-        *Step 1:*  React to this message.
-        *Step 2:*  Select a role from the dropdown menu.
-        *Step 3:*  Repeat until you are happy with the role mappings.
-        *Step 4:*  Press **Done** to finalize the reaction-roles message.
-    
-    If any role is not displayed in the list, it may be too stronk for the bot.
+        **Reaction-roles setup**
+        
+            *Step 1:*  React to this message.
+            *Step 2:*  Select a role from the dropdown menu.
+            *Step 3:*  Repeat until you are happy with the role mappings.
+            *Step 4:*  Press **Done** to finalize the reaction-roles message.
+        
+        If any role is not displayed in the list, it may be too stronk for the bot.
     "};
 
     let interaction = ctx.interaction();

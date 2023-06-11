@@ -56,9 +56,16 @@ pub fn create_commands() -> AnyResult<Commands> {
 
     // Basic functionality.
     commands
-        .bind(meta::Ping::command())
-        .bind(meta::About::command())
-        .bind(meta::Help::command());
+        .bind(meta::essential::Ping::command())
+        .bind(meta::essential::About::command())
+        .bind(meta::essential::Help::command());
+
+    #[cfg(feature = "voice")]
+    commands.bind(meta::voice::Voice::command());
+
+    // Extra utility.
+    #[cfg(feature = "bulk-delete")]
+    commands.bind(meta::bulk::BulkDelete::command());
 
     #[cfg(feature = "user")]
     commands
@@ -69,9 +76,6 @@ pub fn create_commands() -> AnyResult<Commands> {
         .bind(user::coinflip::Coinflip::command())
         .bind(user::user_info::UserInfo::command());
 
-    #[cfg(feature = "voice")]
-    commands.bind(user::voice::Voice::command()); // WIP
-
     // Moderation functionality.
     #[cfg(feature = "admin")]
     commands
@@ -80,10 +84,6 @@ pub fn create_commands() -> AnyResult<Commands> {
         .bind(admin::roles::Roles::command())
         .bind(admin::bot::Bot::command())
         .bind(admin::silence::Mute::command());
-
-    // Extra utility.
-    #[cfg(feature = "bulk-delete")]
-    commands.bind(admin::bulk::BulkDelete::command());
 
     // Bot owner functionality.
     #[cfg(feature = "owner")]
