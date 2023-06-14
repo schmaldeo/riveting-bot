@@ -84,6 +84,9 @@ pub struct Context {
     runtime: Arc<Runtime>,
     /// Shard associated with the event.
     shard: Option<PartialShard>,
+    /// Songbird voice manager.
+    #[cfg(feature = "voice")]
+    voice: Arc<songbird::Songbird>,
 }
 
 impl Context {
@@ -248,6 +251,19 @@ async fn async_main(runtime: Arc<Runtime>) -> AnyResult<()> {
     .await?
     .collect::<Vec<_>>();
 
+    #[cfg(feature = "voice")]
+    let voice = {
+        Arc::new(songbird::Songbird::twilight(
+            Arc::new(songbird::shards::TwilightMap::new(
+                shards
+                    .iter()
+                    .map(|s| (s.id().number(), s.sender()))
+                    .collect(),
+            )),
+            user.id,
+        ))
+    };
+
     let ctx = Context {
         config,
         commands,
@@ -259,6 +275,8 @@ async fn async_main(runtime: Arc<Runtime>) -> AnyResult<()> {
         standby,
         runtime,
         shard: None,
+        #[cfg(feature = "voice")]
+        voice,
     };
 
     // Create an infinite stream over the shards' events.
@@ -290,6 +308,10 @@ async fn async_main(runtime: Arc<Runtime>) -> AnyResult<()> {
 
         // Update the cache with the event.
         ctx.cache.update(&event);
+
+        // Update songbird if enabled.
+        #[cfg(feature = "voice")]
+        ctx.voice.process(&event).await;
 
         // Update standby events.
         let processed = ctx.standby.process(&event);

@@ -1,14 +1,8 @@
-use std::sync::atomic::{AtomicU64, Ordering};
-
-use twilight_model::gateway::payload::outgoing::UpdateVoiceState;
 use twilight_model::id::marker::GuildMarker;
 use twilight_model::id::Id;
 
 use crate::commands::prelude::*;
 use crate::utils::prelude::*;
-
-/// Connected voice channel id, `0` if not connected.
-static CONNECTED: AtomicU64 = AtomicU64::new(0);
 
 /// Command: Voice channel controls.
 pub struct Voice;
@@ -53,25 +47,18 @@ impl Join {
     async fn uber(ctx: Context, args: Args, guild_id: Option<Id<GuildMarker>>) -> CommandResponse {
         // TODO: This could also be inferred from user's voice channel or voice channel chat.
         let channel_id = args.channel("channel")?.id();
-        ctx.shard
-            .context("No associated shard")?
-            .sender
-            .command(&UpdateVoiceState::new(
-                guild_id.ok_or_else(|| CommandError::Disabled)?,
-                Some(channel_id),
-                false,
-                false,
-            ))
-            .map_or_else(
-                |e| Err(e.into()),
-                move |_| {
-                    Ok(Response::new(move || async move {
-                        let old = CONNECTED.swap(channel_id.get(), Ordering::Relaxed);
-                        info!(old, "Connected to voice channel '{channel_id}'");
-                        Ok(())
-                    }))
-                },
-            )
+        let guild_id = guild_id.ok_or_else(|| CommandError::Disabled)?;
+
+        ctx.voice
+            .join(guild_id, channel_id)
+            .await
+            .with_context(|| format!("Failed to join channel '{channel_id}'"))
+            .map(|_| {
+                Ok(Response::new(move || async move {
+                    info!("Connected to voice channel '{channel_id}'");
+                    Ok(())
+                }))
+            })?
     }
 
     async fn classic(ctx: Context, req: ClassicRequest) -> CommandResponse {
@@ -88,25 +75,26 @@ struct Leave;
 
 impl Leave {
     async fn uber(ctx: Context, guild_id: Option<Id<GuildMarker>>) -> CommandResponse {
-        ctx.shard
-            .context("No associated shard")?
-            .sender
-            .command(&UpdateVoiceState::new(
-                guild_id.ok_or_else(|| CommandError::Disabled)?,
-                None,
-                false,
-                false,
-            ))
-            .map_or_else(
-                |e| Err(e.into()),
-                move |_| {
-                    Ok(Response::new(move || async move {
-                        let old = CONNECTED.swap(0, Ordering::Relaxed);
-                        info!("Disconnected from voice channel '{old}'");
-                        Ok(())
-                    }))
-                },
-            )
+        let guild_id = guild_id.ok_or_else(|| CommandError::Disabled)?;
+
+        let channel_id = match ctx.voice.get(guild_id) {
+            Some(call) => match call.lock().await.current_channel() {
+                Some(channel_id) => channel_id,
+                None => return Ok(Response::none()),
+            },
+            None => return Ok(Response::none()),
+        };
+
+        ctx.voice
+            .leave(guild_id)
+            .await
+            .with_context(|| format!("Failed to leave channel '{channel_id}'"))
+            .map(|_| {
+                Ok(Response::new(move || async move {
+                    info!("Disconnected from voice channel '{channel_id}'");
+                    Ok(())
+                }))
+            })?
     }
 
     async fn classic(ctx: Context, req: ClassicRequest) -> CommandResponse {
