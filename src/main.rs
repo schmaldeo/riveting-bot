@@ -35,7 +35,7 @@ use twilight_model::gateway::payload::outgoing::update_presence::UpdatePresenceP
 use twilight_model::gateway::presence::{ActivityType, MinimalActivity, Status};
 use twilight_model::gateway::{GatewayReaction, Intents};
 use twilight_model::guild::{Guild, Role};
-use twilight_model::id::marker::{ChannelMarker, GuildMarker, RoleMarker};
+use twilight_model::id::marker::{ChannelMarker, GuildMarker, RoleMarker, UserMarker};
 use twilight_model::id::Id;
 use twilight_model::oauth::Application;
 use twilight_model::user::CurrentUser;
@@ -149,6 +149,29 @@ impl Context {
                 Ok(chan)
             },
         }
+    }
+
+    /// Search for a voice channel that a user is connected to in a guild.
+    pub async fn user_voice_channel(
+        &self,
+        guild_id: Id<GuildMarker>,
+        user_id: Id<UserMarker>,
+    ) -> AnyResult<Id<ChannelMarker>> {
+        match self.cache.voice_state(user_id, guild_id) {
+            Some(s) => Some(s.channel_id()),
+            None => {
+                // FIXME: `voice_states` is empty.
+                let g = self.http.guild(guild_id).send().await?;
+                g.voice_states
+                    .into_iter()
+                    .filter_map(|v| Some((v.member?.user.id, v.channel_id?)))
+                    .find(|(u, _)| *u == user_id)
+                    .map(|(_, c)| c)
+            },
+        }
+        .with_context(|| {
+            format!("User '{user_id}' was not found in voice channels of guild '{guild_id}'")
+        })
     }
 
     /// This context with the provided shard id.

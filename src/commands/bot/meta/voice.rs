@@ -1,4 +1,5 @@
-use twilight_model::id::marker::GuildMarker;
+use twilight_model::channel::ChannelType;
+use twilight_model::id::marker::{ChannelMarker, GuildMarker, UserMarker};
 use twilight_model::id::Id;
 
 use crate::commands::prelude::*;
@@ -20,7 +21,6 @@ impl Voice {
                     .attach(Join::slash)
                     .option(
                         channel("channel", "Voice channel to join.")
-                            .required()
                             .types([ChannelType::GuildVoice, ChannelType::GuildStageVoice]),
                     ),
             )
@@ -44,10 +44,34 @@ impl Voice {
 struct Join;
 
 impl Join {
-    async fn uber(ctx: Context, args: Args, guild_id: Option<Id<GuildMarker>>) -> CommandResponse {
-        // TODO: This could also be inferred from user's voice channel or voice channel chat.
-        let channel_id = args.channel("channel")?.id();
+    async fn uber(
+        ctx: Context,
+        args: Args,
+        guild_id: Option<Id<GuildMarker>>,
+        req_channel_id: Id<ChannelMarker>,
+        user_id: Id<UserMarker>,
+    ) -> CommandResponse {
         let guild_id = guild_id.ok_or_else(|| CommandError::Disabled)?;
+        // If no arg was given, try to find user in voice channels, otherwise use channel id from the request itself.
+        let channel_id = match args.channel("channel") {
+            Ok(c) => c.id(),
+            Err(e) => {
+                debug!("{e}; Using fallback");
+                match ctx.user_voice_channel(guild_id, user_id).await {
+                    Ok(channel_id) => {
+                        debug!("User '{user_id}' was found in voice channel '{channel_id}'");
+                        channel_id
+                    },
+                    Err(e) => match ctx.channel_from(req_channel_id).await?.kind {
+                        ChannelType::GuildVoice | ChannelType::GuildStageVoice => {
+                            debug!("{e}; Using request channel");
+                            req_channel_id
+                        },
+                        _ => return Err(e.into()),
+                    },
+                }
+            },
+        };
 
         ctx.voice
             .join(guild_id, channel_id)
@@ -62,11 +86,29 @@ impl Join {
     }
 
     async fn classic(ctx: Context, req: ClassicRequest) -> CommandResponse {
-        Self::uber(ctx, req.args, req.message.guild_id).await
+        Self::uber(
+            ctx,
+            req.args,
+            req.message.guild_id,
+            req.message.channel_id,
+            req.message.author.id,
+        )
+        .await
     }
 
     async fn slash(ctx: Context, req: SlashRequest) -> CommandResponse {
-        Self::uber(ctx, req.args, req.interaction.guild_id).await
+        Self::uber(
+            ctx,
+            req.args,
+            req.interaction.guild_id,
+            req.interaction
+                .channel
+                .as_ref()
+                .map(|c| c.id)
+                .context("No channel found")?,
+            req.interaction.author_id().context("No user id found")?,
+        )
+        .await
     }
 }
 
