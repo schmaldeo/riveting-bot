@@ -62,6 +62,11 @@ rev = "4fe23788e859a44a3f29987bff26c2612e74dcc5"
 version = "0.3"
 # branch = "next"
 
+[dependencies.symphonia]
+features = ["all"]
+optional = true
+version = "0.5"
+
 [features]
 # Default features
 default = ["user", "admin", "owner"]
@@ -79,4 +84,4 @@ user = []
 all-intents = []
 ban-at-everyone = []
 bulk-delete = []
-voice = ["dep:songbird"]
+voice = ["dep:songbird", "dep:symphonia"]
