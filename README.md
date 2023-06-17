@@ -28,8 +28,6 @@ or any other environment variables for the bot.
 
 ## Build with Docker
 
-(As of right now, this will build the bot with the default features and release build.)
-
 - Have [Docker] installed.
 
 - ### With `docker-compose` _(the easy mode)_
@@ -44,6 +42,13 @@ or any other environment variables for the bot.
     (you can use `--env` option instead if you don't have a `.env` file).
     You may want to set up a volume bind with `--mount type=bind,source="$(pwd)"/data,target=/data`.
   - To shutdown the container, run `docker stop riveting-bot`.
+
+  ***
+
+  #### Image features:
+
+  - [`Dockerfile`](Dockerfile): `default` _(minimal size)_
+  - [`Dockerfile.extras`](Dockerfile.extras): `default` + `voice` _(built by docker workflow)_
 
 # Contributing
 
