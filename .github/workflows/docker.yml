@@ -51,6 +51,7 @@ jobs:
         uses: docker/build-push-action@v3
         with:
           context: .
+          file: ./Dockerfile.extras
           push: true
           tags: |
             ${{ env.IMAGE_NAME }}:latest
