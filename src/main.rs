@@ -726,9 +726,8 @@ async fn handle_reaction_remove(ctx: &Context, reaction: GatewayReaction) -> Any
     Ok(())
 }
 
-async fn handle_voice_state(_ctx: &Context, voice: VoiceState) -> AnyResult<()> {
-    println!("{voice:#?}",);
-
+async fn handle_voice_state(_ctx: &Context, _voice: VoiceState) -> AnyResult<()> {
+    // println!("{voice:#?}",);
     Ok(())
 }
 
