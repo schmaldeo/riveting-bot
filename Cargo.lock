@@ -372,12 +372,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "dotenv"
-version = "0.15.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "77c90badedccf4105eca100756a0b1289e191f6fcbdadd3cee1d2f614f97da8f"
-
-[[package]]
 name = "encoding_rs"
 version = "0.8.32"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1269,13 +1263,13 @@ dependencies = [
  "chrono",
  "dateparser",
  "derive_more",
- "dotenv",
  "futures",
  "indoc",
  "rand",
  "reqwest",
  "serde",
  "serde_json",
+ "simple_env_load",
  "songbird",
  "symphonia",
  "thiserror",
@@ -1565,7 +1559,7 @@ dependencies = [
 [[package]]
 name = "serenity"
 version = "0.11.5"
-source = "git+https://github.com/serenity-rs/serenity?branch=next#7f31a63a660e87a6f13ee2944aa9e8f3e4576e4f"
+source = "git+https://github.com/serenity-rs/serenity?branch=next#2bb56baf63d8f65246f075f1922d2d0571ae0cb5"
 dependencies = [
  "async-trait",
  "base64 0.21.2",
@@ -1590,7 +1584,7 @@ dependencies = [
 [[package]]
 name = "serenity-voice-model"
 version = "0.1.1"
-source = "git+https://github.com/serenity-rs/serenity?branch=next#7f31a63a660e87a6f13ee2944aa9e8f3e4576e4f"
+source = "git+https://github.com/serenity-rs/serenity?branch=next#2bb56baf63d8f65246f075f1922d2d0571ae0cb5"
 dependencies = [
  "bitflags",
  "enum_primitive",
@@ -1627,6 +1621,12 @@ checksum = "d8229b473baa5980ac72ef434c4415e70c4b5e71b423043adb4ba059f89c99a1"
 dependencies = [
  "libc",
 ]
+
+[[package]]
+name = "simple_env_load"
+version = "0.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "062f063a8bb8336fa98ee0eae53115bf6753ca9c83437808bf000c65621ca5e3"
 
 [[package]]
 name = "slab"

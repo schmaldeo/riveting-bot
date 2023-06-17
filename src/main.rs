@@ -62,7 +62,7 @@ pub struct PartialShard {
     sender: MessageSender,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub struct Context {
     /// Bot configuration.
     config: Arc<BotConfig>,
@@ -198,7 +198,7 @@ fn main() -> AnyResult<()> {
 
 async fn async_main(runtime: Arc<Runtime>) -> AnyResult<()> {
     // Load environment variables from `./.env` file, if any exists.
-    dotenv::dotenv().ok();
+    simple_env_load::load_env_from([".env"]);
 
     // Create data folder if it doesn't exist yet.
     std::fs::create_dir_all("./data/")
@@ -213,7 +213,13 @@ async fn async_main(runtime: Arc<Runtime>) -> AnyResult<()> {
         .with_env_filter(
             EnvFilter::builder()
                 .with_default_directive(Level::DEBUG.into())
-                .from_env()?,
+                .try_from_env()
+                .with_context(|| {
+                    format!(
+                        "Problem with `RUST_LOG={}`",
+                        env::var("RUST_LOG").unwrap_or_default()
+                    )
+                })?,
         )
         .with_ansi(false)
         .with_writer(Mutex::new(logfile))
