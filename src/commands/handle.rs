@@ -14,9 +14,9 @@ use twilight_model::http::interaction::{
 };
 use twilight_util::permission_calculator::PermissionCalculator;
 
-use crate::commands::arg::Arg;
+use crate::commands::arg::{Arg, ArgValue, Ref};
 use crate::commands::builder::{
-    ArgDesc, BaseCommand, CommandFunction, CommandGroup, CommandOption,
+    ArgDesc, ArgKind, BaseCommand, CommandFunction, CommandGroup, CommandOption,
 };
 use crate::commands::function::{Callable, ClassicFunction, SlashFunction};
 use crate::commands::prelude::*;
@@ -366,50 +366,110 @@ pub async fn sender_has_permissions(
 fn parse_classic_args(
     cmd_fn: &CommandFunction,
     msg: &Message,
-    mut rest: Option<&str>,
+    rest: Option<&str>,
 ) -> Result<Args, CommandError> {
-    fn parse(arg: &ArgDesc, msg: &Message, rest: &mut Option<&str>) -> AnyResult<Arg> {
-        // Normal arguments parsing.
-        let normal = || {
-            let unparsed = rest.ok_or(CommandError::MissingArgs)?;
-            let (value, next) = parser::maybe_quoted_arg(unparsed).with_context(|| {
-                format!("Failed to parse next argument from content '{unparsed}'")
-            })?;
-            *rest = next;
-
-            Arg::from_desc(arg, value).with_context(|| {
-                format!("Expected an argument '{}' of type '{}'", arg.name, arg.kind)
-            })
-        };
-
-        // Handle special arguments.
-        Arg::from_desc_msg(arg, msg)
-            .map(|special| special.map_or_else(normal, Ok)) // If special returned `None`, try normal parsing.
-            .with_context(|| {
-                format!("Expected an argument '{}' of type '{}'", arg.name, arg.kind)
-            })?
-    }
-
     let mut parsed = Vec::new();
     let args: Vec<_> = cmd_fn.args().collect();
     let mut split = args.iter().position(|a| !a.required).unwrap_or(args.len());
+    let mut parser = MessageParser::new(msg, rest);
 
     // Process all the required args.
     for arg in &args[..split] {
-        let arg = parse(arg, msg, &mut rest).context("Required argument error")?;
+        let arg = parser.parse_next(arg).context("Required argument error")?;
         parsed.push(arg);
     }
 
-    // TODO: This still assumes lock-step arg ordering in input, when it should not.
     // Process rest of the args, if any.
-    while rest.is_some() && split < args.len() {
-        let arg = args[split];
-        let arg = parse(arg, msg, &mut rest).context("Optional argument error")?;
+    for arg in &args[split..] {
+        let arg = match parser.parse_next(arg).context("Optional argument error") {
+            Ok(k) => k,
+            Err(e) => {
+                trace!("{e}");
+                continue;
+            },
+        };
+
         parsed.push(arg);
         split += 1;
     }
 
     Ok(Args::from(parsed))
+}
+
+/// Helper type for parsing args from a chat message.
+struct MessageParser<'a> {
+    msg: &'a Message,
+    rest: Option<&'a str>,
+    attachment_idx: usize,
+}
+
+impl<'a> MessageParser<'a> {
+    const fn new(msg: &'a Message, rest: Option<&'a str>) -> Self {
+        Self {
+            msg,
+            rest,
+            attachment_idx: 0,
+        }
+    }
+
+    /// Parse next argument with parser. Tries special parsing first, then baseline parsing.
+    fn parse_next(&mut self, desc: &ArgDesc) -> AnyResult<Arg> {
+        self.parse_special(&desc.kind)
+            .context("Special arg parsing error")
+            .and_then(|v| {
+                v.map_or_else(
+                    || {
+                        self.parse_baseline(&desc.kind)
+                            .context("Baseline arg parsing error")
+                    },
+                    Ok,
+                )
+            })
+            .map(|value| Arg {
+                name: desc.name.to_string(),
+                value,
+            })
+            .with_context(|| {
+                format!(
+                    "Expected an argument '{}' of type '{}'",
+                    desc.name, desc.kind
+                )
+            })
+    }
+
+    /// Try to parse a special argument from message.
+    fn parse_special(&mut self, kind: &ArgKind) -> AnyResult<Option<ArgValue>> {
+        match kind {
+            ArgKind::Message => self
+                .msg
+                .referenced_message
+                .as_ref()
+                .map_or(Ok(None), |replied| {
+                    Ok(Some(ArgValue::Message(Ref::from_obj(*replied.to_owned()))))
+                }),
+            ArgKind::Attachment => {
+                let result = self
+                    .msg
+                    .attachments
+                    .get(self.attachment_idx)
+                    .ok_or(CommandError::MissingArgs)
+                    .context("Attachment arg parse error (upload)")
+                    .map(|a| Some(ArgValue::Attachment(Ref::from_obj(a.to_owned()))));
+                self.attachment_idx += 1;
+                result
+            },
+            _ => Ok(None), // If not a special arg.
+        }
+    }
+
+    // Parse text as a normal argument.
+    fn parse_baseline(&mut self, kind: &ArgKind) -> AnyResult<ArgValue> {
+        let unparsed = self.rest.ok_or(CommandError::MissingArgs)?;
+        let (value, next) = parser::maybe_quoted_arg(unparsed)
+            .with_context(|| format!("Failed to parse next argument from content '{unparsed}'"))?;
+        self.rest = next;
+        ArgValue::from_kind(kind, value)
+    }
 }
 
 enum Lookup<'a> {

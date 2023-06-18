@@ -4,7 +4,6 @@ use std::sync::Arc;
 use derive_more::{AsMut, AsRef, From, Index, IndexMut, IntoIterator, IsVariant, Unwrap};
 use twilight_mention::ParseMention;
 use twilight_model::application::interaction::application_command::CommandOptionValue;
-use twilight_model::channel::Message;
 use twilight_model::id::Id;
 
 use crate::commands::builder::{ArgDesc, ArgKind};
@@ -132,13 +131,6 @@ impl Arg {
             value: ArgValue::from_kind(&desc.kind, text)?,
         })
     }
-
-    pub fn from_desc_msg(desc: &ArgDesc, msg: &Message) -> AnyResult<Option<Self>> {
-        Ok(ArgValue::from_kind_msg(&desc.kind, msg)?.map(|value| Self {
-            name: desc.name.to_string(),
-            value,
-        }))
-    }
 }
 
 /// Argument value type with data.
@@ -222,23 +214,6 @@ impl ArgValue {
         };
 
         Ok(val)
-    }
-
-    pub fn from_kind_msg(kind: &ArgKind, msg: &Message) -> AnyResult<Option<Self>> {
-        match kind {
-            ArgKind::Message => msg.referenced_message.as_ref().map_or(Ok(None), |replied| {
-                Ok(Some(Self::Message(Ref::from_obj(*replied.to_owned()))))
-            }),
-            ArgKind::Attachment => {
-                // This only supports one attachment per message.
-                msg.attachments
-                    .first()
-                    .ok_or(CommandError::MissingArgs)
-                    .context("Attachment arg parse error (upload)")
-                    .map(|a| Some(Self::Attachment(Ref::from_obj(a.to_owned()))))
-            },
-            _ => Ok(None), // If not a special arg.
-        }
     }
 }
 
