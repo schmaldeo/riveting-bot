@@ -33,9 +33,7 @@ impl BulkDelete {
         message_id: Option<Id<MessageMarker>>,
     ) -> CommandResult<()> {
         const TWO_WEEKS_SECS: i64 = 60 * 60 * 24 * 7 * 2;
-
         let two_weeks_ago = timestamp - TWO_WEEKS_SECS;
-
         let count = args.integer("amount")?;
 
         let Ok(delete_count) = count.min(MAX_DELETE).try_into() else {
@@ -80,13 +78,16 @@ impl BulkDelete {
             .map(|m| m.id)
             .collect();
 
+        debug!("Deleting {} messages", msgs.len());
+
         // Delete the messages.
         if msgs.len() > 1 {
             // Bulk delete must have 2 to 100 messages.
             let _ = ctx
                 .http
                 .delete_messages(channel_id, &msgs)
-                .context("Failed to delete multiple messages")?;
+                .context("Failed to delete multiple messages")?
+                .await?;
         } else if let Some(msg) = msgs.first() {
             ctx.http.delete_message(channel_id, *msg).await?;
         }

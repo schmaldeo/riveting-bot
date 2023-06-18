@@ -62,6 +62,7 @@ pub struct PartialShard {
     sender: MessageSender,
 }
 
+/// Common bot context that contains field for managing and operating the bot.
 #[derive(Clone)]
 pub struct Context {
     /// Bot configuration.

@@ -240,6 +240,11 @@ pub async fn classic_command(ctx: &Context, msg: Arc<Message>) -> CommandResult<
         return Err(CommandError::NotFound(format!("Command '{name}' does not exist")))
     };
 
+    // Check if command should run in DMs.
+    if !base.dm_enabled && msg.guild_id.is_none() {
+        return Err(CommandError::Disabled);
+    }
+
     // Continue with access if there is no permission requirements.
     if let Some(perms) = base.member_permissions {
         // Return with error if the user does not have the permissions.

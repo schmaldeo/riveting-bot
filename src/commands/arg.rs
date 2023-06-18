@@ -73,6 +73,7 @@ where
 #[derive(Debug, Default, Clone, AsMut, AsRef, From, Index, IndexMut, IntoIterator)]
 pub struct Args(Vec<Arg>);
 
+/// Implements convenience methods for getting a certain type of argument.
 macro_rules! impl_variant_get {
     ($( $vis:vis fn $method:ident -> $value:ty );* $(;)?) => {
         $(
@@ -169,9 +170,11 @@ impl ArgValue {
         pub fn mention(&self: Mention(val)) -> types::ArgMention { *val }
     );
 
+    /// Create a value from value kind and text.
     pub fn from_kind(kind: &ArgKind, text: &str) -> AnyResult<Self> {
         // TODO: Ensure data parameters.
 
+        /// Try to parse text as a discord mention, otherwise try to parse text as an id number.
         fn parse_mention_or_id<F, A, B>(text: &str, variant: F) -> AnyResult<ArgValue>
         where
             F: Fn(Ref<A, B>) -> ArgValue,
