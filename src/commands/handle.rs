@@ -115,8 +115,23 @@ async fn process_slash(
             },
             arg => {
                 // Convert argument.
-                match arg.to_owned().try_into() {
-                    Ok(arg) => {
+                match ArgValue::try_from(arg.to_owned()) {
+                    Ok(mut arg) => {
+                        // Convert `string` type that should be `message` type.
+                        // (due to implementation of slash command args)
+                        if let Some(ArgDesc {
+                            kind: ArgKind::Message,
+                            ..
+                        }) = match last {
+                            Lookup::Command(c) => c.args().find(|a| a.name == opt.name),
+                            Lookup::Group(_) => None,
+                        } {
+                            if let Some(s) = arg.string() {
+                                arg = ArgValue::from_kind(&ArgKind::Message, &s)
+                                    .context("Failed to convert string to message type")?;
+                            }
+                        }
+
                         // Args are still stored in reverse order.
                         args.push(Arg {
                             name: opt.name,
