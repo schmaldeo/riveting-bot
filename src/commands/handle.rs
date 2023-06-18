@@ -23,7 +23,7 @@ use crate::commands::prelude::*;
 use crate::utils::prelude::*;
 use crate::{parser, Context};
 
-const ERROR_MESSAGE: &str = "The bot has encountered an error executing the command! :confused:";
+const ERROR_MESSAGE: &str = "The bot has encountered an error executing the command! 😕";
 
 /// Handle interaction and execute command functions.
 pub async fn application_command(
@@ -324,7 +324,6 @@ pub async fn classic_command(ctx: &Context, msg: Arc<Message>) -> CommandResult<
     if let Err(e) = response {
         ctx.http
             .create_message(msg.channel_id)
-            .reply(msg.id)
             .content(ERROR_MESSAGE)?
             .await?;
 
