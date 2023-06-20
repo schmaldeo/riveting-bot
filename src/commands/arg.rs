@@ -1,7 +1,7 @@
 use std::borrow::Borrow;
 use std::sync::Arc;
 
-use derive_more::{AsMut, AsRef, From, Index, IndexMut, IntoIterator, IsVariant, Unwrap};
+use derive_more::{From, IsVariant, Unwrap};
 use twilight_mention::ParseMention;
 use twilight_model::application::interaction::application_command::CommandOptionValue;
 use twilight_model::id::Id;
@@ -69,8 +69,8 @@ where
 }
 
 /// Wrapper around `Vec<Arg>` for extra features.
-#[derive(Debug, Default, Clone, AsMut, AsRef, From, Index, IndexMut, IntoIterator)]
-pub struct Args(Vec<Arg>);
+#[derive(Debug, Default, Clone)]
+pub struct Args(Box<[Arg]>);
 
 /// Implements convenience methods for getting a certain type of argument.
 macro_rules! impl_variant_get {
@@ -111,9 +111,21 @@ impl Args {
             .map(|a| &a.value)
     }
 
-    /// Returns the inner arg vector.
-    pub fn inner(self) -> Vec<Arg> {
+    /// Returns the inner box.
+    pub fn into_inner(self) -> Box<[Arg]> {
         self.0
+    }
+}
+
+impl From<Vec<Arg>> for Args {
+    fn from(value: Vec<Arg>) -> Self {
+        Self(value.into_boxed_slice())
+    }
+}
+
+impl AsRef<[Arg]> for Args {
+    fn as_ref(&self) -> &[Arg] {
+        &self.0
     }
 }
 
