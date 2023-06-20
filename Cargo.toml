@@ -32,17 +32,17 @@ twilight-standby = "0.15"
 twilight-validate = "0.15"
 
 [dependencies.twilight-util]
-features = ["full"]
+features = ["builder", "permission-calculator"]
 version = "0.15"
 
 [dependencies.reqwest]
 default-features = false
-features = ["json", "rustls-tls"]
+features = ["json"]
 version = "0.11"
 
 [dependencies.chrono]
 default-features = false
-features = ["std", "clock", "time", "serde"]
+features = ["std", "clock"]
 version = "0.4"
 
 [dependencies.tracing-subscriber]
@@ -50,12 +50,12 @@ features = ["env-filter"]
 version = "0.3"
 
 [dependencies.tokio]
-features = ["full"]
+features = ["rt", "rt-multi-thread", "time", "macros", "sync", "signal"]
 version = "1.17"
 
 [dependencies.songbird]
 default-features = false
-features = ["driver", "gateway", "twilight", "rustls", "builtin-queue"]
+features = ["driver", "gateway", "twilight", "native", "builtin-queue"]
 git = "https://github.com/serenity-rs/songbird"
 optional = true
 rev = "4fe23788e859a44a3f29987bff26c2612e74dcc5"
