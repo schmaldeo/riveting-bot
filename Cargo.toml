@@ -7,6 +7,13 @@ version = "0.3.1"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [profile.release]
+codegen-units = 64
+incremental = true
+
+[profile.prod]
+codegen-units = 4
+incremental = false
+inherits = "release"
 lto = true
 strip = true
 
