@@ -47,8 +47,8 @@ or any other environment variables for the bot.
 
   #### Image features:
 
-  - [`Dockerfile`](Dockerfile): `default` _(minimal size)_
-  - [`Dockerfile.extras`](Dockerfile.extras): `default` + `voice` _(built by docker workflow)_
+  - [`Dockerfile`](Dockerfile): `default` _(minimal size, default for docker-compose)_
+  - [`Dockerfile.extras`](Dockerfile.extras): `default` + `voice` _(built by `docker` github workflow)_
 
 # Contributing
 
