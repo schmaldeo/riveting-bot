@@ -5,6 +5,7 @@ use songbird::tracks::Track;
 use songbird::typemap::TypeMapKey;
 use songbird::Call;
 use tokio::sync::Mutex;
+use twilight_gateway::Event;
 use twilight_mention::Mention;
 use twilight_model::channel::ChannelType;
 use twilight_model::id::marker::{ChannelMarker, GuildMarker, UserMarker};
@@ -91,6 +92,34 @@ impl Join {
                 }
             },
         };
+
+        if match ctx.voice.get(guild_id) {
+            Some(call) => call.lock().await.current_channel().is_none(),
+            None => true,
+        } {
+            let ctx = ctx.to_owned();
+            tokio::spawn(async move {
+                ctx.standby
+                    .wait_for(guild_id, move |event: &Event| {
+                        match event {
+                            Event::GatewayClose(_) => true,
+                            Event::VoiceStateUpdate(vsu) => {
+                                // If the update is a disconnect and for the user who called join.
+                                vsu.channel_id.is_none() && vsu.user_id == user_id
+                            },
+                            _ => false,
+                        }
+                    })
+                    .await?;
+
+                debug!("Autodisconnecting from voice");
+                ctx.voice
+                    .remove(guild_id)
+                    .await
+                    .with_context(|| format!("Failed to leave channel '{channel_id}'"))
+                    .map(|_| info!("Disconnected from voice channel '{channel_id}'"))
+            });
+        }
 
         let call = ctx
             .voice
