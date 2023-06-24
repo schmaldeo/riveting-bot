@@ -67,11 +67,10 @@ impl Join {
     async fn uber(
         ctx: &Context,
         args: &Args,
-        guild_id: Option<Id<GuildMarker>>,
+        guild_id: Id<GuildMarker>,
         req_channel_id: Id<ChannelMarker>,
         user_id: Id<UserMarker>,
     ) -> AnyResult<Arc<Mutex<Call>>> {
-        let guild_id = guild_id.ok_or_else(|| CommandError::Disabled)?;
         // If no arg was given, try to find user in voice channels, otherwise use channel id from the request itself.
         let channel_id = match args.channel("channel") {
             Ok(c) => c.id(),
@@ -143,7 +142,7 @@ impl Join {
         Self::uber(
             &ctx,
             &req.args,
-            req.message.guild_id,
+            req.message.guild_id.ok_or_else(|| CommandError::Disabled)?,
             req.message.channel_id,
             req.message.author.id,
         )
@@ -156,7 +155,9 @@ impl Join {
         match Self::uber(
             &ctx,
             &req.args,
-            req.interaction.guild_id,
+            req.interaction
+                .guild_id
+                .ok_or_else(|| CommandError::Disabled)?,
             req.interaction
                 .channel
                 .as_ref()
@@ -229,10 +230,22 @@ impl Play {
         ctx: &Context,
         args: &Args,
         guild_id: Id<GuildMarker>,
+        req_channel_id: Id<ChannelMarker>,
+        user_id: Id<UserMarker>,
     ) -> AnyResult<Option<String>> {
-        let Some(call) = ctx.voice.get(guild_id) else {
-            info!("No voice connection found for '{guild_id}'");
-            return Ok(None);
+        // If not connected, try to join.
+        let call = match ctx.voice.get(guild_id) {
+            Some(call) => call,
+            None => {
+                info!("Bot is not connected to voice in guild '{guild_id}'; Trying to join");
+                match Join::uber(ctx, args, guild_id, req_channel_id, user_id).await {
+                    Ok(c) => c,
+                    Err(e) => {
+                        info!("{e}");
+                        return Ok(None);
+                    },
+                }
+            },
         };
 
         let url = args.string("url")?;
@@ -284,6 +297,8 @@ impl Play {
             &ctx,
             &req.args,
             req.message.guild_id.ok_or(CommandError::Disabled)?,
+            req.message.channel_id,
+            req.message.author.id,
         )
         .await
         {
@@ -304,6 +319,12 @@ impl Play {
             &ctx,
             &req.args,
             req.interaction.guild_id.ok_or(CommandError::Disabled)?,
+            req.interaction
+                .channel
+                .as_ref()
+                .map(|c| c.id)
+                .context("No channel found")?,
+            req.interaction.author_id().context("No user id found")?,
         )
         .await
         {
