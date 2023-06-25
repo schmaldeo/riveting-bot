@@ -25,7 +25,6 @@ use twilight_gateway::{
 };
 use twilight_http::client::InteractionClient;
 use twilight_http::Client;
-use twilight_model::application::command::permissions::GuildCommandPermissions;
 use twilight_model::application::interaction::{Interaction, InteractionData};
 use twilight_model::channel::{Channel, Message};
 use twilight_model::gateway::payload::incoming::{
@@ -392,7 +391,11 @@ async fn handle_event(ctx: Context, event: Event) -> AnyResult<()> {
         Event::ReactionRemove(r) => handle_reaction_remove(&ctx, r.0).await,
         Event::VoiceStateUpdate(v) => handle_voice_state(&ctx, v.0).await,
         Event::CommandPermissionsUpdate(cpu) => {
-            handle_command_permissions_update(&ctx, cpu.0).await
+            debug!(
+                "Permissions update event: Command '{}' in guild '{}'",
+                cpu.id, cpu.guild_id
+            );
+            Ok(())
         },
 
         // Gateway events.
@@ -534,9 +537,6 @@ async fn handle_message_create(ctx: &Context, msg: Message) -> AnyResult<()> {
 
     let msg = Arc::new(msg);
 
-    #[cfg(feature = "ban-at-everyone")]
-    check_if_at_everyone(ctx, &msg).await.ok();
-
     match crate::commands::handle::classic_command(ctx, Arc::clone(&msg)).await {
         Err(CommandError::NotPrefixed) => {
             // Message was not a command.
@@ -568,22 +568,9 @@ async fn handle_message_create(ctx: &Context, msg: Message) -> AnyResult<()> {
         res => res.context("Failed to handle classic command"),
     }
 }
-#[cfg(feature = "ban-at-everyone")]
-async fn check_if_at_everyone(ctx: &Context, msg: &Message) -> AnyResult<()> {
-    let Some(guild_id) = msg.guild_id else {
-        anyhow::bail!("Disabled");
-    };
-
-    if msg.mention_everyone {
-        ctx.http.create_ban(guild_id, msg.author.id).await?;
-    }
-
-    Ok(())
-}
 
 async fn handle_message_update(_ctx: &Context, _mu: MessageUpdate) -> AnyResult<()> {
     // TODO Check if updated message is something that should update content from the bot.
-
     Ok(())
 }
 
@@ -729,19 +716,6 @@ async fn handle_reaction_remove(ctx: &Context, reaction: GatewayReaction) -> Any
 
 async fn handle_voice_state(_ctx: &Context, _voice: VoiceState) -> AnyResult<()> {
     // println!("{voice:#?}",);
-    Ok(())
-}
-
-async fn handle_command_permissions_update(
-    _ctx: &Context,
-    cpu: GuildCommandPermissions,
-) -> AnyResult<()> {
-    println!("Permissions update: {:#?}", cpu);
-    // cpu.permissions.into_iter().for_each(|p| match p.id {
-    //     CommandPermissionType::Channel(_) => todo!(),
-    //     CommandPermissionType::Role(_) => todo!(),
-    //     CommandPermissionType::User(_) => todo!(),
-    // });
     Ok(())
 }
 

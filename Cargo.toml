@@ -80,7 +80,7 @@ default = ["user", "admin", "owner"]
 # Debugging features
 debug = ["all-intents", "bulk-delete"]
 # Full set of features
-full = ["user", "admin", "owner", "debug", "voice", "ban-at-everyone"]
+full = ["user", "admin", "owner", "debug", "voice"]
 
 # Defaults
 admin = []
@@ -89,6 +89,5 @@ user = []
 
 # Extras
 all-intents = []
-ban-at-everyone = []
 bulk-delete = []
 voice = ["dep:songbird", "dep:symphonia"]
