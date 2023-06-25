@@ -72,7 +72,6 @@ pub fn create_commands() -> AnyResult<Commands> {
     commands
         .bind(user::fuel::Fuel::command())
         .bind(user::time::Time::command())
-        // .bind(user::quote::Quote::command()) // WIP
         .bind(user::joke::Joke::command())
         .bind(user::coinflip::Coinflip::command())
         .bind(user::user_info::UserInfo::command());
@@ -80,10 +79,8 @@ pub fn create_commands() -> AnyResult<Commands> {
     // Moderation functionality.
     #[cfg(feature = "admin")]
     commands
-        // .bind(admin::config::Config::command()) // WIP
-        // .bind(admin::alias::Alias::command()) // WIP
-        .bind(admin::roles::Roles::command())
         .bind(admin::bot::Bot::command())
+        .bind(admin::roles::Roles::command())
         .bind(admin::silence::Mute::command());
 
     // Bot owner functionality.
