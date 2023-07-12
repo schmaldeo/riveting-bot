@@ -54,16 +54,19 @@ impl Fuel {
         let amount_of_laps = length_in_seconds / laptime_in_seconds;
         let fuel_needed = amount_of_laps.ceil() * consumption;
 
-        let laptime_for_another_lap_seconds = length_in_seconds / amount_of_laps.ceil() - 0.01;
+        let laptime_for_another_lap_seconds = length_in_seconds / amount_of_laps.ceil() - 0.001;
         let minutes_in_laptime_for_another_lap =
             (laptime_for_another_lap_seconds / 60.0).floor() as u32;
-        let laptime_for_another_lap: [u32; 4] = [
+
+        let laptime_for_another_lap = NaiveTime::from_hms_milli_opt(
             ((laptime_for_another_lap_seconds / 60.0) / 60.0) as u32,
             minutes_in_laptime_for_another_lap,
             laptime_for_another_lap_seconds.trunc() as u32
                 - (minutes_in_laptime_for_another_lap * 60),
             (laptime_for_another_lap_seconds.fract() * 1000.0) as u32,
-        ];
+        )
+        .unwrap_or_default()
+        .format("%M:%S%.3f");
 
         let risk_of_another_lap = (length_in_seconds / laptime_in_seconds).fract() > 0.8;
 
@@ -93,25 +96,14 @@ impl Fuel {
             .field(
                 EmbedFieldBuilder::new(
                     "Laps",
-                    amount_of_laps.ceil().to_string()
-                        + " ("
-                        + &format!("{amount_of_laps:.2}")
-                        + ")",
+                    format!("{} ({amount_of_laps:.2})", amount_of_laps.ceil()),
                 )
                 .inline(),
             )
             .field(
                 EmbedFieldBuilder::new(
                     "Laptime required for additional lap",
-                    NaiveTime::from_hms_milli_opt(
-                        laptime_for_another_lap[0],
-                        laptime_for_another_lap[1],
-                        laptime_for_another_lap[2],
-                        laptime_for_another_lap[3],
-                    )
-                    .unwrap_or_default()
-                    .format("%M:%S%.3f")
-                    .to_string(),
+                    laptime_for_another_lap.to_string(),
                 )
                 .inline(),
             )
