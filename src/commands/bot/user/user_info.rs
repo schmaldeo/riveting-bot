@@ -16,6 +16,7 @@ impl UserInfo {
         command("userinfo", "Get information about a user.")
             .attach(Self::slash)
             .option(user("user", "User to show information about."))
+            .dm()
     }
 
     async fn slash(ctx: Context, req: SlashRequest) -> CommandResponse {

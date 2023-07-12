@@ -14,23 +14,27 @@
 use std::sync::{Arc, Mutex};
 use std::{env, fs};
 
-use futures::stream::StreamExt;
+use tokio::runtime::Runtime;
+use tokio::sync::mpsc::{self, UnboundedSender};
 use tracing::Level;
 use tracing_subscriber::EnvFilter;
 use twilight_cache_inmemory::InMemoryCache;
-use twilight_gateway::{Cluster, Event};
+use twilight_gateway::stream::ShardEventStream;
+use twilight_gateway::{
+    stream, CloseFrame, ConfigBuilder, Event, EventTypeFlags, MessageSender, ShardId,
+};
 use twilight_http::client::InteractionClient;
 use twilight_http::Client;
-use twilight_model::application::command::permissions::GuildCommandPermissions;
 use twilight_model::application::interaction::{Interaction, InteractionData};
 use twilight_model::channel::{Channel, Message};
-use twilight_model::gateway::event::shard::Connected;
 use twilight_model::gateway::payload::incoming::{
-    ChannelUpdate, MessageDelete, MessageDeleteBulk, MessageUpdate, Ready, RoleUpdate,
+    ChannelUpdate, Hello, MessageDelete, MessageDeleteBulk, MessageUpdate, Ready, RoleUpdate,
 };
+use twilight_model::gateway::payload::outgoing::update_presence::UpdatePresencePayload;
+use twilight_model::gateway::presence::{ActivityType, MinimalActivity, Status};
 use twilight_model::gateway::{GatewayReaction, Intents};
 use twilight_model::guild::{Guild, Role};
-use twilight_model::id::marker::{ChannelMarker, GuildMarker, RoleMarker};
+use twilight_model::id::marker::{ChannelMarker, GuildMarker, RoleMarker, UserMarker};
 use twilight_model::id::Id;
 use twilight_model::oauth::Application;
 use twilight_model::user::CurrentUser;
@@ -38,7 +42,7 @@ use twilight_model::voice::VoiceState;
 use twilight_standby::Standby;
 
 use crate::commands::{CommandError, Commands};
-use crate::config::Config;
+use crate::config::BotConfig;
 use crate::utils::prelude::*;
 
 mod commands;
@@ -48,14 +52,26 @@ mod config;
 mod parser;
 mod utils;
 
+pub type BotEventSender = UnboundedSender<BotEvent>;
+
+/// Shard id and channel.
 #[derive(Debug, Clone)]
+pub struct PartialShard {
+    id: ShardId,
+    sender: MessageSender,
+}
+
+/// Common bot context that contains field for managing and operating the bot.
+#[derive(Clone)]
 pub struct Context {
     /// Bot configuration.
-    config: Arc<Mutex<Config>>,
+    config: Arc<BotConfig>,
+    /// Bot commands list.
+    commands: Arc<Commands>,
+    /// Bot events channel.
+    events_tx: BotEventSender,
     /// Application http client.
     http: Arc<Client>,
-    /// Application shard manager.
-    cluster: Arc<Cluster>,
     /// Application information.
     application: Arc<Application>,
     /// Application bot user.
@@ -64,35 +80,19 @@ pub struct Context {
     cache: Arc<InMemoryCache>,
     /// Standby event system.
     standby: Arc<Standby>,
-    /// Bot commands list.
-    commands: Arc<Commands>,
-    /// Shard id associated with the event.
-    shard: Option<u64>,
+    /// Async runtime.
+    runtime: Arc<Runtime>,
+    /// Shard associated with the event.
+    shard: Option<PartialShard>,
+    /// Songbird voice manager.
+    #[cfg(feature = "voice")]
+    voice: Arc<songbird::Songbird>,
 }
 
 impl Context {
-    /// This context with the provided shard id.
-    const fn with_shard(mut self, id: u64) -> Self {
-        self.shard = Some(id);
-        self
-    }
-
     /// Shortcut for `self.http.interaction(self.application.id)`.
     pub fn interaction(&self) -> InteractionClient {
         self.http.interaction(self.application.id)
-    }
-
-    /// Return currently active classic command prefix, either global prefix or a guild specific one.
-    pub fn classic_prefix(&self, guild_id: Option<Id<GuildMarker>>) -> String {
-        let lock = self.config.lock().unwrap();
-
-        guild_id.map_or_else(
-            || lock.prefix.to_string(),
-            |guild_id| {
-                lock.guild(guild_id)
-                    .map_or_else(|| lock.prefix.to_string(), |data| data.prefix.to_string())
-            },
-        )
     }
 
     /// Get role objects with `ids` from cache or fetch from client.
@@ -150,12 +150,55 @@ impl Context {
             },
         }
     }
+
+    /// Search for a voice channel that a user is connected to in a guild.
+    pub async fn user_voice_channel(
+        &self,
+        guild_id: Id<GuildMarker>,
+        user_id: Id<UserMarker>,
+    ) -> AnyResult<Id<ChannelMarker>> {
+        match self.cache.voice_state(user_id, guild_id) {
+            Some(s) => Some(s.channel_id()),
+            None => {
+                // FIXME: `voice_states` is empty.
+                let g = self.http.guild(guild_id).send().await?;
+                g.voice_states
+                    .into_iter()
+                    .filter_map(|v| Some((v.member?.user.id, v.channel_id?)))
+                    .find(|(u, _)| *u == user_id)
+                    .map(|(_, c)| c)
+            },
+        }
+        .with_context(|| {
+            format!("User '{user_id}' was not found in voice channels of guild '{guild_id}'")
+        })
+    }
+
+    /// This context with the provided shard id.
+    fn with_shard(mut self, id: ShardId, sender: MessageSender) -> Self {
+        self.shard = Some(PartialShard { id, sender });
+        self
+    }
 }
 
-#[tokio::main]
-async fn main() -> AnyResult<()> {
+#[derive(Debug)]
+pub enum BotEvent {
+    Shutdown,
+}
+
+#[tracing::instrument]
+fn main() -> AnyResult<()> {
+    let rt = Arc::new(
+        tokio::runtime::Builder::new_multi_thread()
+            .enable_all()
+            .build()?,
+    );
+    rt.block_on(async_main(Arc::clone(&rt)))
+}
+
+async fn async_main(runtime: Arc<Runtime>) -> AnyResult<()> {
     // Load environment variables from `./.env` file, if any exists.
-    dotenv::dotenv().ok();
+    simple_env_load::load_env_from([".env"]);
 
     // Create data folder if it doesn't exist yet.
     std::fs::create_dir_all("./data/")
@@ -170,53 +213,36 @@ async fn main() -> AnyResult<()> {
         .with_env_filter(
             EnvFilter::builder()
                 .with_default_directive(Level::DEBUG.into())
-                .from_env()?,
+                .try_from_env()
+                .with_context(|| {
+                    format!(
+                        "Problem with `RUST_LOG={}`",
+                        env::var("RUST_LOG").unwrap_or_default()
+                    )
+                })?,
         )
         .with_ansi(false)
         .with_writer(Mutex::new(logfile))
         .compact()
         .init();
 
-    // Load bot configuration file.
-    let config = Arc::new(Mutex::new(Config::load()?));
+    // Setup bot configuration files.
+    let config = Arc::new(BotConfig::new()?);
+
+    // Initialize chat and interaction commands.
+    let commands = Arc::new(commands::bot::create_commands()?);
+
+    // Bot events channel.
+    let (events_tx, mut events_rx) = mpsc::unbounded_channel();
+
+    // Spawn ctrl-c shutdown task.
+    tokio::spawn(shutdown_task(events_tx.clone()));
 
     // Get discord bot token from environment variable.
     let token = env::var("DISCORD_TOKEN").expect("Expected a token in the environment");
 
     // Create an http client.
     let http = Arc::new(Client::new(token.to_owned()));
-
-    // Start a gateway connection, technically even a single shard would be enough for this, but hey.
-    let (cluster, mut events) = Cluster::builder(token, intents())
-        .http_client(Arc::clone(&http))
-        .build()
-        .await?;
-    let cluster = Arc::new(cluster);
-
-    // Start up the cluster.
-    {
-        let cluster = Arc::clone(&cluster);
-        tokio::spawn(async move {
-            cluster.up().await;
-        });
-    }
-
-    // Spawn ctrl-c shutdown task.
-    {
-        let cluster = Arc::clone(&cluster);
-        tokio::spawn(async move {
-            tokio::signal::ctrl_c()
-                .await
-                .expect("Could not register ctrl+c handler");
-
-            info!("Shutting down by ctrl-c");
-
-            // cluster.down_resumable();
-            cluster.down();
-
-            println!("Ctrl-C");
-        });
-    }
 
     // Get the application info, such as its id and owner.
     let application = Arc::new(http.current_user_application().send().await?);
@@ -230,44 +256,130 @@ async fn main() -> AnyResult<()> {
     // Create a standby instance.
     let standby = Arc::new(Standby::new());
 
-    // Initialize chat commands.
-    let commands = Arc::new(commands::bot::create_commands()?);
+    // Create the shards.
+    let mut shards = stream::create_recommended(
+        &http,
+        ConfigBuilder::new(token, intents())
+            .event_types(event_type_flags())
+            .presence(UpdatePresencePayload::new(
+                vec![
+                    MinimalActivity {
+                        kind: ActivityType::Watching,
+                        name: "you".into(),
+                        url: None,
+                    }
+                    .into(),
+                ],
+                false,
+                None,
+                Status::Online,
+            )?)
+            .build(),
+        |_, builder| builder.build(),
+    )
+    .await?
+    .collect::<Vec<_>>();
+
+    #[cfg(feature = "voice")]
+    let voice = {
+        Arc::new(songbird::Songbird::twilight(
+            Arc::new(songbird::shards::TwilightMap::new(
+                shards
+                    .iter()
+                    .map(|s| (s.id().number(), s.sender()))
+                    .collect(),
+            )),
+            user.id,
+        ))
+    };
 
     let ctx = Context {
         config,
+        commands,
+        events_tx,
         http,
-        cluster,
         application,
         user,
         cache,
         standby,
-        commands,
+        runtime,
         shard: None,
+        #[cfg(feature = "voice")]
+        voice,
     };
 
-    // TODO: To be implemented.
-    // Spawn community event handler.
-    // tokio::spawn(handle_timer(ctx.clone(), 60 * 5));
+    // Create an infinite stream over the shards' events.
+    let mut stream = ShardEventStream::new(shards.iter_mut());
 
-    // Process each event as they come in.
-    while let Some((id, event)) = events.next().await {
+    loop {
+        use futures::prelude::*;
+
+        let (shard, event) = tokio::select! {
+            Some(twilight_event) = stream.next() => twilight_event,
+            Some(BotEvent::Shutdown) = events_rx.recv() => break,
+            else => break,
+        };
+
+        // Process each event as they come in.
+        let event = match event {
+            Ok(event) => event,
+            Err(source) => {
+                eprintln!("Error receiving event: {:?}", source);
+                if source.is_fatal() {
+                    error!(?source, "Error receiving event");
+                    break;
+                } else {
+                    warn!(?source, "Error receiving event");
+                    continue;
+                }
+            },
+        };
+
         // Update the cache with the event.
         ctx.cache.update(&event);
+
+        // Update songbird if enabled.
+        #[cfg(feature = "voice")]
+        ctx.voice.process(&event).await;
 
         // Update standby events.
         let processed = ctx.standby.process(&event);
         log_processed(processed);
 
-        tokio::spawn(handle_event(ctx.clone().with_shard(id), event));
+        // Handle event.
+        tokio::spawn(handle_event(
+            ctx.clone().with_shard(shard.id(), shard.sender()),
+            event,
+        ));
+    }
+
+    drop(stream);
+
+    for shard in shards.iter_mut() {
+        let _ = shard
+            .close(CloseFrame::NORMAL)
+            .await
+            .map_err(|e| warn!("{e}"));
     }
 
     Ok(())
 }
 
+/// Ctrl-C shutdown task.
+async fn shutdown_task(events_tx: BotEventSender) -> AnyResult<()> {
+    tokio::signal::ctrl_c()
+        .await
+        .expect("Could not register ctrl+c handler");
+    info!("Shutting down by ctrl-c");
+    events_tx.send(BotEvent::Shutdown)?;
+    println!("Ctrl-C");
+    Ok(())
+}
+
 /// Main events handler.
+#[tracing::instrument(name = "events", skip_all, fields(event = event.kind().name()))]
 async fn handle_event(ctx: Context, event: Event) -> AnyResult<()> {
     let result = match event {
-        Event::ShardConnected(c) => handle_shard_connected(&ctx, c).await,
         Event::Ready(r) => handle_ready(&ctx, *r).await,
         Event::GuildCreate(g) => handle_guild_create(&ctx, g.0).await,
         Event::InteractionCreate(i) => handle_interaction_create(&ctx, i.0).await,
@@ -279,16 +391,28 @@ async fn handle_event(ctx: Context, event: Event) -> AnyResult<()> {
         Event::ReactionRemove(r) => handle_reaction_remove(&ctx, r.0).await,
         Event::VoiceStateUpdate(v) => handle_voice_state(&ctx, v.0).await,
         Event::CommandPermissionsUpdate(cpu) => {
-            handle_command_permissions_update(&ctx, cpu.0).await
+            debug!(
+                "Permissions update event: Command '{}' in guild '{}'",
+                cpu.id, cpu.guild_id
+            );
+            Ok(())
         },
 
         // Gateway events.
+        Event::GatewayHello(h) => handle_hello(&ctx, h).await,
         Event::GatewayHeartbeat(_)
-        | Event::GatewayHeartbeatAck
-        | Event::GatewayHello(_)
         | Event::GatewayInvalidateSession(_)
         | Event::GatewayReconnect => {
             debug!("Gateway event: {:?}", event.kind());
+            Ok(())
+        },
+        Event::GatewayHeartbeatAck => {
+            trace!("Gateway event: {:?}", event.kind());
+            Ok(())
+        },
+
+        Event::PresenceUpdate(p) => {
+            trace!("Presence event: {:?}", p.user.id());
             Ok(())
         },
 
@@ -319,12 +443,15 @@ async fn handle_event(ctx: Context, event: Event) -> AnyResult<()> {
     Ok(())
 }
 
-async fn handle_shard_connected(_ctx: &Context, connected: Connected) -> AnyResult<()> {
+async fn handle_hello(ctx: &Context, h: Hello) -> AnyResult<()> {
     info!(
         "Connected on shard {} with a heartbeat of {}",
-        connected.shard_id, connected.heartbeat_interval
+        ctx.shard
+            .as_ref()
+            .map(|s| s.id)
+            .ok_or_else(|| anyhow::anyhow!("Missing shard id"))?,
+        h.heartbeat_interval
     );
-
     Ok(())
 }
 
@@ -350,7 +477,7 @@ async fn handle_guild_create(ctx: &Context, guild: Guild) -> AnyResult<()> {
     println!("Guild: {}", guild.name);
     info!("Guild: '{}'", guild.name);
 
-    let whitelist = ctx.config.lock().unwrap().whitelist.clone();
+    let whitelist = ctx.config.global().whitelist()?.to_owned();
 
     // If whitelist is enabled, check if this guild is in it.
     if let Some(whitelist) = whitelist {
@@ -410,9 +537,6 @@ async fn handle_message_create(ctx: &Context, msg: Message) -> AnyResult<()> {
 
     let msg = Arc::new(msg);
 
-    #[cfg(feature = "ban-at-everyone")]
-    check_if_at_everyone(ctx, &msg).await.ok();
-
     match crate::commands::handle::classic_command(ctx, Arc::clone(&msg)).await {
         Err(CommandError::NotPrefixed) => {
             // Message was not a command.
@@ -422,36 +546,31 @@ async fn handle_message_create(ctx: &Context, msg: Message) -> AnyResult<()> {
                 let about_msg = format!(
                     "Try `/about` or `{prefix}about` for general info, or `/help` or \
                      `{prefix}help` for commands.",
-                    prefix = ctx.classic_prefix(msg.guild_id),
+                    prefix = ctx.config.classic_prefix(msg.guild_id)?,
                 );
 
                 ctx.http
                     .create_message(msg.channel_id)
                     .content(&about_msg)?
+                    .reply(msg.id)
                     .await?;
             }
-
+            Ok(())
+        },
+        Err(CommandError::AccessDenied) => {
+            ctx.http
+                .create_message(msg.channel_id)
+                .content("Rekt, you cannot use that. :melting_face:")?
+                .reply(msg.id)
+                .await?;
             Ok(())
         },
         res => res.context("Failed to handle classic command"),
     }
 }
-#[cfg(feature = "ban-at-everyone")]
-async fn check_if_at_everyone(ctx: &Context, msg: &Message) -> AnyResult<()> {
-    let Some(guild_id) = msg.guild_id else {
-        anyhow::bail!("Disabled");
-    };
-
-    if msg.mention_everyone {
-        ctx.http.create_ban(guild_id, msg.author.id).await?;
-    }
-
-    Ok(())
-}
 
 async fn handle_message_update(_ctx: &Context, _mu: MessageUpdate) -> AnyResult<()> {
     // TODO Check if updated message is something that should update content from the bot.
-
     Ok(())
 }
 
@@ -460,17 +579,10 @@ async fn handle_message_delete(ctx: &Context, md: MessageDelete) -> AnyResult<()
         return Ok(());
     };
 
-    let mut lock = ctx.config.lock().unwrap();
-
-    let Some(settings) = lock.guild_mut(guild_id) else {
-        return Ok(());
-    };
-
     // Remove reaction roles mappping, if deleted message was one.
-    let key = config::reaction_roles_key(md.channel_id, md.id);
-    settings.reaction_roles.remove(&key);
-
-    lock.write_guild(guild_id)?;
+    ctx.config
+        .guild(guild_id)
+        .remove_reaction_roles(md.channel_id, md.id)?;
 
     Ok(())
 }
@@ -516,34 +628,31 @@ async fn handle_reaction_add(ctx: &Context, reaction: GatewayReaction) -> AnyRes
         }
     }
 
-    let add_roles = {
-        let lock = ctx.config.lock().unwrap();
-
-        let Some(settings) = lock.guild(guild_id) else {
-            return Ok(());
-        };
-
-        let key = config::reaction_roles_key(reaction.channel_id, reaction.message_id);
-
-        let Some(map) = settings.reaction_roles.get(&key) else {
-            return Ok(());
-        };
-
-        map.iter()
+    let add_roles = match ctx
+        .config
+        .guild(guild_id)
+        .reaction_roles(reaction.channel_id, reaction.message_id)
+    {
+        Ok(map) => map
+            .iter()
             .filter(|rr| utils::reaction_type_eq(&rr.emoji, &reaction.emoji))
             .map(|rr| rr.role)
-            .collect::<Vec<_>>()
+            .collect::<Vec<_>>(),
+        Err(e) => {
+            debug!("{e}");
+            return Ok(());
+        },
     };
 
-    info!("Adding roles for '{}'", user.name);
     if add_roles.is_empty() {
-        return Err(anyhow::anyhow!("List of roles should not be empty"));
-    }
-
-    for role_id in add_roles {
-        ctx.http
-            .add_guild_member_role(guild_id, reaction.user_id, role_id)
-            .await?;
+        info!("No roles to add for '{}'", user.name);
+    } else {
+        info!("Adding roles for '{}'", user.name);
+        for role_id in add_roles {
+            ctx.http
+                .add_guild_member_role(guild_id, reaction.user_id, role_id)
+                .await?;
+        }
     }
 
     Ok(())
@@ -575,56 +684,38 @@ async fn handle_reaction_remove(ctx: &Context, reaction: GatewayReaction) -> Any
         }
     }
 
-    let remove_roles = {
-        let lock = ctx.config.lock().unwrap();
-
-        let Some(settings) = lock.guild(guild_id) else {
-            return Ok(());
-        };
-
-        let key = config::reaction_roles_key(reaction.channel_id, reaction.message_id);
-
-        let Some(map) = settings.reaction_roles.get(&key) else {
-            trace!("No reaction-roles config for key '{key}'");
-            return Ok(());
-        };
-
-        map.iter()
+    let remove_roles = match ctx
+        .config
+        .guild(guild_id)
+        .reaction_roles(reaction.channel_id, reaction.message_id)
+    {
+        Ok(map) => map
+            .iter()
             .filter(|rr| utils::reaction_type_eq(&rr.emoji, &reaction.emoji))
             .map(|rr| rr.role)
-            .collect::<Vec<_>>()
+            .collect::<Vec<_>>(),
+        Err(e) => {
+            debug!("{e}");
+            return Ok(());
+        },
     };
 
-    info!("Removing roles for '{}'", user.name);
     if remove_roles.is_empty() {
-        return Err(anyhow::anyhow!("List of roles should not be empty"));
-    }
-
-    for role_id in remove_roles {
-        ctx.http
-            .remove_guild_member_role(guild_id, reaction.user_id, role_id)
-            .await?;
+        info!("No roles to remove for '{}'", user.name);
+    } else {
+        info!("Removing roles for '{}'", user.name);
+        for role_id in remove_roles {
+            ctx.http
+                .remove_guild_member_role(guild_id, reaction.user_id, role_id)
+                .await?;
+        }
     }
 
     Ok(())
 }
 
-async fn handle_voice_state(_ctx: &Context, voice: VoiceState) -> AnyResult<()> {
-    println!("{voice:#?}",);
-
-    Ok(())
-}
-
-async fn handle_command_permissions_update(
-    _ctx: &Context,
-    cpu: GuildCommandPermissions,
-) -> AnyResult<()> {
-    println!("Permissions update: {:#?}", cpu);
-    // cpu.permissions.into_iter().for_each(|p| match p.id {
-    //     CommandPermissionType::Channel(_) => todo!(),
-    //     CommandPermissionType::Role(_) => todo!(),
-    //     CommandPermissionType::User(_) => todo!(),
-    // });
+async fn handle_voice_state(_ctx: &Context, _voice: VoiceState) -> AnyResult<()> {
+    // println!("{voice:#?}",);
     Ok(())
 }
 
@@ -646,6 +737,13 @@ fn intents() -> Intents {
             | Intents::DIRECT_MESSAGES
             | Intents::DIRECT_MESSAGE_REACTIONS
     }
+}
+
+fn event_type_flags() -> EventTypeFlags {
+    EventTypeFlags::all()
+        - EventTypeFlags::TYPING_START
+        - EventTypeFlags::DIRECT_MESSAGE_TYPING
+        - EventTypeFlags::GUILD_MESSAGE_TYPING
 }
 
 fn log_processed(p: twilight_standby::ProcessResults) {

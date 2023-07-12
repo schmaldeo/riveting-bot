@@ -2,46 +2,54 @@
 edition = "2021"
 name = "riveting-bot"
 repository = "https://github.com/Samzyre/riveting-bot"
-version = "0.2.2"
+version = "0.3.2"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [profile.release]
+codegen-units = 64
+incremental = true
+
+[profile.prod]
+codegen-units = 4
+incremental = false
+inherits = "release"
 lto = true
 strip = true
 
 [dependencies]
 anyhow = "1.0"
 async-trait = "0.1"
+dateparser = "0.2"
 derive_more = "0.99"
-dotenv = "0.15"
 futures = "0.3"
-htp = "0.4"
-indoc = "1.0"
+indoc = "2.0"
 rand = "0.8"
 serde = "1.0"
 serde_json = "1.0"
+simple_env_load = "0.2"
 thiserror = "1.0"
 tracing = "0.1"
-twilight-cache-inmemory = "0.14"
-twilight-gateway = "0.14"
-twilight-http = "0.14"
-twilight-mention = "0.14"
-twilight-model = "0.14"
-twilight-standby = "0.14"
-twilight-validate = "0.14"
+twilight-cache-inmemory = "0.15"
+twilight-gateway = "0.15"
+twilight-http = "0.15"
+twilight-mention = "0.15"
+twilight-model = "0.15"
+twilight-standby = "0.15"
+twilight-validate = "0.15"
 
 [dependencies.twilight-util]
-features = ["full"]
-version = "0.14"
+features = ["builder", "permission-calculator"]
+version = "0.15"
 
 [dependencies.reqwest]
 default-features = false
-features = ["json", "rustls-tls"]
+features = ["json"]
 version = "0.11"
 
 [dependencies.chrono]
-features = ["serde"]
+default-features = false
+features = ["std", "clock"]
 version = "0.4"
 
 [dependencies.tracing-subscriber]
@@ -49,16 +57,22 @@ features = ["env-filter"]
 version = "0.3"
 
 [dependencies.tokio]
-features = ["full"]
+features = ["rt", "rt-multi-thread", "time", "macros", "sync", "signal"]
 version = "1.17"
 
 [dependencies.songbird]
 default-features = false
-features = ["driver", "twilight-rustls", "zlib-stock"]
+features = ["driver", "gateway", "twilight", "rustls", "builtin-queue"]
+git = "https://github.com/serenity-rs/songbird"
 optional = true
+rev = "4fe23788e859a44a3f29987bff26c2612e74dcc5"
 version = "0.3"
-# git = "https://github.com/serenity-rs/songbird"
 # branch = "next"
+
+[dependencies.symphonia]
+features = ["all"]
+optional = true
+version = "0.5"
 
 [features]
 # Default features
@@ -66,12 +80,14 @@ default = ["user", "admin", "owner"]
 # Debugging features
 debug = ["all-intents", "bulk-delete"]
 # Full set of features
-full = ["user", "admin", "owner", "debug", "voice", "ban-at-everyone"]
-#
+full = ["user", "admin", "owner", "debug", "voice"]
+
+# Defaults
 admin = []
-all-intents = []
-ban-at-everyone = []
-bulk-delete = ["admin"]
 owner = []
 user = []
-voice = ["dep:songbird", "user"]
+
+# Extras
+all-intents = []
+bulk-delete = []
+voice = ["dep:songbird", "dep:symphonia"]

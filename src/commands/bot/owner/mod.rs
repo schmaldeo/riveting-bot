@@ -1,5 +1,6 @@
 use crate::commands::prelude::*;
 use crate::utils::prelude::*;
+use crate::BotEvent;
 
 /// Command: Disconnect and shut down the bot.
 pub struct Shutdown;
@@ -37,8 +38,8 @@ impl Shutdown {
             .send()
             .await?;
 
-        // Shut down the cluster, sessions will not be resumable.
-        ctx.cluster.down();
+        // Send a shutdown signal to the bot.
+        ctx.events_tx.send(BotEvent::Shutdown)?;
 
         Ok(Response::none())
     }

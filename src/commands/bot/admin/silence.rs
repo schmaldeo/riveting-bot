@@ -1,5 +1,4 @@
 use twilight_gateway::Event;
-use twilight_model::channel::ChannelType;
 use twilight_model::id::marker::{GuildMarker, UserMarker};
 use twilight_model::id::Id;
 
@@ -49,21 +48,15 @@ impl Mute {
 
         tokio::time::sleep(std::time::Duration::from_secs(timeout)).await;
 
-        let channels = ctx.http.guild_channels(guild_id).send().await?;
-        let on_voice = channels
-            .into_iter()
-            .filter(|c| {
-                matches!(
-                    c.kind,
-                    ChannelType::GuildVoice | ChannelType::GuildStageVoice
-                )
-            })
-            .filter_map(|c| c.recipients)
-            .flatten()
-            .any(|u| u.id == user_id);
+        let unmute = || ctx.http.update_guild_member(guild_id, user_id).mute(false);
+        // Stop trying after some attempts.
+        for _ in 0..3 {
+            // Try to unmute the target.
+            if unmute().await.is_ok() {
+                break;
+            }
 
-        if !on_voice {
-            // Wait for user to connect to voice.
+            // Otherwise, try again later when they trigger a voice channel event.
             ctx.standby
                 .wait_for(guild_id, move |event: &Event| match event {
                     Event::VoiceStateUpdate(data) => {
@@ -73,12 +66,6 @@ impl Mute {
                 })
                 .await?;
         }
-
-        // This fails if the target user is not connected to a voice channel leaving them server muted.
-        ctx.http
-            .update_guild_member(guild_id, user_id)
-            .mute(false)
-            .await?;
 
         Ok(())
     }

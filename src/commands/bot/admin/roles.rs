@@ -19,8 +19,8 @@ use twilight_util::builder::InteractionResponseDataBuilder;
 
 use crate::commands::prelude::*;
 use crate::config::ReactionRole;
+use crate::utils;
 use crate::utils::prelude::*;
-use crate::{config, utils};
 
 /// Command: Manage reaction-roles.
 pub struct Roles;
@@ -100,7 +100,7 @@ impl Setup {
             return Err(CommandError::Disabled)
         };
 
-        let Some(channel_id) = req.interaction.channel_id else {
+        let Some(channel) = req.interaction.channel.as_ref() else {
             return Err(CommandError::Disabled)
         };
 
@@ -110,7 +110,7 @@ impl Setup {
 
         req.clear(&ctx).await?;
 
-        Self::uber(ctx, guild_id, channel_id, author_id)
+        Self::uber(ctx, guild_id, channel.id, author_id)
             .await
             .map(|_| Response::none())
     }
@@ -136,26 +136,18 @@ impl Edit {
             ));
         }
 
-        let reaction_roles = {
-            let lock = ctx.config.lock().unwrap();
-            lock.guild(guild_id)
-                .and_then(|s| {
-                    let key = config::reaction_roles_key(replied.channel_id, replied.id);
-                    s.reaction_roles.get(&key)
-                })
-                .cloned()
-        };
-
-        if reaction_roles.is_none() {
-            return Err(CommandError::UnexpectedArgs(
-                "Message is not a reaction-roles post".to_string(),
-            ));
-        }
+        let reaction_roles = ctx
+            .config
+            .guild(guild_id)
+            .reaction_roles(replied.channel_id, replied.id)
+            .with_context(|| {
+                CommandError::UnexpectedArgs("Message is not a reaction-roles post".to_string())
+            })?;
 
         let author_id = req.message.author.id;
         let channel_id = req.message.channel_id;
 
-        let Some(mappings) = roles_setup_process(&ctx, guild_id, channel_id, author_id, reaction_roles).await? else {
+        let Some(mappings) = roles_setup_process(&ctx, guild_id, channel_id, author_id, Some(reaction_roles)).await? else {
             return Ok(()) // Canceled or whatever.
         };
 
@@ -206,9 +198,9 @@ fn register_reaction_roles(
     message_id: Id<MessageMarker>,
     mappings: Vec<ReactionRole>,
 ) -> AnyResult<()> {
-    let mut lock = ctx.config.lock().unwrap();
-    lock.add_reaction_roles(guild_id, channel_id, message_id, mappings);
-    lock.write_guild(guild_id)
+    ctx.config
+        .guild(guild_id)
+        .add_reaction_roles(channel_id, message_id, mappings)
 }
 
 /// Cognitive overload.
@@ -220,14 +212,14 @@ async fn roles_setup_process(
     preset: Option<Vec<ReactionRole>>,
 ) -> Result<Option<Vec<ReactionRole>>, CommandError> {
     let info_text = indoc::formatdoc! {"
-    **Reaction-roles setup**
-    
-        *Step 1:*  React to this message.
-        *Step 2:*  Select a role from the dropdown menu.
-        *Step 3:*  Repeat until you are happy with the role mappings.
-        *Step 4:*  Press **Done** to finalize the reaction-roles message.
-    
-    If any role is not displayed in the list, it may be too stronk for the bot.
+        **Reaction-roles setup**
+        
+            *Step 1:*  React to this message.
+            *Step 2:*  Select a role from the dropdown menu.
+            *Step 3:*  Repeat until you are happy with the role mappings.
+            *Step 4:*  Press **Done** to finalize the reaction-roles message.
+        
+        If any role is not displayed in the list, it may be too stronk for the bot.
     "};
 
     let interaction = ctx.interaction();
@@ -426,7 +418,7 @@ async fn roles_setup_process(
                 .content(format!(
                     "Done; You can use `{prefix}bot edit` command to edit the message content, or \
                      `{prefix}roles edit` command to edit the role mappings.",
-                    prefix = ctx.classic_prefix(Some(guild_id))
+                    prefix = ctx.config.classic_prefix(Some(guild_id))?
                 ))
                 .build(),
         ),

@@ -1,10 +1,9 @@
 use std::borrow::Borrow;
 use std::sync::Arc;
 
-use derive_more::{AsMut, AsRef, From, Index, IndexMut, IntoIterator, IsVariant, Unwrap};
+use derive_more::{From, IsVariant, Unwrap};
 use twilight_mention::ParseMention;
 use twilight_model::application::interaction::application_command::CommandOptionValue;
-use twilight_model::channel::Message;
 use twilight_model::id::Id;
 
 use crate::commands::builder::{ArgDesc, ArgKind};
@@ -70,9 +69,10 @@ where
 }
 
 /// Wrapper around `Vec<Arg>` for extra features.
-#[derive(Debug, Default, Clone, AsMut, AsRef, From, Index, IndexMut, IntoIterator)]
-pub struct Args(Vec<Arg>);
+#[derive(Debug, Default, Clone)]
+pub struct Args(Box<[Arg]>);
 
+/// Implements convenience methods for getting a certain type of argument.
 macro_rules! impl_variant_get {
     ($( $vis:vis fn $method:ident -> $value:ty );* $(;)?) => {
         $(
@@ -111,9 +111,21 @@ impl Args {
             .map(|a| &a.value)
     }
 
-    /// Returns the inner arg vector.
-    pub fn inner(self) -> Vec<Arg> {
+    /// Returns the inner box.
+    pub fn into_inner(self) -> Box<[Arg]> {
         self.0
+    }
+}
+
+impl From<Vec<Arg>> for Args {
+    fn from(value: Vec<Arg>) -> Self {
+        Self(value.into_boxed_slice())
+    }
+}
+
+impl AsRef<[Arg]> for Args {
+    fn as_ref(&self) -> &[Arg] {
+        &self.0
     }
 }
 
@@ -130,13 +142,6 @@ impl Arg {
             name: desc.name.to_string(),
             value: ArgValue::from_kind(&desc.kind, text)?,
         })
-    }
-
-    pub fn from_desc_msg(desc: &ArgDesc, msg: &Message) -> AnyResult<Option<Self>> {
-        Ok(ArgValue::from_kind_msg(&desc.kind, msg)?.map(|value| Self {
-            name: desc.name.to_string(),
-            value,
-        }))
     }
 }
 
@@ -169,9 +174,11 @@ impl ArgValue {
         pub fn mention(&self: Mention(val)) -> types::ArgMention { *val }
     );
 
+    /// Create a value from value kind and text.
     pub fn from_kind(kind: &ArgKind, text: &str) -> AnyResult<Self> {
         // TODO: Ensure data parameters.
 
+        /// Try to parse text as a discord mention, otherwise try to parse text as an id number.
         fn parse_mention_or_id<F, A, B>(text: &str, variant: F) -> AnyResult<ArgValue>
         where
             F: Fn(Ref<A, B>) -> ArgValue,
@@ -219,23 +226,6 @@ impl ArgValue {
         };
 
         Ok(val)
-    }
-
-    pub fn from_kind_msg(kind: &ArgKind, msg: &Message) -> AnyResult<Option<Self>> {
-        match kind {
-            ArgKind::Message => msg.referenced_message.as_ref().map_or(Ok(None), |replied| {
-                Ok(Some(Self::Message(Ref::from_obj(*replied.to_owned()))))
-            }),
-            ArgKind::Attachment => {
-                // This only supports one attachment per message.
-                msg.attachments
-                    .first()
-                    .ok_or(CommandError::MissingArgs)
-                    .context("Attachment arg parse error (upload)")
-                    .map(|a| Some(Self::Attachment(Ref::from_obj(a.to_owned()))))
-            },
-            _ => Ok(None), // If not a special arg.
-        }
     }
 }
 
