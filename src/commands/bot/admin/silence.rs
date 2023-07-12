@@ -30,7 +30,7 @@ impl Mute {
         duration: Option<u64>,
     ) -> CommandResult<()> {
         let Some(guild_id) = guild_id else {
-            return Err(CommandError::Disabled)
+            return Err(CommandError::Disabled);
         };
 
         let timeout = duration.unwrap_or(DEFAULT_MUTE);

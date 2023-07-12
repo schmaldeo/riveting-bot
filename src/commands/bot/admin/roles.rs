@@ -64,8 +64,10 @@ impl Setup {
         channel_id: Id<ChannelMarker>,
         author_id: Id<UserMarker>,
     ) -> CommandResult<()> {
-        let Some(mappings) = roles_setup_process(&ctx, guild_id, channel_id, author_id, None).await? else {
-            return Ok(()) // Canceled or whatever.
+        let Some(mappings) =
+            roles_setup_process(&ctx, guild_id, channel_id, author_id, None).await?
+        else {
+            return Ok(()); // Canceled or whatever.
         };
 
         let output_content = output_message_content(&ctx, guild_id, &mappings).await?;
@@ -85,7 +87,7 @@ impl Setup {
 
     async fn classic(ctx: Context, req: ClassicRequest) -> CommandResponse {
         let Some(guild_id) = req.message.guild_id else {
-            return Err(CommandError::Disabled)
+            return Err(CommandError::Disabled);
         };
 
         req.clear(&ctx).await?;
@@ -97,15 +99,15 @@ impl Setup {
 
     async fn slash(ctx: Context, req: SlashRequest) -> CommandResponse {
         let Some(guild_id) = req.interaction.guild_id else {
-            return Err(CommandError::Disabled)
+            return Err(CommandError::Disabled);
         };
 
         let Some(channel) = req.interaction.channel.as_ref() else {
-            return Err(CommandError::Disabled)
+            return Err(CommandError::Disabled);
         };
 
         let Some(author_id) = req.interaction.author_id() else {
-            return Err(CommandError::MissingArgs)
+            return Err(CommandError::MissingArgs);
         };
 
         req.clear(&ctx).await?;
@@ -122,7 +124,7 @@ struct Edit;
 impl Edit {
     async fn uber(ctx: Context, req: ClassicRequest) -> CommandResult<()> {
         let Some(guild_id) = req.message.guild_id else {
-            return Err(CommandError::Disabled)
+            return Err(CommandError::Disabled);
         };
 
         let Some(replied) = &req.message.referenced_message else {
@@ -147,8 +149,11 @@ impl Edit {
         let author_id = req.message.author.id;
         let channel_id = req.message.channel_id;
 
-        let Some(mappings) = roles_setup_process(&ctx, guild_id, channel_id, author_id, Some(reaction_roles)).await? else {
-            return Ok(()) // Canceled or whatever.
+        let Some(mappings) =
+            roles_setup_process(&ctx, guild_id, channel_id, author_id, Some(reaction_roles))
+                .await?
+        else {
+            return Ok(()); // Canceled or whatever.
         };
 
         let output_content = output_message_content(&ctx, guild_id, &mappings).await?;
