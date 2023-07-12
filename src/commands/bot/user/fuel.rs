@@ -44,7 +44,7 @@ impl Fuel {
 
     async fn slash(ctx: Context, req: SlashRequest) -> CommandResponse {
         let stint = req.args.integer("stint-minutes")?;
-        let minutes = req.args.integer("lap-minutes")?;
+        let minutes = req.args.integer("lap-minutes")? as u32;
         let seconds = req.args.number("lap-seconds")?;
         let consumption = req.args.number("consumption")?;
 
@@ -54,39 +54,41 @@ impl Fuel {
         let amount_of_laps = length_in_seconds / laptime_in_seconds;
         let fuel_needed = amount_of_laps.ceil() * consumption;
 
-        let laptime_for_another_lap_seconds = length_in_seconds / amount_of_laps.ceil() - 0.001;
-        let minutes_in_laptime_for_another_lap =
-            (laptime_for_another_lap_seconds / 60.0).floor() as u32;
+        // Laptime faster than this adds another lap.
+        let min_lap_seconds = length_in_seconds / amount_of_laps.ceil();
+        let min_lap_minutes = (min_lap_seconds / 60.0) as u32;
+        let min_laptime = naive_time_millis(min_lap_minutes, min_lap_seconds)
+            .unwrap_or_default()
+            .format("%M:%S%.3f");
 
-        let laptime_for_another_lap = NaiveTime::from_hms_milli_opt(
-            ((laptime_for_another_lap_seconds / 60.0) / 60.0) as u32,
-            minutes_in_laptime_for_another_lap,
-            laptime_for_another_lap_seconds.trunc() as u32
-                - (minutes_in_laptime_for_another_lap * 60),
-            (laptime_for_another_lap_seconds.fract() * 1000.0) as u32,
-        )
-        .unwrap_or_default()
-        .format("%M:%S%.3f");
+        let mut laps_go_minus = amount_of_laps.floor();
+        if amount_of_laps.fract() == 0.0 {
+            laps_go_minus -= 1.0;
+        }
+        // Laptime slower than this may reduce a lap.
+        let max_lap_seconds = length_in_seconds / laps_go_minus;
+        let max_lap_minutes = (max_lap_seconds / 60.0) as u32;
+        let max_laptime = naive_time_millis(max_lap_minutes, max_lap_seconds)
+            .unwrap_or_default()
+            .format("%M:%S%.3f");
 
-        let risk_of_extra_lap = (length_in_seconds / laptime_in_seconds).fract() > 0.8
-            || (length_in_seconds / laptime_in_seconds).fract() == 0.0;
-        let fuel_close = fuel_needed.fract() > 0.5;
+        let mut fuel_recommended = fuel_needed;
 
-        let mut fuel_recommended = if fuel_close {
-            match stint {
-                1..=30 => fuel_needed + 1.0,
-                _ => fuel_needed + 2.0,
+        let laps_are_close = amount_of_laps.fract() > 0.8 || amount_of_laps.fract() == 0.0;
+        if laps_are_close {
+            fuel_recommended += consumption
+        }
+
+        let fuel_is_close = fuel_recommended.fract() > 0.5 || fuel_recommended.fract() == 0.0;
+        if fuel_is_close {
+            fuel_recommended += match stint {
+                ..=30 => 1.0,
+                _ => 2.0,
             }
-        } else {
-            fuel_needed
-        };
-
-        if risk_of_extra_lap {
-            fuel_recommended += consumption.ceil()
         }
 
         let embed = EmbedBuilder::new()
-            .title(":fuelpump: Fuel kalkulus")
+            .title("⛽ Fuel kalkulus")
             .field(EmbedFieldBuilder::new("Minimum", fuel_needed.ceil().to_string()).inline())
             .field(
                 EmbedFieldBuilder::new("Recommended", fuel_recommended.ceil().to_string()).inline(),
@@ -94,29 +96,21 @@ impl Fuel {
             .field(
                 EmbedFieldBuilder::new(
                     "Laps",
-                    format!("{} ({amount_of_laps:.2})", amount_of_laps.ceil()),
+                    format!("{} (*{amount_of_laps:.2}*)", amount_of_laps.ceil()),
                 )
                 .inline(),
             )
-            .field(
-                EmbedFieldBuilder::new(
-                    "Laptime required for extra lap",
-                    laptime_for_another_lap.to_string(),
-                )
-                .inline(),
-            )
+            .field(EmbedFieldBuilder::new(
+                "Laptime window for minimum fuel",
+                format!("{} - {}", min_laptime.to_string(), max_laptime.to_string()),
+            ))
             .footer(EmbedFooterBuilder::new(format!(
                 "Stint: {stint}, Laptime: {laptime}, Usage: {consumption}",
                 stint = NaiveTime::from_hms_opt((stint / 60) as u32, (stint % 60) as u32, 0)
                     .unwrap_or_default(),
-                laptime = NaiveTime::from_hms_milli_opt(
-                    (minutes / 60) as u32,
-                    (minutes % 60) as u32,
-                    seconds.trunc() as u32,
-                    (seconds.fract() * 1000.0) as u32
-                )
-                .unwrap_or_default()
-                .format("%M:%S%.3f"),
+                laptime = naive_time_millis(minutes, seconds)
+                    .unwrap_or_default()
+                    .format("%M:%S%.3f"),
             )))
             .color(0xDB3DBE)
             .build();
@@ -129,4 +123,15 @@ impl Fuel {
 
         Ok(Response::none())
     }
+}
+
+/// Create a `NaiveTime` with `H:M:S.f` from minutes and seconds.
+/// This ignores overflow by using remainder.
+fn naive_time_millis(minutes: u32, seconds: f64) -> Option<NaiveTime> {
+    NaiveTime::from_hms_milli_opt(
+        minutes / 60,
+        minutes % 60,
+        (seconds % 60.0) as u32,
+        (seconds.fract() * 1000.0).round() as u32,
+    )
 }
