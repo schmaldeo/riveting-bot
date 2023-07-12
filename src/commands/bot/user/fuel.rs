@@ -68,30 +68,27 @@ impl Fuel {
         .unwrap_or_default()
         .format("%M:%S%.3f");
 
-        let risk_of_another_lap = (length_in_seconds / laptime_in_seconds).fract() > 0.8;
-
+        let risk_of_extra_lap = (length_in_seconds / laptime_in_seconds).fract() > 0.8;
         let fuel_close = fuel_needed.fract() > 0.5;
+
+        let mut fuel_recommended = if fuel_close {
+            match stint {
+                1..=30 => fuel_needed + 1.0,
+                _ => fuel_needed + 2.0,
+            }
+        } else {
+            fuel_needed
+        };
+
+        if risk_of_extra_lap {
+            fuel_recommended += consumption.ceil()
+        }
 
         let embed = EmbedBuilder::new()
             .title(":fuelpump: Fuel kalkulus")
             .field(EmbedFieldBuilder::new("Minimum", fuel_needed.ceil().to_string()).inline())
             .field(
-                EmbedFieldBuilder::new("Recommended", {
-                    let fuel = if fuel_close {
-                        match stint {
-                            1..=30 => fuel_needed + 1.0,
-                            _ => fuel_needed + 2.0,
-                        }
-                    } else {
-                        fuel_needed
-                    };
-                    if risk_of_another_lap {
-                        (fuel + consumption.ceil()).ceil().to_string()
-                    } else {
-                        fuel.ceil().to_string()
-                    }
-                })
-                .inline(),
+                EmbedFieldBuilder::new("Recommended", fuel_recommended.ceil().to_string()).inline(),
             )
             .field(
                 EmbedFieldBuilder::new(
@@ -102,7 +99,7 @@ impl Fuel {
             )
             .field(
                 EmbedFieldBuilder::new(
-                    "Laptime required for additional lap",
+                    "Laptime required for extra lap",
                     laptime_for_another_lap.to_string(),
                 )
                 .inline(),
