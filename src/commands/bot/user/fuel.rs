@@ -51,20 +51,59 @@ impl Fuel {
         let length_in_seconds = (stint * 60) as f64;
         let laptime_in_seconds = (minutes * 60) as f64 + seconds;
 
-        let amount_of_laps = (length_in_seconds / laptime_in_seconds).ceil();
-        let fuel_needed = amount_of_laps * consumption;
+        let amount_of_laps = length_in_seconds / laptime_in_seconds;
+        let fuel_needed = amount_of_laps.ceil() * consumption;
+
+        let laptime_for_another_lap_seconds = length_in_seconds / amount_of_laps.ceil() - 0.001;
+        let minutes_in_laptime_for_another_lap =
+            (laptime_for_another_lap_seconds / 60.0).floor() as u32;
+
+        let laptime_for_another_lap = NaiveTime::from_hms_milli_opt(
+            ((laptime_for_another_lap_seconds / 60.0) / 60.0) as u32,
+            minutes_in_laptime_for_another_lap,
+            laptime_for_another_lap_seconds.trunc() as u32
+                - (minutes_in_laptime_for_another_lap * 60),
+            (laptime_for_another_lap_seconds.fract() * 1000.0) as u32,
+        )
+        .unwrap_or_default()
+        .format("%M:%S%.3f");
+
+        let risk_of_extra_lap = (length_in_seconds / laptime_in_seconds).fract() > 0.8;
+        let fuel_close = fuel_needed.fract() > 0.5;
+
+        let mut fuel_recommended = if fuel_close {
+            match stint {
+                1..=30 => fuel_needed + 1.0,
+                _ => fuel_needed + 2.0,
+            }
+        } else {
+            fuel_needed
+        };
+
+        if risk_of_extra_lap {
+            fuel_recommended += consumption.ceil()
+        }
 
         let embed = EmbedBuilder::new()
             .title(":fuelpump: Fuel kalkulus")
             .field(EmbedFieldBuilder::new("Minimum", fuel_needed.ceil().to_string()).inline())
             .field(
+                EmbedFieldBuilder::new("Recommended", fuel_recommended.ceil().to_string()).inline(),
+            )
+            .field(
                 EmbedFieldBuilder::new(
-                    "Recommended",
-                    (fuel_needed + consumption).ceil().to_string(),
+                    "Laps",
+                    format!("{} ({amount_of_laps:.2})", amount_of_laps.ceil()),
                 )
                 .inline(),
             )
-            .field(EmbedFieldBuilder::new("Laps", amount_of_laps.to_string()).inline())
+            .field(
+                EmbedFieldBuilder::new(
+                    "Laptime required for extra lap",
+                    laptime_for_another_lap.to_string(),
+                )
+                .inline(),
+            )
             .footer(EmbedFooterBuilder::new(format!(
                 "Stint: {stint}, Laptime: {laptime}, Usage: {consumption}",
                 stint = NaiveTime::from_hms_opt((stint / 60) as u32, (stint % 60) as u32, 0)
