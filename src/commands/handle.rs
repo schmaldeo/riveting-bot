@@ -33,7 +33,10 @@ pub async fn application_command(
 ) -> CommandResult<()> {
     // Lookup command from context.
     let Some(base) = ctx.commands.get(data.name.as_str()) else {
-        return Err(CommandError::NotFound(format!("Command '{}' does not exist", data.name)))
+        return Err(CommandError::NotFound(format!(
+            "Command '{}' does not exist",
+            data.name
+        )));
     };
 
     let base = Arc::clone(base);
@@ -243,7 +246,7 @@ async fn ephemeral_acknowledge(ctx: &Context, inter: &Interaction) -> AnyResult<
 pub async fn classic_command(ctx: &Context, msg: Arc<Message>) -> CommandResult<()> {
     // Unprefix the message contents.
     let prefix = ctx.config.classic_prefix(msg.guild_id)?;
-    let Some((_, unprefixed)) =  parser::unprefix_with([prefix], &msg.content) else {
+    let Some((_, unprefixed)) = parser::unprefix_with([prefix], &msg.content) else {
         return Err(CommandError::NotPrefixed);
     };
 
@@ -252,7 +255,9 @@ pub async fn classic_command(ctx: &Context, msg: Arc<Message>) -> CommandResult<
 
     // Lookup command from context.
     let Some(base) = ctx.commands.get(name) else {
-        return Err(CommandError::NotFound(format!("Command '{name}' does not exist")))
+        return Err(CommandError::NotFound(format!(
+            "Command '{name}' does not exist"
+        )));
     };
 
     // Check if command should run in DMs.
@@ -339,7 +344,12 @@ pub async fn sender_has_permissions(
     msg: &Message,
     required: Permissions,
 ) -> CommandResult<bool> {
-    let Message { member: Some(member), guild_id: Some(guild_id), .. } = msg else {
+    let Message {
+        member: Some(member),
+        guild_id: Some(guild_id),
+        ..
+    } = msg
+    else {
         return Ok(true); // Return true if not in a guild.
     };
 

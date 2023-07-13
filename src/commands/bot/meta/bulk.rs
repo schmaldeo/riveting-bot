@@ -37,7 +37,9 @@ impl BulkDelete {
         let count = args.integer("amount")?;
 
         let Ok(delete_count) = count.min(MAX_DELETE).try_into() else {
-            return Err(CommandError::UnexpectedArgs(format!("Could not parse delete count: '{count}'")))
+            return Err(CommandError::UnexpectedArgs(format!(
+                "Could not parse delete count: '{count}'"
+            )));
         };
 
         if delete_count == 0 {
