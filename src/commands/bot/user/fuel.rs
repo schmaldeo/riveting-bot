@@ -68,7 +68,8 @@ impl Fuel {
         .unwrap_or_default()
         .format("%M:%S%.3f");
 
-        let risk_of_extra_lap = (length_in_seconds / laptime_in_seconds).fract() > 0.8;
+        let risk_of_extra_lap = (length_in_seconds / laptime_in_seconds).fract() > 0.8
+            || (length_in_seconds / laptime_in_seconds).fract() == 0.0;
         let fuel_close = fuel_needed.fract() > 0.5;
 
         let mut fuel_recommended = if fuel_close {
