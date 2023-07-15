@@ -66,11 +66,15 @@ impl Fuel {
             laps_go_minus -= 1.0;
         }
         // Laptime slower than this may reduce a lap.
-        let max_lap_seconds = length_in_seconds / laps_go_minus;
-        let max_lap_minutes = (max_lap_seconds / 60.0) as u32;
-        let max_laptime = naive_time_millis(max_lap_minutes, max_lap_seconds)
-            .unwrap_or_default()
-            .format("%M:%S%.3f");
+        let max_laptime = if laps_go_minus <= 0.0 {
+            naive_time_millis(minutes, seconds)
+        } else {
+            let max_lap_seconds = length_in_seconds / laps_go_minus;
+            let max_lap_minutes = (max_lap_seconds / 60.0) as u32;
+            naive_time_millis(max_lap_minutes, max_lap_seconds)
+        }
+        .unwrap_or_default()
+        .format("%M:%S%.3f");
 
         let mut fuel_recommended = fuel_needed;
 
