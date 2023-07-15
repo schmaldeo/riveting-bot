@@ -539,9 +539,11 @@ async fn handle_message_create(ctx: &Context, msg: Message) -> AnyResult<()> {
 
     match crate::commands::handle::classic_command(ctx, Arc::clone(&msg)).await {
         Err(CommandError::NotPrefixed) => {
-            // Message was not a command.
+            // Message was not a classic command.
 
-            if msg.mentions.iter().any(|mention| mention.id == ctx.user.id) {
+            if msg.mentions.iter().any(|mention| mention.id == ctx.user.id)
+                && msg.referenced_message.is_none()
+            {
                 // Send bot help message.
                 let about_msg = format!(
                     "Try `/about` or `{prefix}about` for general info, or `/help` or \
