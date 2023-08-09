@@ -32,6 +32,7 @@
 //!
 
 use std::collections::{BTreeMap, HashSet};
+use std::fmt::Write;
 use std::mem;
 use std::pin::Pin;
 use std::sync::Arc;
@@ -263,14 +264,14 @@ impl Commands {
         let mut s = String::new();
 
         if !slash.is_empty() {
-            s.push_str(&format!("/\t{slash}\n"));
+            writeln!(s, "/\t{slash}")?;
         }
         if !classic.is_empty() {
             let prefix = ctx.config.classic_prefix(guild_id)?;
-            s.push_str(&format!("{prefix}\t{classic}\n"));
+            writeln!(s, "{prefix}\t{classic}")?;
         }
         if !gui.is_empty() {
-            s.push_str(&format!("🖱   {gui}\n"));
+            writeln!(s, "🖱   {gui}")?;
         }
 
         Ok(s)

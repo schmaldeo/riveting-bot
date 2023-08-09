@@ -1,3 +1,5 @@
+use std::fmt::Write;
+
 use twilight_mention::Mention;
 use twilight_util::builder::embed::{self, EmbedFieldBuilder, ImageSource};
 
@@ -61,11 +63,10 @@ impl UserInfo {
             embed = embed.field(EmbedFieldBuilder::new("AKA", nick).inline());
         }
 
-        let roles: String = member
-            .roles
-            .into_iter()
-            .map(|i| format!("{} ", i.mention()))
-            .collect();
+        let roles: String = member.roles.into_iter().fold(String::new(), |mut s, i| {
+            let _ = write!(s, "{} ", i.mention());
+            s
+        });
         let roles = roles.trim();
         let roles = if roles.is_empty() { "-" } else { roles };
 

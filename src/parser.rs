@@ -142,8 +142,8 @@ pub fn ensure_rest_is_empty(rest: Option<&str>) -> CommandResult<()> {
 }
 
 #[cfg(test)]
+#[allow(clippy::needless_raw_string_hashes)]
 mod tests {
-
     use super::*;
 
     #[test]
