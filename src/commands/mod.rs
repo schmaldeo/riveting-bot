@@ -39,6 +39,8 @@ use std::sync::Arc;
 use derive_more::{Deref, DerefMut, Index, IntoIterator};
 use futures::Future;
 use thiserror::Error;
+use twilight_model::id::marker::GuildMarker;
+use twilight_model::id::Id;
 
 use crate::commands::builder::twilight::{CommandValidationError, TwilightCommand};
 use crate::commands::builder::BaseCommand;
@@ -233,9 +235,45 @@ impl Commands {
     }
 }
 
-impl std::fmt::Display for Commands {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{:?}", self.0.keys().collect::<Vec<_>>()) // TODO: Display nice list
+impl Commands {
+    fn display(&self, ctx: &Context, guild_id: Option<Id<GuildMarker>>) -> AnyResult<String> {
+        let mut slash = vec![];
+        let mut classic = vec![];
+        let mut gui = vec![];
+
+        for (&k, v) in self.0.iter() {
+            if guild_id.is_none() && !v.dm_enabled {
+                continue;
+            }
+            if v.command.has_slash() {
+                slash.push(k);
+            }
+            if v.command.has_classic() {
+                classic.push(k);
+            }
+            if v.command.has_message() || v.command.has_user() {
+                gui.push(k);
+            }
+        }
+
+        let slash = slash.join(", ");
+        let classic = classic.join(", ");
+        let gui = gui.join(", ");
+
+        let mut s = String::new();
+
+        if !slash.is_empty() {
+            s.push_str(&format!("/\t{slash}\n"));
+        }
+        if !classic.is_empty() {
+            let prefix = ctx.config.classic_prefix(guild_id)?;
+            s.push_str(&format!("{prefix}\t{classic}\n"));
+        }
+        if !gui.is_empty() {
+            s.push_str(&format!("🖱   {gui}\n"));
+        }
+
+        Ok(s)
     }
 }
 

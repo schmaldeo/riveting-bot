@@ -3,7 +3,7 @@ use twilight_model::id::marker::{ChannelMarker, GuildMarker, MessageMarker};
 use twilight_model::id::Id;
 
 use crate::commands::prelude::*;
-// use crate::utils::prelude::*;
+use crate::utils::prelude::*;
 use crate::Context;
 
 /// Command: Ping Pong!
@@ -122,8 +122,8 @@ impl Help {
             .dm()
     }
 
-    fn uber(self, ctx: &Context) -> String {
-        if let Ok(value) = self.args.string("command") {
+    fn uber(self, ctx: &Context) -> AnyResult<String> {
+        Ok(if let Ok(value) = self.args.string("command") {
             ctx.commands.get(&value).map_or_else(
                 || format!("Command `{value}` not found :|"),
                 |cmd| cmd.generate_help(),
@@ -136,9 +136,9 @@ impl Help {
                 {commands}
                 ```",
                 prefix = ctx.config.classic_prefix(self.guild_id).unwrap_or_default(),
-                commands = ctx.commands
+                commands = ctx.commands.display(ctx, self.guild_id)?
             }
-        }
+        })
     }
 
     async fn classic(ctx: Context, req: ClassicRequest) -> CommandResponse {
@@ -148,7 +148,7 @@ impl Help {
             channel_id: Some(req.message.channel_id),
             message_id: Some(req.message.id),
         }
-        .uber(&ctx);
+        .uber(&ctx)?;
 
         ctx.http
             .create_message(req.message.channel_id)
@@ -166,7 +166,7 @@ impl Help {
             channel_id: req.interaction.channel.as_ref().map(|c| c.id),
             message_id: None,
         }
-        .uber(&ctx);
+        .uber(&ctx)?;
 
         ctx.interaction()
             .create_followup(&req.interaction.token)
