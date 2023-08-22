@@ -58,7 +58,10 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     apt update && apt upgrade -y \
     # && apt install -y ca-certificates && update-ca-certificates \
     && apt install -y --no-install-recommends \
-    libopus0 yt-dlp
+    python3-pip libopus0
+
+# It all just works.
+RUN python3 -m pip install --break-system-packages -U yt-dlp
 
 # Copy the build artifact from the build stage.
 COPY --from=builder /app/target/$BOT_TARGET/riveting-bot /app/riveting-bot
