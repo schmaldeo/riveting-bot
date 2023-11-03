@@ -10,6 +10,7 @@ use twilight_http::request::channel::message::{
     CreateMessage, GetChannelMessages, GetChannelMessagesConfigured, GetMessage, UpdateMessage,
 };
 use twilight_http::request::channel::GetChannel;
+use twilight_http::request::guild::CreateGuildChannel;
 use twilight_http::request::guild::emoji::GetEmojis;
 use twilight_http::request::guild::member::GetMember;
 use twilight_http::request::guild::role::GetGuildRoles;
@@ -83,6 +84,7 @@ macro impl_exec_model_ext($req:ty, $val:ty) {
 }
 
 impl_exec_model_ext!(CreateFollowup<'_>, Message);
+impl_exec_model_ext!(CreateGuildChannel<'_>, Channel);
 impl_exec_model_ext!(CreateMessage<'_>, Message);
 impl_exec_model_ext!(GetChannel<'_>, Channel);
 impl_exec_model_ext!(GetChannelMessages<'_>, Vec<Message>);

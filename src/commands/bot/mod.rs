@@ -74,6 +74,7 @@ pub fn create_commands() -> AnyResult<Commands> {
         .bind(user::time::Time::command())
         .bind(user::joke::Joke::command())
         .bind(user::coinflip::Coinflip::command())
+        .bind(user::battleships::Battleships::command())
         .bind(user::user_info::UserInfo::command());
 
     // Moderation functionality.
