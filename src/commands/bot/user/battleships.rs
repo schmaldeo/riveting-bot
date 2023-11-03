@@ -3,7 +3,7 @@ use crate::utils::prelude::*;
 use twilight_model::http::permission_overwrite::{PermissionOverwrite, PermissionOverwriteType};
 use twilight_model::guild::Permissions;
 use twilight_model::channel::Channel;
-use twilight_util::builder::embed::{self, EmbedFieldBuilder, ImageSource};
+use twilight_util::builder::embed::{self, EmbedFieldBuilder};
 
 use crate::commands::prelude::*;
 
@@ -24,10 +24,18 @@ impl Battleships {
         let player2 = req.args.user("user")?.unwrap_id();
         let players = [player1, player2];
         let guild_id = req.interaction.guild_id.unwrap();
+        let mut channels: Vec<Channel> = Vec::new();
 
         let everyone_permission_overwrite = PermissionOverwrite { allow: (None), deny: (Some(Permissions::VIEW_CHANNEL)), id: (guild_id.cast()), kind: (PermissionOverwriteType::Role) };
 
-        let mut channels: Vec<Channel> = Vec::new();
+        let code = include_str!("engine.py");
+        let game: &Result<Py<PyAny>, PyErr> = &Python::with_gil(|py| -> PyResult<PyObject> {
+            let module = PyModule::from_code(py, code, "engine.py", "engine")?;
+            let game = module.getattr("MultiPlayerGame")?.call0();
+
+            Ok(game.unwrap().to_object(py))
+        });
+
         for (index, player) in players.into_iter().enumerate() {
           let channel = ctx.http.create_guild_channel(guild_id, &format!("Player {}", index + 1)).unwrap().send().await?;
           let player_permission_overwrite = PermissionOverwrite { allow: (Some(Permissions::VIEW_CHANNEL)), deny: (None), id: (player.cast()), kind: (PermissionOverwriteType::Member) };
@@ -36,25 +44,21 @@ impl Battleships {
           channels.push(channel);
         }
 
-        let code = include_str!("engine.py");
-        let strong = Python::with_gil(|py| -> PyResult<String> {
-            let module = PyModule::from_code(py, code, "engine.py", "engine")?;
-            let player = module.getattr("Player")?.call1((7, 7))?;
-            let ship_types = module.getattr("ShipType")?.getattr("DESTROYER")?;
-            player.call_method1("random_spawn", (ship_types,))?;
-            let board = player.call_method0("get_stringified_board")?;
-            let res = board.extract::<String>()?;
+        for (index, channel) in channels.iter().enumerate() {
+            let board = Python::with_gil(|py| -> PyResult<String> {
+                let board = game.as_ref().unwrap().getattr(py, format!("player{}", index + 1).as_str()).unwrap().call_method0(py, "get_stringified_board").unwrap();
+    
+                board.extract::<String>(py)
+            });
 
-            Ok(res)
-        }).unwrap();
+            let embed = embed::EmbedBuilder::new()
+                .title("Battleships")
+                .color(0x9500a8)
+                .field(EmbedFieldBuilder::new("Board", format!("Your board:\n```{}```", board.unwrap())))
+                .build();
 
-        let embed = embed::EmbedBuilder::new()
-            .title("Battleships")
-            .color(0x9500a8)
-            .field(EmbedFieldBuilder::new("Board", format!("```{}```", strong)))
-            .build();
-
-        ctx.http.create_message(channels[0].id).embeds(&[embed]).unwrap().await?;
+            ctx.http.create_message(channel.id).embeds(&[embed]).unwrap().await?;
+        }
 
         Ok(Response::clear(ctx, req))
     }

@@ -369,3 +369,23 @@ class MultiPlayerGame:
         self.player1.print_hit_miss_board()
         print("Player 2:")
         self.player2.print_hit_miss_board()
+
+    def print_board(self, player_index):
+        """Prints a player's board"""
+        if player_index == 1:
+          self.player1.print_board()
+          return
+        if player_index == 2:  
+          self.player2.print_board()
+          return
+        raise ValueError("Wrong player index passed, must be 1 or 2")
+
+    def print_hit_miss_board(self, player_index):
+        """Prints a player's hit-miss board"""
+        if player_index == 1:
+          self.player1.print_hit_miss_board()
+          return
+        if player_index == 2:  
+          self.player2.print_hit_miss_board()
+          return
+        raise ValueError("Wrong player index passed, must be 1 or 2")
