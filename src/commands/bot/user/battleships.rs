@@ -31,12 +31,12 @@ impl Battleships {
         let everyone_permission_overwrite = PermissionOverwrite { allow: (None), deny: (Some(Permissions::VIEW_CHANNEL)), id: (guild_id.cast()), kind: (PermissionOverwriteType::Role) };
 
         let code = include_str!("engine.py");
-        let game: &Result<Py<PyAny>, PyErr> = &Python::with_gil(|py| -> PyResult<PyObject> {
+        let game: &PyObject = &Python::with_gil(|py| -> PyResult<PyObject> {
             let module = PyModule::from_code(py, code, "engine.py", "engine")?;
             let game = module.getattr("MultiPlayerGame")?.call0();
 
             Ok(game.unwrap().to_object(py))
-        });
+        }).unwrap();
 
         for (index, player) in players.iter().enumerate() {
           let channel = ctx.http.create_guild_channel(guild_id, &format!("Player {}", index + 1)).unwrap().send().await?;
@@ -48,11 +48,7 @@ impl Battleships {
 
         for (index, channel) in channels.iter().enumerate() {
             // Get a board for the player and create an embed for it
-            let board = Python::with_gil(|py| -> PyResult<String> {
-                let board = game.as_ref().unwrap().getattr(py, format!("player{}", index + 1).as_str()).unwrap().call_method0(py, "get_stringified_board").unwrap();
-    
-                board.extract::<String>(py)
-            });
+            let board = Self::get_board(game, index);
             let embed = embed::EmbedBuilder::new()
                 .title("Battleships")
                 .color(0x9500a8)
@@ -84,5 +80,13 @@ impl Battleships {
         }
 
         Ok(Response::clear(ctx, req))
+    }
+
+    fn get_board(game: &PyObject, player_index: usize) -> Result<String, PyErr>{
+        Python::with_gil(|py| -> PyResult<String> {
+            let board = game.as_ref(py).getattr(format!("player{}", player_index + 1).as_str()).unwrap().call_method0("get_stringified_board").unwrap();
+
+            board.extract::<String>()
+        })
     }
 }
