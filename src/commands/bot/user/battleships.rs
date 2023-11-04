@@ -31,12 +31,13 @@ impl Battleships {
         let everyone_permission_overwrite = PermissionOverwrite { allow: (None), deny: (Some(Permissions::VIEW_CHANNEL)), id: (guild_id.cast()), kind: (PermissionOverwriteType::Role) };
 
         let code = include_str!("engine.py");
-        let game: &PyObject = &Python::with_gil(|py| -> PyResult<PyObject> {
-            let module = PyModule::from_code(py, code, "engine.py", "engine")?;
-            let game = module.getattr("MultiPlayerGame")?.call0();
+        // TODO unwraps
+        let game: &PyObject = &Python::with_gil(|py| -> PyObject {
+            let module = PyModule::from_code(py, code, "engine.py", "engine").unwrap();
+            let game = module.getattr("MultiPlayerGame").unwrap().call0();
 
-            Ok(game.unwrap().to_object(py))
-        }).unwrap();
+            game.unwrap().to_object(py)
+        });
 
         for (index, player) in players.iter().enumerate() {
           let channel = ctx.http.create_guild_channel(guild_id, &format!("Player {}", index + 1)).unwrap().send().await?;
@@ -63,6 +64,7 @@ impl Battleships {
                 ctx.http.create_message(channels[index + 1].id).embeds(&[wait_embed]).unwrap().await?;
             }
             
+            // Make a player place each type of ship
             for ship_type in ship_types {
                 let place_embed = embed::EmbedBuilder::new()
                     .title(format!("Select a place for your **{}**", ship_type))
@@ -70,12 +72,47 @@ impl Battleships {
                     .build();
                 ctx.http.create_message(channel.id).embeds(&[place_embed]).unwrap().await?;
   
-                let message = ctx.standby
-                    .wait_for_message(channel.id, move |event: &MessageCreate| {
-                        event.content.split(',').count() == 3
-                    })
-                    .await?;
-                println!("{}", message.author.name);
+                let mut validated = false;
+                while !validated {
+                    let message = ctx.standby
+                        .wait_for_message(channel.id, move |event: &MessageCreate| {
+                            event.content.split(',').count() == 3
+                            })
+                            .await?;
+                    let split = message.content.split(',').collect::<Vec<&str>>();
+                    for message in &split {
+                        let l = message.trim();
+                        println!("{}", l)
+                    }
+                    let Ok(x) = split[0].trim().parse::<u8>() else { continue };
+                    let Ok(y) = split[1].trim().parse::<u8>() else { continue };
+                    let mut direction = "";
+                    if !split[2].trim().eq_ignore_ascii_case("v") && !split[2].trim().eq_ignore_ascii_case("h") {
+                        continue
+                    } else if split[2].trim().eq_ignore_ascii_case("v") {
+                        direction = "VERTICAL";
+                    } else if split[2].trim().eq_ignore_ascii_case("h") {
+                        direction = "HORIZONTAL";
+                    }
+                    let Ok(_) = Python::with_gil(|py| -> PyResult<PyObject> {
+                        let module = PyModule::from_code(py, code, "engine.py", "engine").unwrap();
+                        // TODO find a way to use integers to get enum values rather than strings
+                        let direction_enum = module.getattr("Direction").unwrap().getattr(direction).unwrap();
+                        let ship_type_enum = module.getattr("ShipType").unwrap().getattr(ship_type.to_ascii_uppercase().as_str()).unwrap();
+                        // TODO failing here
+                        game.getattr(py, format!("player{}", index + 1).as_str()).unwrap().call_method1(py, "put_ship", (ship_type_enum, x, y, direction_enum))
+                    }) else { println!("failed on python"); continue };
+                    validated = true
+                }
+
+                // TODO make a function to avoid repetition
+                let board = Self::get_board(game, index);
+                let embed = embed::EmbedBuilder::new()
+                    .title("Battleships")
+                    .color(0x9500a8)
+                    .field(EmbedFieldBuilder::new("Board", format!("Your board:\n```{}```", board.unwrap())))
+                    .build();
+                ctx.http.create_message(channel.id).embeds(&[embed]).unwrap().await?;
             }
         }
 
