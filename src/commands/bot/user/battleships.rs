@@ -57,6 +57,14 @@ impl Battleships {
                 .build();
             ctx.http.create_message(channel.id).embeds(&[embed]).unwrap().await?;
 
+            let bored = Self::get_board(game, index);
+            let embed = embed::EmbedBuilder::new()
+                .title("Battleships")
+                .color(0x9500a8)
+                .field(EmbedFieldBuilder::new("morong", format!("Your board:\n```{}```", bored.unwrap())))
+                .build();
+            ctx.http.create_message(channel.id).embeds(&[embed]).unwrap().await?;
+
             // TODO both players should be able to place ships at the same time
             // While the first player places their ships, the second one gets a message asking them to wait
             if index == 0 {
